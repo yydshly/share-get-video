@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.2] - 2026-06-14
+
+### Fixed
+- **POST /video-lab/experiments**: Changed from implicit query parameters to explicit JSON body with `CreateExperimentRequest` Pydantic schema — frontend JSON body now matches the API contract, eliminating 422 errors on real page requests
+- **API error responses**: `ValueError` (unknown test case / method) now raises `HTTPException(400)` instead of returning 200 with error field; unexpected exceptions raise `HTTPException(500)`; malformed request body returns FastAPI 422
+- **Frontend error handling**: `handleRun()` now checks `resp.ok` before parsing JSON and surfaces HTTP status + detail message clearly
+
+### Added
+- **`app/video_lab/schemas.py`**: New `CreateExperimentRequest` Pydantic model with `testCaseId`, `methodId`, `title`, `inputPayload`, `params`
+- **`tests/test_video_lab_api.py`**: 12 new API integration tests covering JSON body success, 422 for missing fields, 400 for unknown test case / method, business failure distinction (200 + failed status), and health / list / get endpoints
+
+### Changed
+- **API contract**: Unknown `testCaseId` → HTTP 400; unknown `methodId` → HTTP 400; malformed body → HTTP 422; server error → HTTP 500; experiment business failure (e.g. FFmpeg unavailable) → HTTP 200 with `experiment.status = "failed"`
+
 ## [0.2.1] - 2026-06-14
 
 ### Fixed

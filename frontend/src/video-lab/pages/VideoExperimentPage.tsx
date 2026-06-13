@@ -244,7 +244,13 @@ export default function VideoExperimentPage() {
           params: {},
         }),
       });
-      const data: CreateExperimentResponse = await resp.json();
+
+      let data: CreateExperimentResponse;
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(`${resp.status} ${resp.statusText}: ${errBody.detail ?? ""}`);
+      }
+      data = await resp.json();
       setLastResult(data);
 
       const stored = JSON.parse(localStorage.getItem("vl_experiments") ?? "[]");

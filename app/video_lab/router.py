@@ -9,6 +9,7 @@ from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResu
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
+from app.video_lab.schemas import CreateExperimentRequest
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -50,32 +51,33 @@ def get_method(method_id: str) -> dict[str, Any]:
 # 实验
 # ─────────────────────────────────────────────
 @router.post("/experiments")
-def create_experiment(
-    testCaseId: str,
-    methodId: str,
-    title: str,
-    inputPayload: dict[str, Any] | None = None,
-    params: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """创建并立即执行一个实验"""
+def create_experiment(request: CreateExperimentRequest) -> dict[str, Any]:
+    """
+    Create and immediately run an experiment.
+
+    Returns HTTP 200 with experiment+result on success (even if experiment.status == "failed").
+    Returns HTTP 400 if testCaseId or methodId is unknown.
+    Returns HTTP 422 if request body is malformed.
+    Returns HTTP 500 on unexpected server errors.
+    """
     runner = get_runner()
 
     # 验证 testCaseId
-    tc = get_test_case_by_id(testCaseId)
+    tc = get_test_case_by_id(request.testCaseId)
     if not tc:
-        raise HTTPException(status_code=400, detail=f"Unknown test case: {testCaseId}")
+        raise HTTPException(status_code=400, detail=f"Unknown test case: {request.testCaseId}")
 
     # 验证 methodId
-    m = get_method_by_id(methodId)
+    m = get_method_by_id(request.methodId)
     if not m:
-        raise HTTPException(status_code=400, detail=f"Unknown method: {methodId}")
+        raise HTTPException(status_code=400, detail=f"Unknown method: {request.methodId}")
 
     experiment = runner.create_experiment(
-        test_case_id=testCaseId,
-        method_id=methodId,
-        title=title,
-        input_payload=inputPayload or {},
-        params=params or {},
+        test_case_id=request.testCaseId,
+        method_id=request.methodId,
+        title=request.title,
+        input_payload=request.inputPayload,
+        params=request.params,
     )
 
     try:
@@ -84,11 +86,10 @@ def create_experiment(
             "experiment": experiment.to_dict(),
             "result": result.to_dict(),
         }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        return {
-            "experiment": experiment.to_dict(),
-            "error": str(e),
-        }
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/experiments")

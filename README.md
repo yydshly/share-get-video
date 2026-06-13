@@ -22,14 +22,14 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 
 | 路线 | 说明 | 状态 |
 |------|------|------|
-| `local_frame_compose` | 本地图像帧合成 + FFmpeg | **Real (V0.2.1)** |
+| `local_frame_compose` | 本地图像帧合成 + FFmpeg | **Real (V0.2.2)** |
 | `local_media_compose` | 本地素材合成（MoviePy/FFmpeg） | Mock |
 | `template_programmatic_render` | Remotion 程序化模板渲染 | Mock |
 | `ai_video_direct` | 大模型直接生成视频 | Reserved |
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | Mock |
 | `hybrid_pipeline` | 混合编排流水线 | Mock |
 
-> **V0.2.1 进展**：`local_frame_compose` 真实渲染稳定，修复了 runtime URL、FFmpeg 失败状态语义、artifact 类型分类。
+> **V0.2.2 进展**：`local_frame_compose` 真实渲染稳定，前后端 API 契约修正为 JSON body，API 错误语义规范化，12 个新 API 集成测试全部通过。
 
 ## 测试用例
 
@@ -132,13 +132,38 @@ feature/*     ← 功能开发分支
 ## 下一阶段路线
 
 ```
-V0.2.1：修复 runtime URL + FFmpeg 失败状态语义 + artifact 类型 ✅
-V0.2.2：视频观感与分享体验优化（卡片视觉、简单转场、下载页/分享页）
+V0.2.2：前后端 API 契约修复 + API 集成测试 ✅
+V0.2.3：本地生成视频观感与分享体验优化（卡片视觉、简单转场、下载页/分享页）
 V0.3：Remotion 模板渲染真实 MP4
 V0.4：接入一个视频模型 Adapter
 V0.5：LLM 拆脚本 + TTS + 图片生成 + 合成
 V0.6：批量对比实验 + 产品化报告
 ```
+
+## API 契约
+
+### POST /video-lab/experiments
+
+**Content-Type: application/json**
+
+```json
+{
+  "testCaseId": "case_ai_frontier_daily_001",
+  "methodId": "method_local_frame_compose",
+  "title": "AI frontier daily test",
+  "inputPayload": {"content": "今日 AI 前沿测试内容"},
+  "params": {"targetDuration": 45, "aspectRatio": "9:16"}
+}
+```
+
+| HTTP 状态码 | 含义 |
+|-------------|------|
+| 200 | 请求成功（实验可能已执行，但 `experiment.status` 可能为 `failed`） |
+| 400 | 未知 `testCaseId` 或 `methodId` |
+| 422 | 请求体结构不合法（缺少必填字段等） |
+| 500 | 服务端未知异常 |
+
+**实验业务失败**（如 FFmpeg 不可用）返回 HTTP 200，`experiment.status = "failed"`。这是正常业务结果，不是 HTTP 错误。
 
 ## 文档
 
