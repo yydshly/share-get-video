@@ -18,6 +18,33 @@ const STEP_STATUS_COLORS: Record<string, string> = {
   skipped: "#f59e0b",
 };
 
+function ArtifactDetail({ art }: { art: { id: string; type: string; title: string; summary: string; payload: Record<string, unknown> } }) {
+  const hasPath = Boolean(art.payload?.path || art.payload?.url);
+  return (
+    <div
+      style={{
+        background: "#eff6ff",
+        border: "1px solid #bfdbfe",
+        borderRadius: "6px",
+        padding: "0.5rem",
+        marginBottom: "0.3rem",
+      }}
+    >
+      <div style={{ fontSize: "0.8rem", fontWeight: 500, color: "#1e40af", marginBottom: "0.2rem" }}>
+        {art.title || art.type}
+      </div>
+      <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+        {art.summary}
+      </div>
+      {hasPath && (
+        <div style={{ fontSize: "0.7rem", color: "#93c5fd", marginTop: "0.2rem", fontFamily: "monospace" }}>
+          {(art.payload?.url as string) || (art.payload?.path as string)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StepsTimeline({ steps }: { steps: VideoProductionStep[] }) {
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
 
@@ -134,21 +161,9 @@ function StepsTimeline({ steps }: { steps: VideoProductionStep[] }) {
                   {step.artifacts && step.artifacts.length > 0 && (
                     <div style={{ marginBottom: "0.5rem" }}>
                       <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>产物（{step.artifacts.length}）：</span>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.3rem" }}>
+                      <div style={{ marginTop: "0.3rem" }}>
                         {step.artifacts.map((art) => (
-                          <span
-                            key={art.id}
-                            style={{
-                              background: "#eff6ff",
-                              color: "#3b82f6",
-                              border: "1px solid #bfdbfe",
-                              borderRadius: "4px",
-                              padding: "0.15rem 0.5rem",
-                              fontSize: "0.75rem",
-                            }}
-                          >
-                            {art.type}
-                          </span>
+                          <ArtifactDetail key={art.id} art={art as { id: string; type: string; title: string; summary: string; payload: Record<string, unknown> }} />
                         ))}
                       </div>
                     </div>
@@ -198,6 +213,14 @@ export default function VideoExperimentPage() {
   } | null>(null);
 
   const API_BASE = "http://localhost:8000/video-lab";
+
+  const handleTestCaseChange = (testCaseId: string) => {
+    setSelectedTestCase(testCaseId);
+    const tc = SEED_TEST_CASES.find((t) => t.id === testCaseId);
+    if (tc?.defaultInput) {
+      setInputPayload(tc.defaultInput);
+    }
+  };
 
   const handleRun = async () => {
     if (!selectedTestCase || !selectedMethod || !title.trim()) {
@@ -279,7 +302,7 @@ export default function VideoExperimentPage() {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="例如: AI资讯视频-Remotion方案测试"
+            placeholder="例如: AI资讯视频-LocalFrame方案测试"
             style={{
               width: "100%",
               padding: "0.5rem 0.75rem",
@@ -297,7 +320,7 @@ export default function VideoExperimentPage() {
           </label>
           <select
             value={selectedTestCase}
-            onChange={(e) => setSelectedTestCase(e.target.value)}
+            onChange={(e) => handleTestCaseChange(e.target.value)}
             style={{
               width: "100%",
               padding: "0.5rem 0.75rem",
@@ -346,7 +369,7 @@ export default function VideoExperimentPage() {
           <textarea
             value={inputPayload}
             onChange={(e) => setInputPayload(e.target.value)}
-            rows={4}
+            rows={6}
             style={{
               width: "100%",
               padding: "0.5rem 0.75rem",
@@ -426,10 +449,83 @@ export default function VideoExperimentPage() {
                 <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "0.5rem" }}>
                   <strong>Adapter:</strong> {lastResult.result.adapter}
                 </div>
-                <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
-                  <strong>Video URL:</strong> {lastResult.result.videoUrl || "(空)"}
-                </div>
               </div>
+
+              {/* Video Preview */}
+              {lastResult.result.videoUrl && (
+                <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 500, color: "#1e293b", marginBottom: "0.5rem" }}>
+                    视频预览
+                  </div>
+                  <div
+                    style={{
+                      background: "#1e293b",
+                      borderRadius: "8px",
+                      maxHeight: "400px",
+                      overflow: "hidden",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <video
+                      controls
+                      src={lastResult.result.videoUrl}
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "400px",
+                        objectFit: "contain",
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <a
+                      href={lastResult.result.videoUrl}
+                      download
+                      style={{
+                        background: "#3b82f6",
+                        color: "white",
+                        textDecoration: "none",
+                        borderRadius: "6px",
+                        padding: "0.3rem 0.8rem",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      下载视频
+                    </a>
+                    {lastResult.result.coverUrl && (
+                      <a
+                        href={lastResult.result.coverUrl}
+                        download
+                        style={{
+                          background: "#8b5cf6",
+                          color: "white",
+                          textDecoration: "none",
+                          borderRadius: "6px",
+                          padding: "0.3rem 0.8rem",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        下载封面
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Cover Preview */}
+              {lastResult.result.coverUrl && !lastResult.result.videoUrl && (
+                <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 500, color: "#1e293b", marginBottom: "0.5rem" }}>
+                    封面预览
+                  </div>
+                  <img
+                    src={lastResult.result.coverUrl}
+                    alt="cover"
+                    style={{ maxWidth: "200px", maxHeight: "350px", borderRadius: "8px", objectFit: "contain" }}
+                  />
+                </div>
+              )}
 
               {/* Production Steps Timeline */}
               {lastResult.result.productionSteps && lastResult.result.productionSteps.length > 0 && (

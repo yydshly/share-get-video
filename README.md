@@ -22,12 +22,14 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 
 | 路线 | 说明 | 状态 |
 |------|------|------|
-| `local_frame_compose` | 本地图像帧合成 + FFmpeg | Mock |
+| `local_frame_compose` | 本地图像帧合成 + FFmpeg | **Real (V0.2)** |
 | `local_media_compose` | 本地素材合成（MoviePy/FFmpeg） | Mock |
 | `template_programmatic_render` | Remotion 程序化模板渲染 | Mock |
 | `ai_video_direct` | 大模型直接生成视频 | Reserved |
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | Mock |
 | `hybrid_pipeline` | 混合编排流水线 | Mock |
+
+> **V0.2 进展**：`local_frame_compose` 已支持真实 Pillow 帧生成 + FFmpeg MP4 合成。
 
 ## 测试用例
 
@@ -54,6 +56,12 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 
 ## 本地启动
 
+### 依赖要求
+
+- **Python 3.10+**
+- **FFmpeg**（需在 PATH 中，或 `ffmpeg` 命令可用）
+- **Pillow**（`requirements.txt` 中已包含）
+
 ### 后端
 
 ```bash
@@ -74,17 +82,20 @@ npm run dev
 ## 测试命令
 
 ```bash
-# 后端测试
+# 后端测试（全部）
+python -m pytest tests/ -v
+
+# 后端测试（核心）
 python -m pytest tests/test_video_lab.py -v
+
+# 本地渲染测试
+python -m pytest tests/test_video_lab_local_frame.py -v
 
 # Python 编译检查
 python -m compileall app/ -q
 
 # 前端 TypeScript 检查
 cd frontend && npx tsc --noEmit
-
-# 前端构建
-cd frontend && npm run build
 ```
 
 ## 分支开发规范

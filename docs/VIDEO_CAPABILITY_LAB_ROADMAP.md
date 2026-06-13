@@ -49,23 +49,31 @@
 
 ---
 
-## V0.2 - 本地帧合成 + FFmpeg 真实 MP4
+## V0.2 - 本地帧合成 + FFmpeg 真实 MP4 ✅
 
 **目标**
 输入 `case_ai_frontier_daily_001` → 生成真实封面帧 → 生成多张信息卡片帧 → FFmpeg 合成 30-45 秒 MP4 → 页面预览
 
 ### 里程碑
-- [ ] 实现 `run_local_frame_compose()` 调用真实 Pillow 生成帧
-- [ ] 实现 FFmpeg 合成真实 MP4
-- [ ] 支持 9:16 竖屏输出
-- [ ] 支持字幕 burn-in
-- [ ] 实验结果可下载
+- [x] 实现 `run_local_frame_compose()` 调用真实 Pillow 生成帧
+- [x] 实现 FFmpeg 合成真实 MP4
+- [x] 支持 9:16 竖屏输出
+- [x] 支持字幕 burn-in
+- [x] 实验结果可下载
 
 ### 验收标准
 - 运行 `case_ai_frontier_daily_001` + `local_frame_compose`
 - 输出真实 MP4 文件（可播放）
 - 时长 30-45 秒
 - 包含信息卡片和字幕
+
+### V0.2.1 下一阶段优化
+- 卡片设计优化
+- 简单转场
+- 背景渐变/粒子/动态感
+- 更好的中文排版
+- 下载/分享页
+- 评分面板
 
 ---
 

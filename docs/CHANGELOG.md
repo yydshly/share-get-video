@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.0] - 2026-06-14
+
+### Added
+- **renderers**: New `renderers/` module with `local_frame_renderer.py`, `ffmpeg_composer.py`, `file_store.py`, `text_layout.py`
+- **local_frame_compose**: Upgraded from mock to real rendering - generates PNG frames with Pillow, composites MP4 with FFmpeg
+- **Pillow rendering**: Deep gradient backgrounds, centered Chinese text, info card frames with index/title/body/source
+- **FFmpeg composition**: concat demuxer-based frame sequence → MP4 at 1080x1920 30fps
+- **Static file serving**: `/runtime` mounted for accessing generated video files
+- **frontend**: Auto-fill default input when selecting case, video preview with controls, download links, enhanced artifact details
+- **tests**: 12 new tests in `test_video_lab_local_frame.py`
+- **requirements.txt**: Added Pillow dependency
+- **.gitignore**: Updated to ignore `runtime/` and video/audio file formats
+
+### Changed
+- `local_frame_compose` adapter now produces real MP4 output (if FFmpeg available)
+- FastAPI version bumped to 0.2.0
+
 ## [0.1.1] - 2026-06-14
 
 ### Added

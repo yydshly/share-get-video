@@ -1,17 +1,17 @@
 # Known Limitations
 
-## 当前 V0.1.1 已知限制
+## 当前 V0.2 已知限制
 
-### 1. 所有 Adapter 均为 Mock 状态
+### 1. 部分 Adapter 已升级为真实渲染
 
-- `local_frame_compose` - 返回模拟数据，不生成真实帧
+- `local_frame_compose` - **已支持真实渲染**（Pillow + FFmpeg）
 - `local_media_compose` - 返回模拟数据，不调用 FFmpeg
 - `template_programmatic_render` - 返回模拟数据，不调用 Remotion
 - `ai_video_direct` - Reserved 状态，无 API 接入
 - `ai_asset_then_compose` - 返回模拟数据，不调用 LLM/TTS/图像生成
 - `hybrid_pipeline` - 返回模拟数据，无真实路由引擎
 
-### 2. 无持久化存储
+### 2. FFmpeg 必须可用
 
 - 实验结果存储在内存中（ExperimentRunner 单例）
 - 页面刷新后数据丢失
@@ -58,7 +58,7 @@
 
 | 限制 | 解除版本 | 解除方式 |
 |------|---------|---------|
-| Mock adapter | V0.2 | 实现 local_frame_compose + FFmpeg |
+| local_frame_compose | V0.2 ✅ | Pillow + FFmpeg |
 | Remotion 渲染 | V0.3 | 接入 Node.js + Remotion CLI |
 | AI 视频接入 | V0.4 | 接入 Runway/Kling 等 API |
 | LLM/TTS/图像 | V0.5 | 接入 OpenAI/ElevenLabs/DALL-E |

@@ -7,3 +7,11 @@ __pycache__/
 .env
 *.egg-info/
 .venv/
+runtime/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.wav
+*.mp3

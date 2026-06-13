@@ -91,6 +91,7 @@ export interface VideoTestCase {
   aspectRatio: string;
   evaluationFocus: string[];
   recommendedPriority: number;
+  defaultInput?: string;  // JSON string for input payload
 }
 
 // ─────────────────────────────────────────────
