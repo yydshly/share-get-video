@@ -5,6 +5,23 @@ import type { VideoMethodAdvice } from "./types";
 import { SEED_TEST_CASES, getTestCaseById } from "./seedData";
 
 export const ADVISOR_RULES: Record<string, Omit<VideoMethodAdvice, "scenario">> = {
+  case_ai_frontier_daily_001: {
+    recommendedMethodId: "method_template_programmatic_render",
+    backupMethodIds: ["method_ai_asset_then_compose", "method_local_media_compose"],
+    notRecommendedMethodIds: ["method_ai_video_direct"],
+    reasoning:
+      "AI 资讯共享视频要求信息准确、结构清晰、字幕可控、旁白稳定、批量生成能力强。大模型直接文生视频不适合承载精确信息表达，更适合作为背景素材或情绪镜头。Remotion 模板化渲染可确保文字准确、节奏一致、产品化成本低。",
+    productizationLevel: "high",
+    suggestedStack: ["Remotion", "FFmpeg (字幕压制)", "TTS (旁白)", "结构化数据解析"],
+    riskNotes: ["模板设计成本前期较高", "多条目内容需要拆条处理", "字幕长度需限制以保证可读性"],
+    nextActions: [
+      "优先打通本地帧合成 + FFmpeg 真实 MP4",
+      "再打通 Remotion 模板渲染",
+      "接入 TTS 生成旁白",
+      "接入图片生成做封面和背景素材",
+      "最后再验证 AI 视频模型作为局部素材",
+    ],
+  },
   case_ai_news_short: {
     recommendedMethodId: "method_template_programmatic_render",
     backupMethodIds: ["method_ai_asset_then_compose", "method_local_media_compose"],

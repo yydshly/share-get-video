@@ -58,6 +58,30 @@ export default function VideoLabHome() {
         </p>
       </div>
 
+      {/* First Goal Banner */}
+      <div
+        style={{
+          background: "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)",
+          borderRadius: "12px",
+          padding: "1.5rem",
+          marginBottom: "2rem",
+          color: "white",
+        }}
+      >
+        <div style={{ fontSize: "0.85rem", opacity: 0.85, marginBottom: "0.5rem" }}>
+          第一目标
+        </div>
+        <h2 style={{ fontSize: "1.2rem", fontWeight: 600, marginBottom: "0.5rem" }}>
+          验证 AI 信息获取后的共享视频制作能力
+        </h2>
+        <p style={{ fontSize: "0.9rem", opacity: 0.9, marginBottom: "0.75rem" }}>
+          当前优先场景：<strong>AI 资讯共享短视频</strong>（竖屏 9:16，30-45 秒）
+        </p>
+        <p style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+          第一阶段重点：流程可解释、步骤可追踪、方案可对比
+        </p>
+      </div>
+
       {/* Core Metrics */}
       <div
         style={{

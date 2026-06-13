@@ -5,6 +5,23 @@ import type { VideoTestCase, VideoMethod } from "./types";
 
 export const SEED_TEST_CASES: VideoTestCase[] = [
   {
+    id: "case_ai_frontier_daily_001",
+    name: "今日 AI 前沿共享短视频",
+    description: "将 AI 前沿资讯摘要转成 30-45 秒竖屏共享视频，适合朋友圈/社媒传播",
+    inputType: "ai_insight_summary",
+    targetDurationSec: 45,
+    aspectRatio: "9:16",
+    evaluationFocus: [
+      "信息准确性",
+      "字幕可读性",
+      "视觉层次",
+      "传播吸引力",
+      "批量生成稳定性",
+      "产品化价值",
+    ],
+    recommendedPriority: 1,
+  },
+  {
     id: "case_ai_news_short",
     name: "AI 资讯短视频",
     description: "把一条 AI 资讯或 InsightCard 转成 30-45 秒竖屏短视频",

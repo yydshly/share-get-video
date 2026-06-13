@@ -19,7 +19,45 @@ from app.video_lab.models import (
 # ─────────────────────────────────────────────
 # 内置测试用例
 # ─────────────────────────────────────────────
+AI_INSIGHT_SUMMARY_DEFAULT = """今日AI前沿呈现多维度进展：评估体系方面，多个针对科学推理、地理空间分析、UI用户体验的基准测试集中发布，同时学界开始质疑多智能体系统的实际优势；安全维度上，代理型AI框架的安全漏洞引发关注，人在循环中的研究架构被证明能显著降低失败率；应用层面，开源医学视觉语言模型OpenMedQ超越80倍规模的竞品，BBVA宣布10万员工规模化部署ChatGPT Enterprise，OpenAI则通过收购Ona强化企业级代理能力。技术优化方向上，LoRA缩放因子的深层机制和光学脉冲神经网络成为亮点。
+
+多智能体系统未必优于单智能体：研究发现在推理和交互任务中，自动MAS成本高出10倍却表现更差，揭示当前多智能体协作方法的根本局限
+依据：依据 1
+
+代理型AI框架存在严重安全漏洞：主流框架均未实现内存完整性，单次污染攻击可使政府福利代理的错误拒绝率飙升至88.9%
+依据：依据 1
+
+人在循环中架构可将AI辅助研究失败率从72%降至16%，证明人机认知劳动的结构化分工比模型能力本身更关键
+依据：依据 1
+
+OpenMedQ以完全开源数据训练，在医学视觉问答上超越参数量达5620亿的Med-PaLM M系列，宏F1均值优于主流开源模型
+依据：依据 1
+
+BBVA宣布将ChatGPT Enterprise部署至全部约10万名员工，成为金融行业大规模生成式AI应用的标志性案例
+依据：依据 1
+
+OpenAI收购Ona以强化Codex产品线的安全持久云执行环境，拓展企业级长时间运行AI代理市场
+依据：依据 1"""
+
+
 SEED_TEST_CASES: list[VideoTestCase] = [
+    VideoTestCase(
+        id="case_ai_frontier_daily_001",
+        name="今日 AI 前沿共享短视频",
+        description="将 AI 前沿资讯摘要转成 30-45 秒竖屏共享视频，适合朋友圈/社媒传播",
+        inputType=InputType.AI_INSIGHT_SUMMARY,
+        targetDurationSec=45,
+        aspectRatio="9:16",
+        evaluationFocus=[
+            "信息准确性",
+            "字幕可读性",
+            "视觉层次",
+            "传播吸引力",
+            "批量生成稳定性",
+            "产品化价值",
+        ],
+        recommendedPriority=1,
+    ),
     VideoTestCase(
         id="case_ai_news_short",
         name="AI 资讯短视频",

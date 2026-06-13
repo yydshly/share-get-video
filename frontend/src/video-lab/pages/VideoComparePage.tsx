@@ -5,6 +5,48 @@ import { Link } from "react-router-dom";
 import { SEED_TEST_CASES, getMethodById, METHOD_CATEGORY_LABELS } from "../seedData";
 import type { CreateExperimentResponse } from "../types";
 
+const STATUS_COLORS: Record<string, string> = {
+  succeeded: "#10b981",
+  failed: "#ef4444",
+  running: "#3b82f6",
+  pending: "#94a3b8",
+};
+
+function RiskBadge({ label, level }: { label: string; level: string }) {
+  const color = level === "high" || level === "very_high" ? "#ef4444" : level === "medium" ? "#f59e0b" : "#10b981";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem" }}>
+      <span style={{ color: "#94a3b8" }}>{label}：</span>
+      <span style={{ color, fontWeight: 500 }}>{level}</span>
+    </div>
+  );
+}
+
+function ProductizationBadge({ recommendation }: { recommendation: string }) {
+  const config: Record<string, { bg: string; color: string; label: string }> = {
+    recommended: { bg: "#f0fdf4", color: "#16a34a", label: "✓ 推荐" },
+    backup: { bg: "#fffbeb", color: "#d97706", label: "○ 备选" },
+    not_recommended: { bg: "#fef2f2", color: "#dc2626", label: "✗ 不推荐" },
+    future: { bg: "#eff6ff", color: "#2563eb", label: "○ 未来可选" },
+  };
+  const c = config[recommendation] ?? { bg: "#f8fafc", color: "#64748b", label: recommendation };
+  return (
+    <span
+      style={{
+        background: c.bg,
+        color: c.color,
+        border: `1px solid ${c.color}30`,
+        borderRadius: "999px",
+        padding: "0.15rem 0.6rem",
+        fontSize: "0.8rem",
+        fontWeight: 500,
+      }}
+    >
+      {c.label}
+    </span>
+  );
+}
+
 export default function VideoComparePage() {
   const [experiments, setExperiments] = useState<CreateExperimentResponse[]>([]);
 
@@ -12,13 +54,6 @@ export default function VideoComparePage() {
     const stored = JSON.parse(localStorage.getItem("vl_experiments") ?? "[]");
     setExperiments(stored);
   }, []);
-
-  const STATUS_COLORS: Record<string, string> = {
-    succeeded: "#10b981",
-    failed: "#ef4444",
-    running: "#3b82f6",
-    pending: "#94a3b8",
-  };
 
   // Group by test case
   const grouped: Record<string, CreateExperimentResponse[]> = {};
@@ -92,6 +127,12 @@ export default function VideoComparePage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   {exps.map((exp) => {
                     const method = getMethodById(exp.experiment.methodId);
+                    const rawOutput = exp.result?.rawOutput as Record<string, unknown> | undefined;
+                    const riskAssessment = rawOutput?.riskAssessment as Record<string, string> | undefined;
+                    const recommendation = (rawOutput?.productizationRecommendation as string | undefined) ?? "";
+                    const steps = exp.result?.productionSteps ?? [];
+                    const succeededSteps = steps.filter((s: { status: string }) => s.status === "succeeded").length;
+
                     return (
                       <div
                         key={exp.experiment.id}
@@ -102,7 +143,8 @@ export default function VideoComparePage() {
                           padding: "1.25rem",
                         }}
                       >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        {/* Header */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
                           <div>
                             <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>
                               {exp.experiment.title}
@@ -136,19 +178,65 @@ export default function VideoComparePage() {
                           </div>
                         </div>
 
+                        {/* Key risks + productization row */}
+                        {(riskAssessment || recommendation) && (
+                          <div
+                            style={{
+                              background: "#f8fafc",
+                              border: "1px solid #e2e8f0",
+                              borderRadius: "8px",
+                              padding: "0.75rem",
+                              marginBottom: "0.75rem",
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "0.75rem",
+                              alignItems: "flex-start",
+                            }}
+                          >
+                            {riskAssessment && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                                <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 500 }}>风险评估</span>
+                                {riskAssessment.accuracy && <RiskBadge label="准确性" level={riskAssessment.accuracy} />}
+                                {riskAssessment.stability && <RiskBadge label="稳定性" level={riskAssessment.stability} />}
+                                {riskAssessment.visualAppeal && <RiskBadge label="视觉" level={riskAssessment.visualAppeal} />}
+                                {riskAssessment.productization && <RiskBadge label="产品化" level={riskAssessment.productization} />}
+                              </div>
+                            )}
+                            {recommendation && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                                <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 500 }}>产品化判断</span>
+                                <ProductizationBadge recommendation={recommendation} />
+                                {rawOutput?.productizationReason ? (
+                                  <span style={{ fontSize: "0.75rem", color: "#64748b", maxWidth: "300px" }}>
+                                    {String(rawOutput.productizationReason as string)}
+                                  </span>
+                                ) : null}
+                              </div>
+                            )}
+                            {steps.length > 0 && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                                <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 500 }}>步骤进度</span>
+                                <span style={{ fontSize: "0.8rem", color: "#475569" }}>
+                                  {succeededSteps}/{steps.length} 步骤完成
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Video Preview Placeholder */}
                         <div
                           style={{
-                            marginTop: "1rem",
                             background: "#f1f5f9",
                             border: "1px solid #e2e8f0",
                             borderRadius: "8px",
-                            height: "120px",
+                            height: "100px",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             color: "#94a3b8",
                             fontSize: "0.85rem",
+                            marginBottom: "0.75rem",
                           }}
                         >
                           {exp.result?.videoUrl ? (
@@ -164,42 +252,35 @@ export default function VideoComparePage() {
 
                         {/* Logs */}
                         {exp.result?.logs && exp.result.logs.length > 0 && (
-                          <div style={{ marginTop: "0.75rem" }}>
-                            <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginBottom: "0.3rem" }}>日志摘要：</div>
+                          <details>
+                            <summary
+                              style={{
+                                fontSize: "0.8rem",
+                                color: "#64748b",
+                                cursor: "pointer",
+                                userSelect: "none",
+                              }}
+                            >
+                              执行日志 ({exp.result.logs.length} 条)
+                            </summary>
                             <div
                               style={{
-                                background: "#f8fafc",
-                                border: "1px solid #e2e8f0",
+                                background: "#1e293b",
+                                color: "#e2e8f0",
                                 borderRadius: "6px",
                                 padding: "0.5rem",
                                 fontSize: "0.75rem",
                                 fontFamily: "monospace",
-                                maxHeight: "80px",
+                                maxHeight: "120px",
                                 overflow: "auto",
+                                marginTop: "0.5rem",
                               }}
                             >
-                              {exp.result.logs.slice(0, 3).map((log, i) => (
-                                <div key={i} style={{ color: "#64748b" }}>
-                                  {log}
-                                </div>
+                              {exp.result.logs.map((log, i) => (
+                                <div key={i}>{log}</div>
                               ))}
-                              {exp.result.logs.length > 3 && (
-                                <div style={{ color: "#94a3b8" }}>
-                                  ...还有 {exp.result.logs.length - 3} 行
-                                </div>
-                              )}
                             </div>
-                          </div>
-                        )}
-
-                        {/* Assets */}
-                        {exp.result?.assets && Object.keys(exp.result.assets).length > 0 && (
-                          <div style={{ marginTop: "0.75rem" }}>
-                            <div style={{ fontSize: "0.8rem", color: "#94a3b8", marginBottom: "0.3rem" }}>输出信息：</div>
-                            <div style={{ fontSize: "0.8rem", color: "#475569", fontFamily: "monospace" }}>
-                              {JSON.stringify(exp.result.assets)}
-                            </div>
-                          </div>
+                          </details>
                         )}
 
                         {exp.error && (

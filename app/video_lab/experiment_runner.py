@@ -79,6 +79,7 @@ class ExperimentRunner:
         start = time.time()
         result = adapter_fn(
             experiment_id=experiment_id,
+            test_case_id=experiment.testCaseId,
             input_payload=experiment.inputPayload,
             params=experiment.params,
         )

@@ -1,17 +1,191 @@
 // Video Experiment Page - 创建并运行实验
 
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { SEED_TEST_CASES, SEED_VIDEO_METHODS, METHOD_CATEGORY_LABELS } from "../seedData";
 import type {
   VideoExperiment,
   VideoExperimentResult,
   CreateExperimentResponse,
-  ExperimentWithResult,
+  VideoProductionStep,
 } from "../types";
 
+const STEP_STATUS_COLORS: Record<string, string> = {
+  succeeded: "#10b981",
+  failed: "#ef4444",
+  running: "#3b82f6",
+  pending: "#94a3b8",
+  skipped: "#f59e0b",
+};
+
+function StepsTimeline({ steps }: { steps: VideoProductionStep[] }) {
+  const [expandedStep, setExpandedStep] = useState<string | null>(null);
+
+  return (
+    <div style={{ marginTop: "1.5rem" }}>
+      <div style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "1rem", color: "#1e293b" }}>
+        Production Steps Timeline
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {steps.map((step, idx) => {
+          const isExpanded = expandedStep === step.id;
+          return (
+            <div
+              key={step.id}
+              style={{
+                background: isExpanded ? "#f8fafc" : "white",
+                border: `1px solid ${STEP_STATUS_COLORS[step.status] ?? "#e2e8f0"}30`,
+                borderRadius: "8px",
+                overflow: "hidden",
+              }}
+            >
+              {/* Step header */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0.6rem 0.75rem",
+                  cursor: "pointer",
+                  gap: "0.75rem",
+                }}
+                onClick={() => setExpandedStep(isExpanded ? null : step.id)}
+              >
+                <span
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    borderRadius: "50%",
+                    background: STEP_STATUS_COLORS[step.status] ?? "#94a3b8",
+                    color: "white",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "0.7rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  {idx + 1}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 500, color: "#1e293b" }}>
+                    {step.name}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                    {step.outputSummary ?? step.status}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    background: `${STEP_STATUS_COLORS[step.status] ?? "#94a3b8"}15`,
+                    color: STEP_STATUS_COLORS[step.status] ?? "#94a3b8",
+                    padding: "0.1rem 0.4rem",
+                    borderRadius: "4px",
+                  }}
+                >
+                  {step.status}
+                </span>
+                <span style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
+                  {isExpanded ? "▲" : "▼"}
+                </span>
+              </div>
+
+              {/* Expanded details */}
+              {isExpanded && (
+                <div
+                  style={{
+                    padding: "0.75rem",
+                    borderTop: "1px solid #e2e8f0",
+                    background: "#f8fafc",
+                  }}
+                >
+                  {step.inputSummary && (
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>输入：</span>
+                      <span style={{ fontSize: "0.8rem", color: "#475569" }}>{step.inputSummary}</span>
+                    </div>
+                  )}
+                  {step.outputSummary && (
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>输出：</span>
+                      <span style={{ fontSize: "0.8rem", color: "#475569" }}>{step.outputSummary}</span>
+                    </div>
+                  )}
+                  {step.keyData && Object.keys(step.keyData).length > 0 && (
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>关键数据：</span>
+                      <div
+                        style={{
+                          background: "#1e293b",
+                          color: "#e2e8f0",
+                          borderRadius: "4px",
+                          padding: "0.4rem",
+                          fontSize: "0.75rem",
+                          fontFamily: "monospace",
+                          marginTop: "0.25rem",
+                          overflow: "auto",
+                          maxHeight: "120px",
+                        }}
+                      >
+                        {JSON.stringify(step.keyData, null, 2)}
+                      </div>
+                    </div>
+                  )}
+                  {step.artifacts && step.artifacts.length > 0 && (
+                    <div style={{ marginBottom: "0.5rem" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>产物（{step.artifacts.length}）：</span>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.3rem" }}>
+                        {step.artifacts.map((art) => (
+                          <span
+                            key={art.id}
+                            style={{
+                              background: "#eff6ff",
+                              color: "#3b82f6",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: "4px",
+                              padding: "0.15rem 0.5rem",
+                              fontSize: "0.75rem",
+                            }}
+                          >
+                            {art.type}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {step.logs && step.logs.length > 0 && (
+                    <div>
+                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>日志：</span>
+                      <div
+                        style={{
+                          background: "#1e293b",
+                          color: "#e2e8f0",
+                          borderRadius: "4px",
+                          padding: "0.4rem",
+                          fontSize: "0.75rem",
+                          fontFamily: "monospace",
+                          marginTop: "0.25rem",
+                          maxHeight: "100px",
+                          overflow: "auto",
+                        }}
+                      >
+                        {step.logs.map((log, i) => (
+                          <div key={i}>{log}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function VideoExperimentPage() {
-  const navigate = useNavigate();
   const [selectedTestCase, setSelectedTestCase] = useState("");
   const [selectedMethod, setSelectedMethod] = useState("");
   const [title, setTitle] = useState("");
@@ -50,7 +224,6 @@ export default function VideoExperimentPage() {
       const data: CreateExperimentResponse = await resp.json();
       setLastResult(data);
 
-      // Also store in local state for compare page
       const stored = JSON.parse(localStorage.getItem("vl_experiments") ?? "[]");
       stored.push(data);
       localStorage.setItem("vl_experiments", JSON.stringify(stored));
@@ -78,7 +251,7 @@ export default function VideoExperimentPage() {
   };
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "800px", margin: "0 auto" }}>
+    <div style={{ padding: "2rem", maxWidth: "900px", margin: "0 auto" }}>
       <div style={{ marginBottom: "2rem" }}>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
           创建实验
@@ -245,37 +418,24 @@ export default function VideoExperimentPage() {
           )}
 
           {lastResult.result && (
-            <div style={{ marginTop: "1rem" }}>
-              <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "0.5rem" }}>
-                Provider: {lastResult.result.provider}
-              </div>
-              <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "0.5rem" }}>
-                Adapter: {lastResult.result.adapter}
-              </div>
-              <div style={{ fontSize: "0.85rem", color: "#64748b" }}>Video URL: {lastResult.result.videoUrl || "(空)"}</div>
-
-              {lastResult.result.logs && lastResult.result.logs.length > 0 && (
-                <div style={{ marginTop: "1rem" }}>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 500, marginBottom: "0.4rem" }}>执行日志：</div>
-                  <div
-                    style={{
-                      background: "#f8fafc",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "6px",
-                      padding: "0.75rem",
-                      fontSize: "0.8rem",
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {lastResult.result.logs.map((log, i) => (
-                      <div key={i} style={{ color: "#475569" }}>
-                        {log}
-                      </div>
-                    ))}
-                  </div>
+            <>
+              <div style={{ marginTop: "1rem" }}>
+                <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "0.5rem" }}>
+                  <strong>Provider:</strong> {lastResult.result.provider}
                 </div>
+                <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "0.5rem" }}>
+                  <strong>Adapter:</strong> {lastResult.result.adapter}
+                </div>
+                <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+                  <strong>Video URL:</strong> {lastResult.result.videoUrl || "(空)"}
+                </div>
+              </div>
+
+              {/* Production Steps Timeline */}
+              {lastResult.result.productionSteps && lastResult.result.productionSteps.length > 0 && (
+                <StepsTimeline steps={lastResult.result.productionSteps} />
               )}
-            </div>
+            </>
           )}
 
           <div style={{ marginTop: "1rem" }}>

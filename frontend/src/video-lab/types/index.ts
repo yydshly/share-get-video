@@ -26,7 +26,58 @@ export type InputType =
   | "emotional_content"
   | "product_info"
   | "image"
-  | "knowledge_content";
+  | "knowledge_content"
+  | "ai_insight_summary";
+
+// ─────────────────────────────────────────────
+// ProductionStepStatus
+// ─────────────────────────────────────────────
+export type ProductionStepStatus = "pending" | "running" | "succeeded" | "failed" | "skipped";
+
+// ─────────────────────────────────────────────
+// ArtifactType
+// ─────────────────────────────────────────────
+export type ArtifactType =
+  | "normalized_content"
+  | "key_points"
+  | "video_strategy"
+  | "script"
+  | "storyboard"
+  | "subtitle_plan"
+  | "voiceover_plan"
+  | "asset_plan"
+  | "render_plan"
+  | "mock_video"
+  | "evaluation";
+
+// ─────────────────────────────────────────────
+// VideoProductionArtifact
+// ─────────────────────────────────────────────
+export interface VideoProductionArtifact {
+  id: string;
+  type: ArtifactType;
+  title: string;
+  summary: string;
+  payload: Record<string, unknown>;
+}
+
+// ─────────────────────────────────────────────
+// VideoProductionStep
+// ─────────────────────────────────────────────
+export interface VideoProductionStep {
+  id: string;
+  name: string;
+  description: string;
+  status: ProductionStepStatus;
+  startedAt: string | null;
+  finishedAt: string | null;
+  elapsedMs: number | null;
+  inputSummary: string | null;
+  outputSummary: string | null;
+  keyData: Record<string, unknown> | null;
+  logs: string[];
+  artifacts: VideoProductionArtifact[];
+}
 
 // ─────────────────────────────────────────────
 // VideoTestCase
@@ -91,6 +142,7 @@ export interface VideoExperimentResult {
   provider: string;
   adapter: string;
   rawOutput: Record<string, unknown>;
+  productionSteps: VideoProductionStep[];
 }
 
 // ─────────────────────────────────────────────

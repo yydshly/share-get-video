@@ -63,6 +63,106 @@ class InputType(str, Enum):
     PRODUCT_INFO = "product_info"
     IMAGE = "image"
     KNOWLEDGE_CONTENT = "knowledge_content"
+    AI_INSIGHT_SUMMARY = "ai_insight_summary"
+
+
+class ProductionStepStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class ArtifactType(str, Enum):
+    NORMALIZED_CONTENT = "normalized_content"
+    KEY_POINTS = "key_points"
+    VIDEO_STRATEGY = "video_strategy"
+    SCRIPT = "script"
+    STORYBOARD = "storyboard"
+    SUBTITLE_PLAN = "subtitle_plan"
+    VOICEOVER_PLAN = "voiceover_plan"
+    ASSET_PLAN = "asset_plan"
+    RENDER_PLAN = "render_plan"
+    MOCK_VIDEO = "mock_video"
+    EVALUATION = "evaluation"
+
+
+# ─────────────────────────────────────────────
+# VideoProductionArtifact
+# ─────────────────────────────────────────────
+class VideoProductionArtifact:
+    def __init__(
+        self,
+        artifact_id: str,
+        type: ArtifactType,
+        title: str,
+        summary: str,
+        payload: dict[str, Any],
+    ):
+        self.id = artifact_id
+        self.type = type
+        self.title = title
+        self.summary = summary
+        self.payload = payload
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "type": self.type.value,
+            "title": self.title,
+            "summary": self.summary,
+            "payload": self.payload,
+        }
+
+
+# ─────────────────────────────────────────────
+# VideoProductionStep
+# ─────────────────────────────────────────────
+class VideoProductionStep:
+    def __init__(
+        self,
+        step_id: str,
+        name: str,
+        description: str,
+        status: ProductionStepStatus = ProductionStepStatus.PENDING,
+        started_at: datetime | None = None,
+        finished_at: datetime | None = None,
+        elapsed_ms: int | None = None,
+        input_summary: str | None = None,
+        output_summary: str | None = None,
+        key_data: dict[str, Any] | None = None,
+        logs: list[str] | None = None,
+        artifacts: list[VideoProductionArtifact] | None = None,
+    ):
+        self.id = step_id
+        self.name = name
+        self.description = description
+        self.status = status
+        self.startedAt = started_at
+        self.finishedAt = finished_at
+        self.elapsedMs = elapsed_ms
+        self.inputSummary = input_summary
+        self.outputSummary = output_summary
+        self.keyData = key_data or {}
+        self.logs = logs or []
+        self.artifacts = artifacts or []
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "status": self.status.value,
+            "startedAt": self.startedAt.isoformat() if self.startedAt else None,
+            "finishedAt": self.finishedAt.isoformat() if self.finishedAt else None,
+            "elapsedMs": self.elapsedMs,
+            "inputSummary": self.inputSummary,
+            "outputSummary": self.outputSummary,
+            "keyData": self.keyData,
+            "logs": self.logs,
+            "artifacts": [a.to_dict() for a in self.artifacts],
+        }
 
 
 # ─────────────────────────────────────────────
@@ -210,13 +310,14 @@ class VideoExperimentResult:
     def __init__(
         self,
         experimentId: str,
-        videoUrl: str,
+        videoUrl: str = "",
         coverUrl: str = "",
         assets: dict[str, Any] | None = None,
         logs: list[str] | None = None,
         provider: str = "",
         adapter: str = "",
         rawOutput: dict[str, Any] | None = None,
+        productionSteps: list[VideoProductionStep] | None = None,
     ):
         self.experimentId = experimentId
         self.videoUrl = videoUrl
@@ -226,6 +327,7 @@ class VideoExperimentResult:
         self.provider = provider
         self.adapter = adapter
         self.rawOutput = rawOutput or {}
+        self.productionSteps = productionSteps or []
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -237,6 +339,7 @@ class VideoExperimentResult:
             "provider": self.provider,
             "adapter": self.adapter,
             "rawOutput": self.rawOutput,
+            "productionSteps": [s.to_dict() for s in self.productionSteps],
         }
 
 
