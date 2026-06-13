@@ -28,6 +28,7 @@ function ProductizationBadge({ recommendation }: { recommendation: string }) {
     backup: { bg: "#fffbeb", color: "#d97706", label: "○ 备选" },
     not_recommended: { bg: "#fef2f2", color: "#dc2626", label: "✗ 不推荐" },
     future: { bg: "#eff6ff", color: "#2563eb", label: "○ 未来可选" },
+    failed: { bg: "#fef2f2", color: "#dc2626", label: "✗ 失败" },
   };
   const c = config[recommendation] ?? { bg: "#f8fafc", color: "#64748b", label: recommendation };
   return (
@@ -128,6 +129,7 @@ export default function VideoComparePage() {
                   {exps.map((exp) => {
                     const method = getMethodById(exp.experiment.methodId);
                     const rawOutput = exp.result?.rawOutput as Record<string, unknown> | undefined;
+                    const assets = exp.result?.assets as Record<string, unknown> | undefined;
                     const riskAssessment = rawOutput?.riskAssessment as Record<string, string> | undefined;
                     const recommendation = (rawOutput?.productizationRecommendation as string | undefined) ?? "";
                     const steps = exp.result?.productionSteps ?? [];
@@ -178,7 +180,48 @@ export default function VideoComparePage() {
                           </div>
                         </div>
 
-                        {/* Key risks + productization row */}
+                        {/* Key metrics row */}
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "0.75rem",
+                            alignItems: "center",
+                            marginBottom: "0.75rem",
+                          }}
+                        >
+                          {assets?.frameCount !== undefined && (
+                            <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                              <span style={{ color: "#94a3b8" }}>帧数：</span>
+                              <strong style={{ color: "#1e293b" }}>{String(assets.frameCount)}</strong>
+                            </span>
+                          )}
+                          {assets?.resolution !== undefined && (
+                            <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                              <span style={{ color: "#94a3b8" }}>分辨率：</span>
+                              <strong style={{ color: "#1e293b" }}>{String(assets.resolution)}</strong>
+                            </span>
+                          )}
+                          {assets?.ffmpegSuccess !== undefined && (
+                            <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                              <span style={{ color: "#94a3b8" }}>FFmpeg：</span>
+                              <strong style={{ color: assets.ffmpegSuccess ? "#10b981" : "#ef4444" }}>
+                                {assets.ffmpegSuccess ? "成功" : "失败"}
+                              </strong>
+                            </span>
+                          )}
+                          {recommendation && (
+                            <ProductizationBadge recommendation={recommendation} />
+                          )}
+                          {steps.length > 0 && (
+                            <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                              <span style={{ color: "#94a3b8" }}>步骤：</span>
+                              <strong style={{ color: "#1e293b" }}>{succeededSteps}/{steps.length}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Risk + productization */}
                         {(riskAssessment || recommendation) && (
                           <div
                             style={{
@@ -206,25 +249,12 @@ export default function VideoComparePage() {
                               <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                                 <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 500 }}>产品化判断</span>
                                 <ProductizationBadge recommendation={recommendation} />
-                                {rawOutput?.productizationReason ? (
-                                  <span style={{ fontSize: "0.75rem", color: "#64748b", maxWidth: "300px" }}>
-                                    {String(rawOutput.productizationReason as string)}
-                                  </span>
-                                ) : null}
-                              </div>
-                            )}
-                            {steps.length > 0 && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                                <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 500 }}>步骤进度</span>
-                                <span style={{ fontSize: "0.8rem", color: "#475569" }}>
-                                  {succeededSteps}/{steps.length} 步骤完成
-                                </span>
                               </div>
                             )}
                           </div>
                         )}
 
-                        {/* Video Preview Placeholder */}
+                        {/* Video Preview */}
                         <div
                           style={{
                             background: "#f1f5f9",
@@ -250,38 +280,38 @@ export default function VideoComparePage() {
                           )}
                         </div>
 
-                        {/* Logs */}
-                        {exp.result?.logs && exp.result.logs.length > 0 && (
-                          <details>
-                            <summary
+                        {/* Footer actions */}
+                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                          <Link
+                            to={`/video-lab/experiments/${exp.experiment.id}`}
+                            style={{
+                              background: "#3b82f6",
+                              color: "white",
+                              textDecoration: "none",
+                              borderRadius: "6px",
+                              padding: "0.3rem 0.75rem",
+                              fontSize: "0.8rem",
+                            }}
+                          >
+                            查看详情
+                          </Link>
+                          {exp.result?.videoUrl && (
+                            <a
+                              href={exp.result.videoUrl}
+                              download
                               style={{
-                                fontSize: "0.8rem",
-                                color: "#64748b",
-                                cursor: "pointer",
-                                userSelect: "none",
-                              }}
-                            >
-                              执行日志 ({exp.result.logs.length} 条)
-                            </summary>
-                            <div
-                              style={{
-                                background: "#1e293b",
-                                color: "#e2e8f0",
+                                background: "#10b981",
+                                color: "white",
+                                textDecoration: "none",
                                 borderRadius: "6px",
-                                padding: "0.5rem",
-                                fontSize: "0.75rem",
-                                fontFamily: "monospace",
-                                maxHeight: "120px",
-                                overflow: "auto",
-                                marginTop: "0.5rem",
+                                padding: "0.3rem 0.75rem",
+                                fontSize: "0.8rem",
                               }}
                             >
-                              {exp.result.logs.map((log, i) => (
-                                <div key={i}>{log}</div>
-                              ))}
-                            </div>
-                          </details>
-                        )}
+                              下载视频
+                            </a>
+                          )}
+                        </div>
 
                         {exp.error && (
                           <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#ef4444" }}>

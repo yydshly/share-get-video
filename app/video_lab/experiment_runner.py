@@ -11,6 +11,7 @@ from typing import Any
 from app.video_lab.models import (
     VideoExperiment,
     VideoExperimentResult,
+    VideoExperimentEvaluation,
     ExperimentStatus,
     MethodCategory,
     ProductionStepStatus,
@@ -28,6 +29,7 @@ class ExperimentRunner:
     def __init__(self):
         self._experiments: dict[str, VideoExperiment] = {}
         self._results: dict[str, VideoExperimentResult] = {}
+        self._evaluations: dict[str, VideoExperimentEvaluation] = {}
 
     def create_experiment(
         self,
@@ -126,6 +128,14 @@ class ExperimentRunner:
     def get_result_for_experiment(self, experiment_id: str) -> VideoExperimentResult | None:
         """获取指定实验的结果"""
         return self._results.get(experiment_id)
+
+    def save_evaluation(self, evaluation: VideoExperimentEvaluation) -> None:
+        """保存实验评分"""
+        self._evaluations[evaluation.experimentId] = evaluation
+
+    def get_evaluation(self, experiment_id: str) -> VideoExperimentEvaluation | None:
+        """获取实验评分"""
+        return self._evaluations.get(experiment_id)
 
 
 # 全局单例

@@ -413,6 +413,7 @@ def run_local_frame_compose(
         "warnings": all_warnings,
     }
     manifest_path = write_manifest(experiment_id, manifest)
+    manifest["manifestUrl"] = path_to_url(manifest_path)
 
     manifest_artifact = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_manifest",

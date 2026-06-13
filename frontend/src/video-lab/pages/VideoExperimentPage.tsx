@@ -1,204 +1,21 @@
 // Video Experiment Page - 创建并运行实验
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { SEED_TEST_CASES, SEED_VIDEO_METHODS, METHOD_CATEGORY_LABELS } from "../seedData";
 import type {
   VideoExperiment,
   VideoExperimentResult,
   CreateExperimentResponse,
-  VideoProductionStep,
 } from "../types";
+import ProductionStepsTimeline from "../components/ProductionStepsTimeline";
 
-const STEP_STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, string> = {
   succeeded: "#10b981",
   failed: "#ef4444",
   running: "#3b82f6",
   pending: "#94a3b8",
-  skipped: "#f59e0b",
 };
-
-function ArtifactDetail({ art }: { art: { id: string; type: string; title: string; summary: string; payload: Record<string, unknown> } }) {
-  const hasPath = Boolean(art.payload?.path || art.payload?.url);
-  return (
-    <div
-      style={{
-        background: "#eff6ff",
-        border: "1px solid #bfdbfe",
-        borderRadius: "6px",
-        padding: "0.5rem",
-        marginBottom: "0.3rem",
-      }}
-    >
-      <div style={{ fontSize: "0.8rem", fontWeight: 500, color: "#1e40af", marginBottom: "0.2rem" }}>
-        {art.title || art.type}
-      </div>
-      <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
-        {art.summary}
-      </div>
-      {hasPath && (
-        <div style={{ fontSize: "0.7rem", color: "#93c5fd", marginTop: "0.2rem", fontFamily: "monospace" }}>
-          {(art.payload?.url as string) || (art.payload?.path as string)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StepsTimeline({ steps }: { steps: VideoProductionStep[] }) {
-  const [expandedStep, setExpandedStep] = useState<string | null>(null);
-
-  return (
-    <div style={{ marginTop: "1.5rem" }}>
-      <div style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "1rem", color: "#1e293b" }}>
-        Production Steps Timeline
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {steps.map((step, idx) => {
-          const isExpanded = expandedStep === step.id;
-          return (
-            <div
-              key={step.id}
-              style={{
-                background: isExpanded ? "#f8fafc" : "white",
-                border: `1px solid ${STEP_STATUS_COLORS[step.status] ?? "#e2e8f0"}30`,
-                borderRadius: "8px",
-                overflow: "hidden",
-              }}
-            >
-              {/* Step header */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "0.6rem 0.75rem",
-                  cursor: "pointer",
-                  gap: "0.75rem",
-                }}
-                onClick={() => setExpandedStep(isExpanded ? null : step.id)}
-              >
-                <span
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
-                    background: STEP_STATUS_COLORS[step.status] ?? "#94a3b8",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.7rem",
-                    flexShrink: 0,
-                  }}
-                >
-                  {idx + 1}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 500, color: "#1e293b" }}>
-                    {step.name}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                    {step.outputSummary ?? step.status}
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.75rem",
-                    background: `${STEP_STATUS_COLORS[step.status] ?? "#94a3b8"}15`,
-                    color: STEP_STATUS_COLORS[step.status] ?? "#94a3b8",
-                    padding: "0.1rem 0.4rem",
-                    borderRadius: "4px",
-                  }}
-                >
-                  {step.status}
-                </span>
-                <span style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
-                  {isExpanded ? "▲" : "▼"}
-                </span>
-              </div>
-
-              {/* Expanded details */}
-              {isExpanded && (
-                <div
-                  style={{
-                    padding: "0.75rem",
-                    borderTop: "1px solid #e2e8f0",
-                    background: "#f8fafc",
-                  }}
-                >
-                  {step.inputSummary && (
-                    <div style={{ marginBottom: "0.5rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>输入：</span>
-                      <span style={{ fontSize: "0.8rem", color: "#475569" }}>{step.inputSummary}</span>
-                    </div>
-                  )}
-                  {step.outputSummary && (
-                    <div style={{ marginBottom: "0.5rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>输出：</span>
-                      <span style={{ fontSize: "0.8rem", color: "#475569" }}>{step.outputSummary}</span>
-                    </div>
-                  )}
-                  {step.keyData && Object.keys(step.keyData).length > 0 && (
-                    <div style={{ marginBottom: "0.5rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>关键数据：</span>
-                      <div
-                        style={{
-                          background: "#1e293b",
-                          color: "#e2e8f0",
-                          borderRadius: "4px",
-                          padding: "0.4rem",
-                          fontSize: "0.75rem",
-                          fontFamily: "monospace",
-                          marginTop: "0.25rem",
-                          overflow: "auto",
-                          maxHeight: "120px",
-                        }}
-                      >
-                        {JSON.stringify(step.keyData, null, 2)}
-                      </div>
-                    </div>
-                  )}
-                  {step.artifacts && step.artifacts.length > 0 && (
-                    <div style={{ marginBottom: "0.5rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>产物（{step.artifacts.length}）：</span>
-                      <div style={{ marginTop: "0.3rem" }}>
-                        {step.artifacts.map((art) => (
-                          <ArtifactDetail key={art.id} art={art as { id: string; type: string; title: string; summary: string; payload: Record<string, unknown> }} />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {step.logs && step.logs.length > 0 && (
-                    <div>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>日志：</span>
-                      <div
-                        style={{
-                          background: "#1e293b",
-                          color: "#e2e8f0",
-                          borderRadius: "4px",
-                          padding: "0.4rem",
-                          fontSize: "0.75rem",
-                          fontFamily: "monospace",
-                          marginTop: "0.25rem",
-                          maxHeight: "100px",
-                          overflow: "auto",
-                        }}
-                      >
-                        {step.logs.map((log, i) => (
-                          <div key={i}>{log}</div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 export default function VideoExperimentPage() {
   const [selectedTestCase, setSelectedTestCase] = useState("");
@@ -212,6 +29,7 @@ export default function VideoExperimentPage() {
     error?: string;
   } | null>(null);
 
+  const navigate = useNavigate();
   const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
   const handleTestCaseChange = (testCaseId: string) => {
@@ -424,12 +242,7 @@ export default function VideoExperimentPage() {
             <strong>状态：</strong>{" "}
             <span
               style={{
-                color:
-                  lastResult.experiment.status === "succeeded"
-                    ? "#10b981"
-                    : lastResult.experiment.status === "failed"
-                    ? "#ef4444"
-                    : "#64748b",
+                color: STATUS_COLORS[lastResult.experiment.status] ?? "#64748b",
               }}
             >
               {lastResult.experiment.status}
@@ -519,7 +332,7 @@ export default function VideoExperimentPage() {
                 </div>
               )}
 
-              {/* Cover Preview */}
+              {/* Cover Preview (no video) */}
               {lastResult.result.coverUrl && !lastResult.result.videoUrl && (
                 <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
                   <div style={{ fontSize: "0.85rem", fontWeight: 500, color: "#1e293b", marginBottom: "0.5rem" }}>
@@ -534,13 +347,28 @@ export default function VideoExperimentPage() {
               )}
 
               {/* Production Steps Timeline */}
-              {lastResult.result.productionSteps && lastResult.result.productionSteps.length > 0 && (
-                <StepsTimeline steps={lastResult.result.productionSteps} />
+              {lastResult.result.productionSteps.length > 0 && (
+                <ProductionStepsTimeline steps={lastResult.result.productionSteps} />
               )}
             </>
           )}
 
-          <div style={{ marginTop: "1rem" }}>
+          {/* Navigation buttons */}
+          <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <button
+              onClick={() => navigate(`/video-lab/experiments/${lastResult.experiment.id}`)}
+              style={{
+                background: "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                padding: "0.4rem 0.9rem",
+                fontSize: "0.85rem",
+                cursor: "pointer",
+              }}
+            >
+              查看详情
+            </button>
             <Link
               to="/video-lab/compare"
               style={{
@@ -548,7 +376,7 @@ export default function VideoExperimentPage() {
                 color: "white",
                 textDecoration: "none",
                 borderRadius: "8px",
-                padding: "0.4rem 0.8rem",
+                padding: "0.4rem 0.9rem",
                 fontSize: "0.85rem",
               }}
             >

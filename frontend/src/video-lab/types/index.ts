@@ -151,7 +151,24 @@ export interface VideoExperimentResult {
 }
 
 // ─────────────────────────────────────────────
-// VideoEvaluation
+// VideoExperimentEvaluation  (V0.2.3)
+// ─────────────────────────────────────────────
+export interface VideoExperimentEvaluation {
+  experimentId: string;
+  informationAccuracy: number;
+  readability: number;
+  visualQuality: number;
+  pacing: number;
+  shareability: number;
+  stability: number;
+  productizationValue: number;
+  averageScore: number | null;
+  notes: string;
+  [key: string]: unknown;
+}
+
+// ─────────────────────────────────────────────
+// VideoEvaluation (legacy)
 // ─────────────────────────────────────────────
 export interface VideoEvaluation {
   experimentId: string;

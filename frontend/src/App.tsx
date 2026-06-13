@@ -5,6 +5,7 @@ import VideoLabHome from "./video-lab/pages/VideoLabHome";
 import VideoTestCasesPage from "./video-lab/pages/VideoTestCasesPage";
 import VideoMethodsPage from "./video-lab/pages/VideoMethodsPage";
 import VideoExperimentPage from "./video-lab/pages/VideoExperimentPage";
+import VideoExperimentDetailPage from "./video-lab/pages/VideoExperimentDetailPage";
 import VideoComparePage from "./video-lab/pages/VideoComparePage";
 import VideoAdvicePage from "./video-lab/pages/VideoAdvicePage";
 
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/video-lab/test-cases" element={<VideoTestCasesPage />} />
         <Route path="/video-lab/methods" element={<VideoMethodsPage />} />
         <Route path="/video-lab/experiments/new" element={<VideoExperimentPage />} />
+        <Route path="/video-lab/experiments/:id" element={<VideoExperimentDetailPage />} />
         <Route path="/video-lab/compare" element={<VideoComparePage />} />
         <Route path="/video-lab/advice" element={<VideoAdvicePage />} />
         <Route path="/" element={<Navigate to="/video-lab" replace />} />

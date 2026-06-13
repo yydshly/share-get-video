@@ -348,7 +348,65 @@ class VideoExperimentResult:
 
 
 # ─────────────────────────────────────────────
-# VideoEvaluation
+# VideoExperimentEvaluation  (V0.2.3 人工评分)
+# ─────────────────────────────────────────────
+class VideoExperimentEvaluation:
+    """
+    Human evaluation for a completed experiment.
+    Each dimension is rated 1-5.
+    """
+
+    def __init__(
+        self,
+        experimentId: str,
+        informationAccuracy: int = 0,
+        readability: int = 0,
+        visualQuality: int = 0,
+        pacing: int = 0,
+        shareability: int = 0,
+        stability: int = 0,
+        productizationValue: int = 0,
+        notes: str = "",
+    ):
+        self.experimentId = experimentId
+        self.informationAccuracy = informationAccuracy
+        self.readability = readability
+        self.visualQuality = visualQuality
+        self.pacing = pacing
+        self.shareability = shareability
+        self.stability = stability
+        self.productizationValue = productizationValue
+        self.notes = notes
+
+    def average_score(self) -> float | None:
+        scores = [s for s in [
+            self.informationAccuracy,
+            self.readability,
+            self.visualQuality,
+            self.pacing,
+            self.shareability,
+            self.stability,
+            self.productizationValue,
+        ] if s > 0]
+        return sum(scores) / len(scores) if scores else None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "experimentId": self.experimentId,
+            "informationAccuracy": self.informationAccuracy,
+            "readability": self.readability,
+            "visualQuality": self.visualQuality,
+            "pacing": self.pacing,
+            "shareability": self.shareability,
+            "stability": self.stability,
+            "productizationValue": self.productizationValue,
+            "averageScore": self.average_score(),
+            "notes": self.notes,
+        }
+
+
+# ─────────────────────────────────────────────
+# VideoEvaluation  (legacy — kept for compatibility)
 # ─────────────────────────────────────────────
 class VideoEvaluation:
     def __init__(

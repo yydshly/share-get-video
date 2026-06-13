@@ -29,7 +29,7 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | Mock |
 | `hybrid_pipeline` | 混合编排流水线 | Mock |
 
-> **V0.2.2 进展**：`local_frame_compose` 真实渲染稳定，前后端 API 契约修正为 JSON body，API 错误语义规范化，12 个新 API 集成测试全部通过。
+> **V0.2.3 进展**：`local_frame_compose` 真实渲染稳定，新增实验详情页、人工评分、实验结论、产物展示、对比页增强，API 错误语义规范化。
 
 ## 测试用例
 
@@ -51,6 +51,7 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 | `/video-lab/test-cases` | 测试用例列表 |
 | `/video-lab/methods` | 生成方案列表 |
 | `/video-lab/experiments/new` | 创建实验 |
+| `/video-lab/experiments/:id` | 实验详情（视频预览、评分、结论） |
 | `/video-lab/compare` | 结果对比 |
 | `/video-lab/advice` | 总结建议 |
 
@@ -132,8 +133,8 @@ feature/*     ← 功能开发分支
 ## 下一阶段路线
 
 ```
-V0.2.2：前后端 API 契约修复 + API 集成测试 ✅
-V0.2.3：本地生成视频观感与分享体验优化（卡片视觉、简单转场、下载页/分享页）
+V0.2.3：实验详情页 + 人工评分 + 对比增强 ✅
+V0.2.4：本地生成视频视觉质量优化（卡片模板、简单转场）
 V0.3：Remotion 模板渲染真实 MP4
 V0.4：接入一个视频模型 Adapter
 V0.5：LLM 拆脚本 + TTS + 图片生成 + 合成

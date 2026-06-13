@@ -5,11 +5,11 @@ Video Capability Lab - FastAPI Router
 from typing import Any
 from fastapi import APIRouter, HTTPException
 
-from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResult
+from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResult, VideoExperimentEvaluation
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
-from app.video_lab.schemas import CreateExperimentRequest
+from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -131,6 +131,48 @@ def get_experiments_by_test_case(test_case_id: str) -> dict[str, Any]:
         "testCase": tc.to_dict() if tc else None,
         "experiments": results,
     }
+
+
+# ─────────────────────────────────────────────
+# 人工评分
+# ─────────────────────────────────────────────
+@router.post("/experiments/{experiment_id}/evaluation")
+def save_evaluation(experiment_id: str, request: SaveEvaluationRequest) -> dict[str, Any]:
+    """
+    Save a human evaluation for an experiment.
+    Returns HTTP 404 if the experiment does not exist.
+    """
+    runner = get_runner()
+    exp = runner.get_experiment(experiment_id)
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment not found: {experiment_id}")
+
+    evaluation = VideoExperimentEvaluation(
+        experimentId=experiment_id,
+        informationAccuracy=request.informationAccuracy,
+        readability=request.readability,
+        visualQuality=request.visualQuality,
+        pacing=request.pacing,
+        shareability=request.shareability,
+        stability=request.stability,
+        productizationValue=request.productizationValue,
+        notes=request.notes,
+    )
+    runner.save_evaluation(evaluation)
+    return evaluation.to_dict()
+
+
+@router.get("/experiments/{experiment_id}/evaluation")
+def get_evaluation(experiment_id: str) -> dict[str, Any]:
+    """
+    Get the human evaluation for an experiment.
+    Returns HTTP 404 if no evaluation has been saved.
+    """
+    runner = get_runner()
+    evaluation = runner.get_evaluation(experiment_id)
+    if not evaluation:
+        raise HTTPException(status_code=404, detail=f"No evaluation found for experiment: {experiment_id}")
+    return evaluation.to_dict()
 
 
 # ─────────────────────────────────────────────

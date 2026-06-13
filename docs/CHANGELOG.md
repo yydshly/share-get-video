@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.3] - 2026-06-14
+
+### Added
+- **Experiment Detail Page**: New `/video-lab/experiments/:id` page showing full experiment details including video preview, cover, assets, steps timeline, artifacts list, experiment summary, and evaluation panel
+- **ArtifactViewer Component**: Reusable component for displaying artifacts — handles `video_output`, `cover_image`, `frame_image`, `manifest`, and other artifact types with preview and download links
+- **ProductionStepsTimeline Component**: Reusable timeline component for production steps — shows status, input/output summaries, keyData, artifacts, and logs; uses ArtifactViewer internally
+- **EvaluationPanel Component**: Human evaluation form with star ratings (1-5) across 7 dimensions (informationAccuracy, readability, visualQuality, pacing, shareability, stability, productizationValue) + notes; saves via POST /experiments/{id}/evaluation
+- **ExperimentSummaryPanel Component**: Auto-generated experiment conclusion based on result + evaluation — shows recommendation badge (高/中/低), strengths, problems, and next steps
+- **VideoExperimentEvaluation Model**: New evaluation model in `models.py` with 7 dimensions and `averageScore()` method
+- **Evaluation API**: `POST /video-lab/experiments/{id}/evaluation` and `GET /video-lab/experiments/{id}/evaluation` endpoints
+- **ExperimentRunner evaluation storage**: `save_evaluation()` and `get_evaluation()` methods
+- **manifestUrl**: Added `manifestUrl` field to `manifest.json` payload for direct download
+- **Compare Page**: Enhanced with frame count, resolution, FFmpeg status, productization badge, "查看详情" button per card
+
+### Changed
+- **Frontend routing**: Added `/video-lab/experiments/:id` route for experiment detail page
+- **Frontend error handling**: Improved error display in experiment creation page
+
 ## [0.2.2] - 2026-06-14
 
 ### Fixed

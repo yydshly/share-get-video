@@ -1,6 +1,6 @@
 # Known Limitations
 
-## 当前 V0.2.2 已知限制
+## 当前 V0.2.3 已知限制
 
 ### 1. 部分 Adapter 已升级为真实渲染
 
@@ -15,14 +15,13 @@
 
 - `local_frame_compose` 依赖 FFmpeg 进行视频合成
 - FFmpeg 不可用时，视频合成步骤会失败（`step.status = failed`），实验整体状态为 `failed`
-- 实验结果存储在内存中（ExperimentRunner 单例）
-- 页面刷新后数据丢失
-- 对比页依赖 localStorage
 
 ### 3. 无数据库
 
-- 所有配置（test cases、methods）来自 seed_data.py
-- 无动态增删改
+- 实验结果和人工评分均存储在后端内存中（ExperimentRunner 单例）
+- 服务重启后数据丢失
+- 对比页依赖 localStorage 缓存（后端内存丢失后 localStorage 中的索引仍存在，但关联数据已不可用）
+- 所有配置（test cases、methods）来自 seed_data.py，无动态增删改
 
 ### 4. ai_video_direct 为 Reserved
 
@@ -48,7 +47,7 @@
 
 ### 8. 无自动化评分
 
-- VideoEvaluation 评分需要人工输入
+- VideoExperimentEvaluation 评分需要人工输入
 - 无 LLM 自动评分
 
 ### 9. 前端无真实 API 调用

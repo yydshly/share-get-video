@@ -2,7 +2,7 @@
 Video Capability Lab - Request/Response Schemas
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Any
 
 
@@ -32,3 +32,16 @@ class CreateExperimentRequest(BaseModel):
             }
         }
     }
+
+
+class SaveEvaluationRequest(BaseModel):
+    """JSON body for POST /video-lab/experiments/{id}/evaluation"""
+
+    informationAccuracy: int = Field(..., ge=1, le=5, description="信息准确性 1-5")
+    readability: int = Field(..., ge=1, le=5, description="可读性 1-5")
+    visualQuality: int = Field(..., ge=1, le=5, description="视觉质量 1-5")
+    pacing: int = Field(..., ge=1, le=5, description="节奏 1-5")
+    shareability: int = Field(..., ge=1, le=5, description="分享价值 1-5")
+    stability: int = Field(..., ge=1, le=5, description="稳定性 1-5")
+    productizationValue: int = Field(..., ge=1, le=5, description="产品化价值 1-5")
+    notes: str = Field(default="", description="用户备注")
