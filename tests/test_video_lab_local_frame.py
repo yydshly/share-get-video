@@ -307,7 +307,6 @@ def test_cleanup_experiment_runtime():
         cleanup_experiment_runtime,
         write_manifest,
     )
-    from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
 
     # Create a real experiment runtime
     ensure_runtime_exists()
@@ -324,6 +323,24 @@ def test_cleanup_experiment_runtime():
     removed = cleanup_experiment_runtime(test_exp_id)
     assert removed is True, "cleanup_experiment_runtime should return True when dir existed"
     assert not exp_dir.exists(), f"Expected {exp_dir} to not exist after cleanup"
+
+
+def test_cleanup_experiment_runtime_returns_false_when_missing():
+    """cleanup_experiment_runtime should return False when dir does not exist; must not create the dir."""
+    from app.video_lab.renderers.file_store import cleanup_experiment_runtime, RUNTIME_BASE
+
+    experiment_id = "exp_cleanup_missing_test"
+    exp_dir = RUNTIME_BASE / experiment_id
+
+    # Ensure it does not exist
+    import shutil
+    if exp_dir.exists():
+        shutil.rmtree(exp_dir)
+
+    result = cleanup_experiment_runtime(experiment_id)
+
+    assert result is False, "cleanup_experiment_runtime should return False when dir is missing"
+    assert not exp_dir.exists(), "cleanup_experiment_runtime must NOT create the directory when missing"
 
 
 if __name__ == "__main__":

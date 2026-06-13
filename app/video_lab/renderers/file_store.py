@@ -73,11 +73,14 @@ def read_manifest(experiment_id: str) -> dict | None:
 def cleanup_experiment_runtime(experiment_id: str) -> bool:
     """
     Remove an experiment's runtime directory.
-    Returns True if removed, False if it didn't exist.
+    Returns True if removed, False if it did not exist.
+    Does NOT create the directory if it is missing.
     """
     import shutil
-    exp_dir = get_experiment_dir(experiment_id)
-    if exp_dir.exists():
-        shutil.rmtree(exp_dir)
-        return True
-    return False
+
+    exp_dir = RUNTIME_BASE / experiment_id
+    if not exp_dir.exists():
+        return False
+
+    shutil.rmtree(exp_dir)
+    return True
