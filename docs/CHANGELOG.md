@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.4] - 2026-06-14
+
+### Added
+- **visual_theme.py**: New module defining AI Frontier Dark preset - colors, typography (font sizes), spacing, shadows, category colors, and blend utilities
+- **frame_templates.py**: New module with template functions for cover, overview, keypoint, and summary frames using Pillow
+- **transition_composer.py**: New module for fade transitions - generates intermediate Pillow frames between main frames
+- **text_layout.py enhancements**: Added `extract_highlights()`, `split_lines_with_max_count()`, `fit_font_size()`, `wrap_text_by_visual_width()` functions
+
+### Changed
+- **local_frame_renderer.py**: Upgraded to use AI Frontier Dark visual templates with enhanced cover, new overview frame, improved keypoint frames with category tags and highlight support, and optimized summary frame
+- **local_frame_compose.py**: Manifest and assets now include `visualPreset`, `templateVersion`, `transitionEnabled`, `transitionType`, `transitionFrames`, and `highlightTerms` fields
+- **EvaluationPanel.tsx**: Fixed opacity bug - save button now correctly uses `!allRated` instead of checking if all scores are 0
+- **Cover template**: Now includes top label ("AI Frontier Radar"), subtitle, 3 signal tags, decorative elements, date, and footer
+- **Overview template**: New frame type showing top 4 key points with indices (V0.2.4 new)
+- **Keypoint template**: Enhanced with category tag, title with highlight support, body with highlight extraction, and improved layout
+- **Summary template**: Now includes numbered conclusions and CTA section
+
+### Fixed
+- **text_layout.py**: Enhanced Chinese text wrapping with better visual width estimation and line count limiting
+
 ## [0.2.3.1] - 2026-06-14
 
 ### Fixed

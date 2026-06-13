@@ -2,8 +2,9 @@
 Text Layout - Chinese text wrapping and layout utilities for Pillow
 """
 
+import re
 from PIL import Image, ImageDraw, ImageFont
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 
 # System font search order for Chinese
@@ -21,6 +22,23 @@ FONT_CANDIDATES = [
     # macOS
     "/System/Library/Fonts/PingFang.ttc",
     "/Library/Fonts/Arial Unicode.ttf",
+]
+
+
+# Highlight patterns for extracting key numbers/keywords
+HIGHLIGHT_PATTERNS = [
+    # Percentages: 88.9%, 72%, 16%
+    (r'\d+\.?\d*%', 'percentage'),
+    # Multipliers: 10倍, 5x, 3X
+    (r'\d+\.?\d*[xX倍]', 'multiplier'),
+    # Large numbers with units: 10万, 5620亿, 100万, 50亿
+    (r'\d+[一-龥]+', 'chinese_number'),
+    # Numbers followed by specific words
+    (r'\d+\.?\d*(?:名|人|员工|用户|企业|模型|参数|亿|万)', 'number_with_unit'),
+    # Decimal numbers > 10: 88.9, 72.5
+    (r'\d{2,}\.\d+', 'large_decimal'),
+    # Large round numbers: 1000, 5000, 10000
+    (r'[1-9]\d{3,}', 'large_integer'),
 ]
 
 
@@ -57,10 +75,6 @@ def wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: Ima
 
     lines = []
     current_line = ""
-
-    # Estimate characters that fit based on average character width
-    # For 1080px width at font_size ~36, roughly 20-25 chars per line
-    avg_char_width = int(font.size * 0.6)
 
     for char in text:
         test_line = current_line + char
@@ -126,3 +140,172 @@ def center_text_in_region(
     x = (region_width - text_width) // 2
     y = (region_height - text_height) // 2
     return x, y
+
+
+def extract_highlights(text: str) -> List[str]:
+    """
+    Extract highlight terms from text.
+    Recognizes: percentages, multipliers, large numbers, Chinese number phrases.
+
+    Args:
+        text: Input text
+
+    Returns:
+        List of highlight terms found in text (deduplicated, order of first appearance)
+    """
+    if not text:
+        return []
+
+    found = []
+    seen = set()
+
+    for pattern, pattern_type in HIGHLIGHT_PATTERNS:
+        for match in re.finditer(pattern, text):
+            term = match.group()
+            if term not in seen:
+                seen.add(term)
+                found.append(term)
+
+    return found
+
+
+def split_lines_with_max_count(
+    text: str,
+    font: ImageFont.FreeTypeFont,
+    max_width: int,
+    draw: ImageDraw.ImageDraw,
+    max_lines: int = 3,
+) -> List[str]:
+    """
+    Split text into lines, limiting to max_lines.
+    If text exceeds max_lines, it will be truncated with ellipsis.
+
+    Args:
+        text: Input text
+        font: Font to use
+        max_width: Maximum width per line in pixels
+        draw: ImageDraw instance
+        max_lines: Maximum number of lines allowed
+
+    Returns:
+        List of lines (max max_lines)
+    """
+    if not text:
+        return [""]
+
+    # First wrap the text
+    wrapped = wrap_text(text, font, max_width, draw)
+
+    # If within limit, return as-is
+    if len(wrapped) <= max_lines:
+        return wrapped
+
+    # Truncate the last line to fit
+    result = wrapped[:max_lines]
+    last_line_idx = max_lines - 1
+
+    # Try to append ellipsis to the last line
+    if result:
+        last_line = result[last_line_idx]
+        truncated = truncate_text(last_line, 15)  # Conservative truncation
+        result[last_line_idx] = truncated
+
+    return result
+
+
+def fit_font_size(
+    text: str,
+    max_width: int,
+    max_height: int,
+    font_candidates: Optional[List[int]] = None,
+    draw: Optional[ImageDraw.ImageDraw] = None,
+) -> int:
+    """
+    Find the largest font size that fits text within max_width and max_height.
+
+    Args:
+        text: Text to fit
+        max_width: Maximum width in pixels
+        max_height: Maximum height in pixels
+        font_candidates: List of font sizes to try (default: 16-120 even numbers)
+        draw: ImageDraw instance (required for measurement)
+
+    Returns:
+        Recommended font size that fits
+    """
+    if not draw:
+        return 36  # Default
+
+    if not text:
+        return 36
+
+    if font_candidates is None:
+        font_candidates = list(range(16, 121, 2))
+
+    # Start from largest and work down
+    for size in sorted(font_candidates, reverse=True):
+        font, _ = find_chinese_font(size)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+
+        if text_width <= max_width and text_height <= max_height:
+            return size
+
+    # Return smallest candidate if nothing fits
+    return font_candidates[-1] if font_candidates else 16
+
+
+def wrap_text_by_visual_width(
+    text: str,
+    font: ImageFont.FreeTypeFont,
+    max_width: int,
+    draw: ImageDraw.ImageDraw,
+    min_chars_per_line: int = 5,
+) -> List[str]:
+    """
+    Wrap text with better visual width estimation.
+    Tries to balance line lengths and avoid orphan words.
+
+    Args:
+        text: Input text
+        font: Font to use
+        max_width: Maximum width per line
+        draw: ImageDraw instance
+        min_chars_per_line: Minimum characters before wrapping
+
+    Returns:
+        List of wrapped lines
+    """
+    if not text:
+        return [""]
+
+    # First try standard wrapping
+    lines = wrap_text(text, font, max_width, draw)
+
+    # Post-process: merge very short lines with previous
+    if len(lines) <= 1:
+        return lines
+
+    result = []
+    for i, line in enumerate(lines):
+        # If line is very short and not the first line
+        if i > 0 and len(line) < min_chars_per_line and result:
+            # Merge with previous line
+            result[-1] = result[-1] + line
+        else:
+            result.append(line)
+
+    # Re-wrap the merged lines to ensure they fit
+    final_lines = []
+    for line in result:
+        if not line:
+            continue
+        bbox = draw.textbbox((0, 0), line, font=font)
+        if bbox[2] - bbox[0] <= max_width:
+            final_lines.append(line)
+        else:
+            # Re-wrap this line
+            final_lines.extend(wrap_text(line, font, max_width, draw))
+
+    return final_lines if final_lines else [text]

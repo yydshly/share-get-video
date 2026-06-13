@@ -210,6 +210,18 @@ export default function VideoComparePage() {
                               </strong>
                             </span>
                           )}
+                          {!!assets?.visualPreset ? (
+                            <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                              <span style={{ color: "#94a3b8" }}>视觉：</span>
+                              <strong style={{ color: "#8b5cf6" }}>{`${assets.visualPreset}`}</strong>
+                            </span>
+                          ) : null}
+                          {!!assets?.templateVersion ? (
+                            <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                              <span style={{ color: "#94a3b8" }}>版本：</span>
+                              <strong style={{ color: "#1e293b" }}>{`${assets.templateVersion}`}</strong>
+                            </span>
+                          ) : null}
                           {recommendation && (
                             <ProductizationBadge recommendation={recommendation} />
                           )}

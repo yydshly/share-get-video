@@ -320,11 +320,20 @@ def run_local_frame_compose(
             "totalFrames": frame_result.get("total_frames", 0),
             "resolution": f"{resolution[0]}x{resolution[1]}",
             "totalDurationSec": frame_result.get("total_duration_sec", 0),
+            # V0.2.4 visual fields
+            "visualPreset": frame_result.get("visualPreset", "ai_frontier_dark"),
+            "templateVersion": frame_result.get("templateVersion", "v0.2.4"),
+            "transitionEnabled": frame_result.get("transitionEnabled", True),
+            "transitionFrames": frame_result.get("transitionFrames", 0),
+            "highlightTerms": frame_result.get("highlightTerms", []),
         },
         logs=[
             "[10/12] Pillow generate PNG frames",
             f"  Frames: {frame_result.get('total_frames', 0)}",
             f"  Resolution: {resolution[0]}x{resolution[1]}",
+            f"  Visual: {frame_result.get('visualPreset', 'ai_frontier_dark')} {frame_result.get('templateVersion', 'v0.2.4')}",
+            f"  Transitions: {frame_result.get('transitionEnabled', True)} ({frame_result.get('transitionFrames', 0)} frames)",
+            f"  Highlights: {len(frame_result.get('highlightTerms', []))} terms",
             f"  Output: {frames_dir}",
         ],
         artifacts=frame_artifacts,
@@ -420,6 +429,13 @@ def run_local_frame_compose(
         "ffmpegMessage": ffmpeg_result.get("message", ""),
         "warnings": all_warnings,
         "manifestUrl": manifest_url,
+        # V0.2.4 visual fields
+        "visualPreset": frame_result.get("visualPreset", "ai_frontier_dark"),
+        "templateVersion": frame_result.get("templateVersion", "v0.2.4"),
+        "transitionEnabled": frame_result.get("transitionEnabled", True),
+        "transitionType": "fade",
+        "transitionFrames": frame_result.get("transitionFrames", 0),
+        "highlightTerms": frame_result.get("highlightTerms", []),
     }
     write_manifest(experiment_id, manifest)
 
@@ -439,7 +455,13 @@ def run_local_frame_compose(
         "recommendation": "recommended" if ffmpeg_result.get("success") else "failed",
         "ffmpegSuccess": ffmpeg_result.get("success", False),
         "warnings": all_warnings,
-        "nextVersion": "V0.2.1: optimize local video aesthetics",
+        "nextVersion": "V0.2.5: real sample validation and template parameterization",
+        # V0.2.4 visual metadata
+        "visualPreset": frame_result.get("visualPreset", "ai_frontier_dark"),
+        "templateVersion": frame_result.get("templateVersion", "v0.2.4"),
+        "transitionEnabled": frame_result.get("transitionEnabled", True),
+        "transitionFrames": frame_result.get("transitionFrames", 0),
+        "highlightTermsCount": len(frame_result.get("highlightTerms", [])),
     }
 
     conclusion_artifact = VideoProductionArtifact(
@@ -489,6 +511,13 @@ def run_local_frame_compose(
             "codec": "libx264",
             "method": method_category,
             "ffmpegSuccess": ffmpeg_result.get("success", False),
+            # V0.2.4 visual fields
+            "visualPreset": frame_result.get("visualPreset", "ai_frontier_dark"),
+            "templateVersion": frame_result.get("templateVersion", "v0.2.4"),
+            "transitionEnabled": frame_result.get("transitionEnabled", True),
+            "transitionType": "fade",
+            "transitionFrames": frame_result.get("transitionFrames", 0),
+            "highlightTerms": frame_result.get("highlightTerms", []),
         },
         logs=all_logs,
         provider="Pillow + FFmpeg",

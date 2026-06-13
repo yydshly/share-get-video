@@ -253,7 +253,7 @@ export default function EvaluationPanel({ experimentId, existingEvaluation, apiB
             padding: "0.45rem 1rem",
             fontSize: "0.85rem",
             cursor: "pointer",
-            opacity: Object.values(scores).every((v) => v === 0) ? 0.5 : 1,
+            opacity: !allRated ? 0.5 : 1,
           }}
         >
           {isSaving ? "保存中..." : "保存评分"}

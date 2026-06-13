@@ -1,6 +1,6 @@
 # Known Limitations
 
-## 当前 V0.2.3 已知限制
+## 当前 V0.2.4 已知限制
 
 ### 1. 部分 Adapter 已升级为真实渲染
 

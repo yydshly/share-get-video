@@ -276,6 +276,35 @@ export default function VideoExperimentDetailPage() {
                 <span style={{ color: "#94a3b8" }}>Provider：</span>
                 <strong style={{ color: "#1e293b" }}>{result.provider}</strong>
               </div>
+              {assets.visualPreset ? (
+                <div style={{ fontSize: "0.82rem" }}>
+                  <span style={{ color: "#94a3b8" }}>视觉模板：</span>
+                  <strong style={{ color: "#8b5cf6" }}>{`${assets.visualPreset}`}</strong>
+                </div>
+              ) : null}
+              {assets.templateVersion ? (
+                <div style={{ fontSize: "0.82rem" }}>
+                  <span style={{ color: "#94a3b8" }}>模板版本：</span>
+                  <strong style={{ color: "#1e293b" }}>{`${assets.templateVersion}`}</strong>
+                </div>
+              ) : null}
+              {assets.transitionEnabled !== undefined ? (
+                <div style={{ fontSize: "0.82rem" }}>
+                  <span style={{ color: "#94a3b8" }}>转场：</span>
+                  <strong style={{ color: (assets.transitionEnabled as boolean) ? "#10b981" : "#94a3b8" }}>
+                    {(assets.transitionEnabled as boolean) ? `${assets.transitionType || "Fade"}` : "无"}
+                  </strong>
+                </div>
+              ) : null}
+              {assets.highlightTerms && Array.isArray(assets.highlightTerms) && (assets.highlightTerms as unknown[]).length > 0 ? (
+                <div style={{ fontSize: "0.82rem" }}>
+                  <span style={{ color: "#94a3b8" }}>高亮词：</span>
+                  <strong style={{ color: "#f59e0b" }}>
+                    {(assets.highlightTerms as string[]).slice(0, 3).join(" / ")}
+                    {(assets.highlightTerms as string[]).length > 3 ? " ..." : ""}
+                  </strong>
+                </div>
+              ) : null}
             </div>
           )}
 
