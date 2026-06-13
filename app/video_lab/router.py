@@ -1,0 +1,148 @@
+"""
+Video Capability Lab - FastAPI Router
+"""
+
+from typing import Any
+from fastapi import APIRouter, HTTPException
+
+from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResult
+from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
+from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
+from app.video_lab.experiment_runner import get_runner
+
+
+router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
+
+
+# ─────────────────────────────────────────────
+# 测试用例
+# ─────────────────────────────────────────────
+@router.get("/test-cases")
+def list_test_cases() -> list[dict[str, Any]]:
+    return [tc.to_dict() for tc in SEED_TEST_CASES]
+
+
+@router.get("/test-cases/{case_id}")
+def get_test_case(case_id: str) -> dict[str, Any]:
+    tc = get_test_case_by_id(case_id)
+    if not tc:
+        raise HTTPException(status_code=404, detail=f"Test case not found: {case_id}")
+    return tc.to_dict()
+
+
+# ─────────────────────────────────────────────
+# 生成方案
+# ─────────────────────────────────────────────
+@router.get("/methods")
+def list_methods() -> list[dict[str, Any]]:
+    return [m.to_dict() for m in SEED_VIDEO_METHODS]
+
+
+@router.get("/methods/{method_id}")
+def get_method(method_id: str) -> dict[str, Any]:
+    m = get_method_by_id(method_id)
+    if not m:
+        raise HTTPException(status_code=404, detail=f"Method not found: {method_id}")
+    return m.to_dict()
+
+
+# ─────────────────────────────────────────────
+# 实验
+# ─────────────────────────────────────────────
+@router.post("/experiments")
+def create_experiment(
+    testCaseId: str,
+    methodId: str,
+    title: str,
+    inputPayload: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """创建并立即执行一个实验"""
+    runner = get_runner()
+
+    # 验证 testCaseId
+    tc = get_test_case_by_id(testCaseId)
+    if not tc:
+        raise HTTPException(status_code=400, detail=f"Unknown test case: {testCaseId}")
+
+    # 验证 methodId
+    m = get_method_by_id(methodId)
+    if not m:
+        raise HTTPException(status_code=400, detail=f"Unknown method: {methodId}")
+
+    experiment = runner.create_experiment(
+        test_case_id=testCaseId,
+        method_id=methodId,
+        title=title,
+        input_payload=inputPayload or {},
+        params=params or {},
+    )
+
+    try:
+        result = runner.run_experiment(experiment.id)
+        return {
+            "experiment": experiment.to_dict(),
+            "result": result.to_dict(),
+        }
+    except Exception as e:
+        return {
+            "experiment": experiment.to_dict(),
+            "error": str(e),
+        }
+
+
+@router.get("/experiments")
+def list_experiments() -> list[dict[str, Any]]:
+    runner = get_runner()
+    return [e.to_dict() for e in runner.list_experiments()]
+
+
+@router.get("/experiments/{experiment_id}")
+def get_experiment(experiment_id: str) -> dict[str, Any]:
+    runner = get_runner()
+    exp = runner.get_experiment(experiment_id)
+    if not exp:
+        raise HTTPException(status_code=404, detail=f"Experiment not found: {experiment_id}")
+
+    result = runner.get_result(experiment_id)
+    resp = {"experiment": exp.to_dict()}
+    if result:
+        resp["result"] = result.to_dict()
+    return resp
+
+
+@router.get("/experiments-by-test-case/{test_case_id}")
+def get_experiments_by_test_case(test_case_id: str) -> dict[str, Any]:
+    """按测试用例分组展示实验结果"""
+    runner = get_runner()
+    experiments = runner.get_experiments_by_test_case(test_case_id)
+
+    tc = get_test_case_by_id(test_case_id)
+    results = []
+    for e in experiments:
+        r = runner.get_result(e.id)
+        results.append({
+            "experiment": e.to_dict(),
+            "result": r.to_dict() if r else None,
+        })
+
+    return {
+        "testCase": tc.to_dict() if tc else None,
+        "experiments": results,
+    }
+
+
+# ─────────────────────────────────────────────
+# 总结建议
+# ─────────────────────────────────────────────
+@router.get("/advice/{test_case_id}")
+def get_advice(test_case_id: str) -> dict[str, Any]:
+    advice = getVideoMethodAdvice(test_case_id)
+    if not advice:
+        raise HTTPException(status_code=404, detail=f"No advice for test case: {test_case_id}")
+    return advice.to_dict()
+
+
+@router.get("/advice")
+def list_all_advice() -> list[dict[str, Any]]:
+    return [a.to_dict() for a in get_all_advice()]
