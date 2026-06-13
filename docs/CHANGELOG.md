@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.1] - 2026-06-14
+
+### Fixed
+- **path_to_url()**: Corrected URL generation to preserve `/runtime/video_lab/experiments/` prefix — previously stripped too much path, causing 404 on video preview
+- **ExperimentRunner status**: FFmpeg failure now correctly sets `experiment.status = failed` instead of unconditionally marking as `succeeded`
+- **FFmpeg failure detection**: Added `_result_has_failed_steps()` and `_result_declares_failure()` checks covering `productionSteps`, `rawOutput.status`, `productizationRecommendation`, and `ffmpegSuccess`
+
+### Changed
+- **ArtifactType**: Added `video_output`, `cover_image`, `frame_image`, `manifest` types; `local_frame_compose` output MP4 now uses `video_output` instead of `mock_video`
+- **frontend API_BASE**: Now reads from `VITE_API_BASE` environment variable with fallback to `http://localhost:8000/video-lab`
+- **manifest**: Now includes `ffmpegCommand` and `ffmpegMessage` fields for debugging
+- **Step 11 keyData**: Now exposes `ffmpegCommand` and `ffmpegMessage` for log inspection
+
+### Added
+- **frontend/.env.example**: Documents `VITE_API_BASE` configuration
+- **ArtifactType frontend types**: TypeScript `ArtifactType` now includes `video_output`, `cover_image`, `frame_image`, `manifest`
+
 ## [0.2.0] - 2026-06-14
 
 ### Added

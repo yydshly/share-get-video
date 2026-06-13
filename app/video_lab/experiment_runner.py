@@ -13,6 +13,7 @@ from app.video_lab.models import (
     VideoExperimentResult,
     ExperimentStatus,
     MethodCategory,
+    ProductionStepStatus,
 )
 from app.video_lab.method_registry import get_adapter_for_category
 from app.video_lab.seed_data import get_method_by_id, get_test_case_by_id
@@ -85,8 +86,15 @@ class ExperimentRunner:
         )
         elapsed_ms = int((time.time() - start) * 1000)
 
-        # 更新实验状态
-        experiment.status = ExperimentStatus.SUCCEEDED
+        # 检查结果是否包含失败的 step 或声明的失败
+        has_failed_steps = _result_has_failed_steps(result)
+        declares_failure = _result_declares_failure(result)
+
+        if has_failed_steps or declares_failure:
+            experiment.status = ExperimentStatus.FAILED
+            experiment.errorMessage = result.rawOutput.get("status") or "Experiment completed with failed production steps"
+        else:
+            experiment.status = ExperimentStatus.SUCCEEDED
         experiment.finishedAt = datetime.utcnow()
         experiment.elapsedMs = elapsed_ms
 
@@ -126,3 +134,18 @@ _runner = ExperimentRunner()
 
 def get_runner() -> ExperimentRunner:
     return _runner
+
+
+def _result_has_failed_steps(result: VideoExperimentResult) -> bool:
+    return any(step.status == ProductionStepStatus.FAILED for step in result.productionSteps)
+
+
+def _result_declares_failure(result: VideoExperimentResult) -> bool:
+    raw_status = result.rawOutput.get("status")
+    productization = result.rawOutput.get("productizationRecommendation")
+    ffmpeg_success = result.rawOutput.get("ffmpegSuccess")
+    return (
+        raw_status in {"failed", "ffmpeg_failed"}
+        or productization == "failed"
+        or ffmpeg_success is False
+    )

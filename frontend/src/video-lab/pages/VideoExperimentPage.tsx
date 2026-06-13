@@ -212,7 +212,7 @@ export default function VideoExperimentPage() {
     error?: string;
   } | null>(null);
 
-  const API_BASE = "http://localhost:8000/video-lab";
+  const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
   const handleTestCaseChange = (testCaseId: string) => {
     setSelectedTestCase(testCaseId);

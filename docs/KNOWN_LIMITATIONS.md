@@ -1,6 +1,6 @@
 # Known Limitations
 
-## 当前 V0.2 已知限制
+## 当前 V0.2.1 已知限制
 
 ### 1. 部分 Adapter 已升级为真实渲染
 
@@ -13,6 +13,8 @@
 
 ### 2. FFmpeg 必须可用
 
+- `local_frame_compose` 依赖 FFmpeg 进行视频合成
+- FFmpeg 不可用时，视频合成步骤会失败（`step.status = failed`），实验整体状态为 `failed`
 - 实验结果存储在内存中（ExperimentRunner 单例）
 - 页面刷新后数据丢失
 - 对比页依赖 localStorage

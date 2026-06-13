@@ -150,6 +150,182 @@ def test_local_frame_compose_has_artifacts():
     assert len(all_artifacts) > 0
 
 
+# ─────────────────────────────────────────────
+# path_to_url Tests
+# ─────────────────────────────────────────────
+def test_path_to_url_keeps_video_lab_experiments_prefix():
+    """path_to_url should preserve the full /runtime/video_lab/experiments/ prefix."""
+    from app.video_lab.renderers.file_store import path_to_url
+    url = path_to_url("runtime/video_lab/experiments/exp_abc/output.mp4")
+    assert url == "/runtime/video_lab/experiments/exp_abc/output.mp4"
+
+
+def test_path_to_url_windows_path():
+    """path_to_url should handle Windows-style backslash paths."""
+    from app.video_lab.renderers.file_store import path_to_url
+    url = path_to_url("runtime\\video_lab\\experiments\\exp_abc\\output.mp4")
+    assert url == "/runtime/video_lab/experiments/exp_abc/output.mp4"
+
+
+def test_path_to_url_nested_experiment_dir():
+    """path_to_url should handle deeper experiment paths."""
+    from app.video_lab.renderers.file_store import path_to_url
+    url = path_to_url("runtime/video_lab/experiments/exp_xyz_123/frames/frame_001.png")
+    assert url == "/runtime/video_lab/experiments/exp_xyz_123/frames/frame_001.png"
+
+
+# ─────────────────────────────────────────────
+# FFmpeg Failure → Experiment Status Tests
+# ─────────────────────────────────────────────
+def test_experiment_runner_sets_failed_when_ffmpeg_fails(monkeypatch):
+    """ExperimentRunner should set status=failed when FFmpeg composition fails."""
+    from app.video_lab.experiment_runner import ExperimentRunner
+    from app.video_lab.models import ExperimentStatus, ProductionStepStatus
+
+    # Patch compose_video_from_frames to return a failure
+    class FakeResult:
+        def get(self, key, default=None):
+            return {"success": False, "message": "FFmpeg error", "version": "test", "ffmpeg_command": "fake cmd"}.get(key, default)
+
+    def fake_compose(*args, **kwargs):
+        return {"success": False, "message": "FFmpeg error", "version": "test", "ffmpeg_command": "fake cmd"}
+
+    monkeypatch.setattr("app.video_lab.adapters.local_frame_compose.compose_video_from_frames", fake_compose)
+
+    runner = ExperimentRunner()
+    exp = runner.create_experiment(
+        test_case_id="case_ai_frontier_daily_001",
+        method_id="method_local_frame_compose",
+        title="FFmpeg Failure Test",
+        input_payload={"content": "Test content for ffmpeg failure"},
+        params={"targetDuration": 10},
+    )
+    result = runner.run_experiment(exp.id)
+
+    # Verify experiment status is FAILED
+    assert exp.status == ExperimentStatus.FAILED, f"Expected FAILED, got {exp.status}"
+    assert exp.errorMessage is not None and exp.errorMessage != ""
+
+
+def test_experiment_runner_ffmpeg_failure_has_failed_step(monkeypatch):
+    """FFmpeg failure should produce a failed production step."""
+    from app.video_lab.experiment_runner import ExperimentRunner
+    from app.video_lab.models import ProductionStepStatus
+
+    def fake_compose(*args, **kwargs):
+        return {"success": False, "message": "FFmpeg error", "version": "test", "ffmpeg_command": "fake cmd"}
+
+    monkeypatch.setattr("app.video_lab.adapters.local_frame_compose.compose_video_from_frames", fake_compose)
+
+    runner = ExperimentRunner()
+    exp = runner.create_experiment(
+        test_case_id="case_ai_frontier_daily_001",
+        method_id="method_local_frame_compose",
+        title="FFmpeg Failure Step Test",
+        input_payload={"content": "Test content for failed step check"},
+        params={"targetDuration": 10},
+    )
+    result = runner.run_experiment(exp.id)
+
+    failed_steps = [s for s in result.productionSteps if s.status == ProductionStepStatus.FAILED]
+    assert len(failed_steps) > 0, "Expected at least one failed production step"
+
+
+# ─────────────────────────────────────────────
+# Artifact Type Tests
+# ─────────────────────────────────────────────
+def test_local_frame_compose_uses_video_output_artifact_type():
+    """Successful local_frame_compose should produce a video_output artifact, not mock_video."""
+    from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+    from app.video_lab.models import ArtifactType
+
+    result = run_local_frame_compose(
+        experiment_id="exp_artifact_type_test",
+        test_case_id="case_ai_frontier_daily_001",
+        input_payload={"content": "Test content for artifact type check"},
+        params={"targetDuration": 10},
+    )
+
+    all_artifacts = []
+    for step in result.productionSteps:
+        all_artifacts.extend(step.artifacts)
+
+    video_artifacts = [a for a in all_artifacts if a.type == ArtifactType.VIDEO_OUTPUT]
+    mock_artifacts = [a for a in all_artifacts if a.type == ArtifactType.MOCK_VIDEO]
+
+    # Should have at least one video_output artifact
+    assert len(video_artifacts) > 0, f"Expected video_output artifact, found types: {[a.type.value for a in all_artifacts]}"
+    # Should NOT have any mock_video artifacts from local_frame_compose
+    assert len(mock_artifacts) == 0, "local_frame_compose should not produce mock_video artifacts"
+
+
+def test_local_frame_compose_manifest_contains_ffmpeg_command():
+    """Manifest should contain ffmpegCommand and ffmpegMessage."""
+    from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+
+    result = run_local_frame_compose(
+        experiment_id="exp_manifest_ffmpeg_test",
+        test_case_id="case_ai_frontier_daily_001",
+        input_payload={"content": "Test content for manifest ffmpeg fields"},
+        params={"targetDuration": 10},
+    )
+
+    # Find manifest artifact
+    manifest_artifacts = [s for s in result.productionSteps if s.name == "Generate Conclusion"]
+    assert len(manifest_artifacts) > 0
+    manifest_artifact = manifest_artifacts[0].artifacts[0]
+
+    manifest_payload = manifest_artifact.payload
+    assert "ffmpegCommand" in manifest_payload, "manifest should contain ffmpegCommand"
+    assert "ffmpegMessage" in manifest_payload, "manifest should contain ffmpegMessage"
+
+
+def test_local_frame_compose_step11_contains_ffmpeg_command():
+    """Step 11 (FFmpeg Compose) keyData should contain ffmpegCommand and ffmpegMessage."""
+    from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+
+    result = run_local_frame_compose(
+        experiment_id="exp_step11_ffmpeg_cmd_test",
+        test_case_id="case_ai_frontier_daily_001",
+        input_payload={"content": "Test content for step 11 ffmpeg command check"},
+        params={"targetDuration": 10},
+    )
+
+    step11 = [s for s in result.productionSteps if "FFmpeg" in s.name][0]
+    assert "ffmpegCommand" in step11.keyData, "Step 11 keyData should contain ffmpegCommand"
+    assert "ffmpegMessage" in step11.keyData, "Step 11 keyData should contain ffmpegMessage"
+
+
+# ─────────────────────────────────────────────
+# Cleanup Test
+# ─────────────────────────────────────────────
+def test_cleanup_experiment_runtime():
+    """cleanup_experiment_runtime should remove experiment directory."""
+    from app.video_lab.renderers.file_store import (
+        ensure_runtime_exists,
+        get_experiment_dir,
+        cleanup_experiment_runtime,
+        write_manifest,
+    )
+    from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+
+    # Create a real experiment runtime
+    ensure_runtime_exists()
+    test_exp_id = "exp_cleanup_test"
+
+    # Write a manifest to create files
+    write_manifest(test_exp_id, {"experimentId": test_exp_id, "method": "local_frame_compose"})
+
+    # Verify it exists
+    exp_dir = get_experiment_dir(test_exp_id)
+    assert exp_dir.exists(), f"Expected {exp_dir} to exist before cleanup"
+
+    # Cleanup
+    removed = cleanup_experiment_runtime(test_exp_id)
+    assert removed is True, "cleanup_experiment_runtime should return True when dir existed"
+    assert not exp_dir.exists(), f"Expected {exp_dir} to not exist after cleanup"
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

@@ -84,6 +84,10 @@ class ArtifactType(str, Enum):
     VOICEOVER_PLAN = "voiceover_plan"
     ASSET_PLAN = "asset_plan"
     RENDER_PLAN = "render_plan"
+    VIDEO_OUTPUT = "video_output"
+    COVER_IMAGE = "cover_image"
+    FRAME_IMAGE = "frame_image"
+    MANIFEST = "manifest"
     MOCK_VIDEO = "mock_video"
     EVALUATION = "evaluation"
 

@@ -47,6 +47,10 @@ export type ArtifactType =
   | "voiceover_plan"
   | "asset_plan"
   | "render_plan"
+  | "video_output"
+  | "cover_image"
+  | "frame_image"
+  | "manifest"
   | "mock_video"
   | "evaluation";
 

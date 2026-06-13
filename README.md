@@ -22,14 +22,14 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 
 | 路线 | 说明 | 状态 |
 |------|------|------|
-| `local_frame_compose` | 本地图像帧合成 + FFmpeg | **Real (V0.2)** |
+| `local_frame_compose` | 本地图像帧合成 + FFmpeg | **Real (V0.2.1)** |
 | `local_media_compose` | 本地素材合成（MoviePy/FFmpeg） | Mock |
 | `template_programmatic_render` | Remotion 程序化模板渲染 | Mock |
 | `ai_video_direct` | 大模型直接生成视频 | Reserved |
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | Mock |
 | `hybrid_pipeline` | 混合编排流水线 | Mock |
 
-> **V0.2 进展**：`local_frame_compose` 已支持真实 Pillow 帧生成 + FFmpeg MP4 合成。
+> **V0.2.1 进展**：`local_frame_compose` 真实渲染稳定，修复了 runtime URL、FFmpeg 失败状态语义、artifact 类型分类。
 
 ## 测试用例
 
@@ -79,6 +79,16 @@ npm run dev
 
 访问 `http://localhost:3000/video-lab`
 
+#### 前端环境变量
+
+前端 API 地址可通过环境变量配置（详见 `frontend/.env.example`）：
+
+```bash
+VITE_API_BASE=http://localhost:8000/video-lab
+```
+
+不配置时默认使用 `http://localhost:8000/video-lab`。
+
 ## 测试命令
 
 ```bash
@@ -114,7 +124,7 @@ feature/*     ← 功能开发分支
 
 ## 当前限制
 
-- 所有 adapter 均为 Mock 状态，不产出真实 MP4
+- `local_frame_compose` 可产出真实 MP4（需 FFmpeg），其他 adapter 为 Mock/Reserved 状态
 - `ai_video_direct` 为 Reserved 状态，等待视频模型接入
 - 实验结果暂存于内存/本地存储，非持久化数据库
 - 后续接入真实能力时，只需实现对应 Adapter，不影响整体架构
@@ -122,7 +132,8 @@ feature/*     ← 功能开发分支
 ## 下一阶段路线
 
 ```
-V0.2：本地帧合成 + FFmpeg 输出真实 9:16 AI 资讯分享视频
+V0.2.1：修复 runtime URL + FFmpeg 失败状态语义 + artifact 类型 ✅
+V0.2.2：视频观感与分享体验优化（卡片视觉、简单转场、下载页/分享页）
 V0.3：Remotion 模板渲染真实 MP4
 V0.4：接入一个视频模型 Adapter
 V0.5：LLM 拆脚本 + TTS + 图片生成 + 合成

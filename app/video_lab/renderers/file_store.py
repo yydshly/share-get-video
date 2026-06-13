@@ -28,14 +28,28 @@ def ensure_runtime_exists() -> None:
 
 
 def path_to_url(file_path: Path | str) -> str:
-    """Convert filesystem path to URL-compatible path"""
-    path_str = str(file_path)
-    path_str = path_str.replace("\\", "/")
-    if str(RUNTIME_BASE) in path_str:
-        path_str = path_str.split(str(RUNTIME_BASE))[-1]
-    if path_str.startswith("/"):
-        path_str = path_str[1:]
-    return f"/runtime/{path_str}"
+    """
+    Convert filesystem path to a URL-compatible path under /runtime/.
+
+    Handles:
+    - POSIX paths: runtime/video_lab/experiments/exp_abc/output.mp4
+    - Windows paths: runtime\\video_lab\\experiments\\exp_abc\\output.mp4
+    - Absolute paths containing /runtime/
+    """
+    path = Path(file_path)
+    path_str = path.as_posix()
+
+    # If already under runtime/, keep the full relative path from runtime/.
+    if path_str.startswith("runtime/"):
+        return "/" + path_str
+
+    # Normalize Windows backslashes and look for /runtime/ marker.
+    normalized = path_str.replace("\\", "/")
+    if "/runtime/" in normalized:
+        return "/runtime/" + normalized.split("/runtime/", 1)[1]
+
+    # Fallback: strip leading slashes and use basename under /runtime/.
+    return "/runtime/" + normalized.lstrip("/")
 
 
 def write_manifest(experiment_id: str, manifest: dict) -> Path:
@@ -54,3 +68,16 @@ def read_manifest(experiment_id: str) -> dict | None:
         with open(manifest_path, encoding="utf-8") as f:
             return json.load(f)
     return None
+
+
+def cleanup_experiment_runtime(experiment_id: str) -> bool:
+    """
+    Remove an experiment's runtime directory.
+    Returns True if removed, False if it didn't exist.
+    """
+    import shutil
+    exp_dir = get_experiment_dir(experiment_id)
+    if exp_dir.exists():
+        shutil.rmtree(exp_dir)
+        return True
+    return False

@@ -287,7 +287,7 @@ def run_local_frame_compose(
         frame_artifacts.append(
             VideoProductionArtifact(
                 artifact_id=f"{experiment_id}_art_frame_{frame.get('frame_name', frame.get('type', 'unknown'))}",
-                type=ArtifactType.ASSET_PLAN,
+                type=ArtifactType.FRAME_IMAGE,
                 title=f"Frame: {frame.get('frame_name', frame.get('type', 'unknown'))}",
                 summary=f"Path: {frame['path']}",
                 payload={"path": str(frame["path"]), "type": frame.get("type")},
@@ -297,7 +297,7 @@ def run_local_frame_compose(
 
     cover_artifact = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_cover",
-        type=ArtifactType.ASSET_PLAN,
+        type=ArtifactType.COVER_IMAGE,
         title="Cover Frame",
         summary=f"Path: {frame_result.get('cover')}",
         payload={"path": str(frame_result.get("cover")), "type": "cover"},
@@ -340,7 +340,7 @@ def run_local_frame_compose(
 
     video_artifact = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_video",
-        type=ArtifactType.MOCK_VIDEO,
+        type=ArtifactType.VIDEO_OUTPUT,
         title="Output Video",
         summary=f"Path: {output_mp4}",
         payload={"path": str(output_mp4), "url": path_to_url(output_mp4), "ffmpegSuccess": ffmpeg_result.get("success", False)},
@@ -358,6 +358,8 @@ def run_local_frame_compose(
                 "ffmpegVersion": ffmpeg_result.get("version", "unknown"),
                 "outputPath": str(output_mp4),
                 "outputUrl": path_to_url(output_mp4),
+                "ffmpegCommand": ffmpeg_result.get("ffmpeg_command", ""),
+                "ffmpegMessage": ffmpeg_result.get("message", ""),
             },
             logs=[
                 "[11/12] FFmpeg compose MP4",
@@ -377,6 +379,8 @@ def run_local_frame_compose(
             key_data={
                 "ffmpegVersion": ffmpeg_result.get("version", "not_found"),
                 "error": ffmpeg_result.get("message", "unknown error"),
+                "ffmpegCommand": ffmpeg_result.get("ffmpeg_command", ""),
+                "ffmpegMessage": ffmpeg_result.get("message", ""),
             },
             logs=[
                 "[11/12] FFmpeg compose MP4",
@@ -404,13 +408,15 @@ def run_local_frame_compose(
         "createdAt": datetime.utcnow().isoformat(),
         "ffmpegSuccess": ffmpeg_result.get("success", False),
         "ffmpegVersion": ffmpeg_result.get("version", "unknown"),
+        "ffmpegCommand": ffmpeg_result.get("ffmpeg_command", ""),
+        "ffmpegMessage": ffmpeg_result.get("message", ""),
         "warnings": all_warnings,
     }
     manifest_path = write_manifest(experiment_id, manifest)
 
     manifest_artifact = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_manifest",
-        type=ArtifactType.EVALUATION,
+        type=ArtifactType.MANIFEST,
         title="Experiment Manifest",
         summary=f"Path: {manifest_path}",
         payload=manifest,
