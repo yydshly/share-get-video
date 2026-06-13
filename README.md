@@ -29,7 +29,7 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | Mock |
 | `hybrid_pipeline` | 混合编排流水线 | Mock |
 
-> **V0.2.3 进展**：`local_frame_compose` 真实渲染稳定，新增实验详情页、人工评分、实验结论、产物展示、对比页增强，API 错误语义规范化。
+> **V0.2.3.1 进展**：`local_frame_compose` 真实渲染稳定，修复 artifact url 缺失、manifestUrl 写入顺序、评分表单完整性校验。
 
 ## 测试用例
 

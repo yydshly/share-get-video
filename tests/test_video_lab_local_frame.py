@@ -297,6 +297,110 @@ def test_local_frame_compose_step11_contains_ffmpeg_command():
 
 
 # ─────────────────────────────────────────────
+# Artifact URL Tests
+# ─────────────────────────────────────────────
+def test_frame_artifacts_have_url():
+    """frame_image artifacts must include url field starting with /runtime/video_lab/experiments/."""
+    from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+    from app.video_lab.models import ArtifactType
+
+    result = run_local_frame_compose(
+        experiment_id="exp_frame_url_test",
+        test_case_id="case_ai_frontier_daily_001",
+        input_payload={"content": "Test content for frame URL check"},
+        params={"targetDuration": 10},
+    )
+
+    frame_artifacts = [
+        a for step in result.productionSteps
+        for a in step.artifacts
+        if a.type == ArtifactType.FRAME_IMAGE
+    ]
+    assert len(frame_artifacts) > 0, "Expected at least one frame_image artifact"
+    for art in frame_artifacts:
+        assert "url" in art.payload, f"frame artifact {art.id} missing url field: {art.payload}"
+        url = art.payload["url"]
+        assert url.startswith("/runtime/video_lab/experiments/"), (
+            f"frame artifact url should start with /runtime/video_lab/experiments/, got: {url}"
+        )
+
+
+def test_cover_artifact_has_url():
+    """cover_image artifact must include url field."""
+    from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+    from app.video_lab.models import ArtifactType
+
+    result = run_local_frame_compose(
+        experiment_id="exp_cover_url_test",
+        test_case_id="case_ai_frontier_daily_001",
+        input_payload={"content": "Test content for cover URL check"},
+        params={"targetDuration": 10},
+    )
+
+    cover_artifacts = [
+        a for step in result.productionSteps
+        for a in step.artifacts
+        if a.type == ArtifactType.COVER_IMAGE
+    ]
+    assert len(cover_artifacts) > 0, "Expected at least one cover_image artifact"
+    for art in cover_artifacts:
+        assert "url" in art.payload, f"cover artifact {art.id} missing url field: {art.payload}"
+        url = art.payload["url"]
+        assert url.startswith("/runtime/video_lab/experiments/"), (
+            f"cover artifact url should start with /runtime/video_lab/experiments/, got: {url}"
+        )
+
+
+def test_video_output_artifact_has_url():
+    """video_output artifact must include url field."""
+    from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+    from app.video_lab.models import ArtifactType
+
+    result = run_local_frame_compose(
+        experiment_id="exp_video_url_test",
+        test_case_id="case_ai_frontier_daily_001",
+        input_payload={"content": "Test content for video URL check"},
+        params={"targetDuration": 10},
+    )
+
+    video_artifacts = [
+        a for step in result.productionSteps
+        for a in step.artifacts
+        if a.type == ArtifactType.VIDEO_OUTPUT
+    ]
+    assert len(video_artifacts) > 0, "Expected at least one video_output artifact"
+    for art in video_artifacts:
+        assert "url" in art.payload, f"video artifact {art.id} missing url field: {art.payload}"
+        url = art.payload["url"]
+        assert url.startswith("/runtime/video_lab/experiments/"), (
+            f"video artifact url should start with /runtime/video_lab/experiments/, got: {url}"
+        )
+
+
+def test_manifest_json_contains_manifestUrl():
+    """The actual manifest.json file must contain manifestUrl field."""
+    from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+    from app.video_lab.renderers.file_store import read_manifest
+
+    exp_id = "exp_manifest_url_file_test"
+    run_local_frame_compose(
+        experiment_id=exp_id,
+        test_case_id="case_ai_frontier_daily_001",
+        input_payload={"content": "Test content for manifest URL file check"},
+        params={"targetDuration": 10},
+    )
+
+    manifest = read_manifest(exp_id)
+    assert manifest is not None, f"manifest.json not found for {exp_id}"
+    assert "manifestUrl" in manifest, f"manifest.json missing manifestUrl: {manifest.keys()}"
+    url = manifest["manifestUrl"]
+    assert url.startswith("/runtime/video_lab/experiments/"), (
+        f"manifestUrl should start with /runtime/video_lab/experiments/, got: {url}"
+    )
+    assert url.endswith("/manifest.json"), f"manifestUrl should end with /manifest.json, got: {url}"
+
+
+# ─────────────────────────────────────────────
 # Cleanup Test
 # ─────────────────────────────────────────────
 def test_cleanup_experiment_runtime():

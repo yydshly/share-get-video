@@ -284,13 +284,14 @@ def run_local_frame_compose(
 
     frame_artifacts = []
     for frame in frame_result.get("frames", []):
+        frame_path = Path(frame["path"]) if isinstance(frame["path"], str) else frame["path"]
         frame_artifacts.append(
             VideoProductionArtifact(
                 artifact_id=f"{experiment_id}_art_frame_{frame.get('frame_name', frame.get('type', 'unknown'))}",
                 type=ArtifactType.FRAME_IMAGE,
                 title=f"Frame: {frame.get('frame_name', frame.get('type', 'unknown'))}",
                 summary=f"Path: {frame['path']}",
-                payload={"path": str(frame["path"]), "type": frame.get("type")},
+                payload={"path": str(frame["path"]), "url": path_to_url(frame_path), "type": frame.get("type")},
             )
         )
     all_warnings.extend(frame_result.get("warnings", []))
@@ -300,7 +301,11 @@ def run_local_frame_compose(
         type=ArtifactType.COVER_IMAGE,
         title="Cover Frame",
         summary=f"Path: {frame_result.get('cover')}",
-        payload={"path": str(frame_result.get("cover")), "type": "cover"},
+        payload={
+            "path": str(frame_result.get("cover")),
+            "url": path_to_url(frame_result.get("cover", "")) if frame_result.get("cover") else "",
+            "type": "cover",
+        },
     )
     frame_artifacts.append(cover_artifact)
 
@@ -393,6 +398,9 @@ def run_local_frame_compose(
     all_logs.extend(step11.logs)
 
     # Step 12: conclusion and manifest
+    # Compute path before building dict so manifestUrl is IN the written file
+    manifest_path = get_experiment_dir(experiment_id) / "manifest.json"
+    manifest_url = path_to_url(manifest_path)
     manifest = {
         "experimentId": experiment_id,
         "method": method_category,
@@ -411,9 +419,9 @@ def run_local_frame_compose(
         "ffmpegCommand": ffmpeg_result.get("ffmpeg_command", ""),
         "ffmpegMessage": ffmpeg_result.get("message", ""),
         "warnings": all_warnings,
+        "manifestUrl": manifest_url,
     }
-    manifest_path = write_manifest(experiment_id, manifest)
-    manifest["manifestUrl"] = path_to_url(manifest_path)
+    write_manifest(experiment_id, manifest)
 
     manifest_artifact = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_manifest",

@@ -9,6 +9,7 @@ const ARTIFACT_TYPE_LABELS: Record<string, string> = {
   manifest: "实验清单",
   normalized_content: "结构化内容",
   key_points: "关键点",
+  video_strategy: "视频策略",
   script: "脚本",
   storyboard: "分镜",
   subtitle_plan: "字幕方案",
@@ -24,10 +25,13 @@ interface Props {
 }
 
 export default function ArtifactViewer({ artifact }: Props) {
-  const url = (artifact.payload?.url as string) || (artifact.payload?.path as string) || "";
+  const url = (artifact.payload?.url as string) || "";
+  const path = (artifact.payload?.path as string) || "";
   const isVideo = artifact.type === "video_output";
   const isImage = artifact.type === "cover_image" || artifact.type === "frame_image";
   const isManifest = artifact.type === "manifest";
+  const hasMediaPreview = Boolean(url && (isVideo || isImage));
+  const hasOnlyPath = Boolean(path && !url);
 
   return (
     <div
@@ -59,11 +63,11 @@ export default function ArtifactViewer({ artifact }: Props) {
       </div>
 
       {/* Summary */}
-      <div style={{ fontSize: "0.78rem", color: "#475569", marginBottom: url ? "0.3rem" : 0 }}>
+      <div style={{ fontSize: "0.78rem", color: "#475569", marginBottom: hasMediaPreview ? "0.3rem" : 0 }}>
         {artifact.summary}
       </div>
 
-      {/* Media preview / links */}
+      {/* Video preview — only from url */}
       {url && isVideo && (
         <div style={{ marginTop: "0.4rem" }}>
           <video
@@ -71,7 +75,7 @@ export default function ArtifactViewer({ artifact }: Props) {
             controls
             style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "6px" }}
           />
-          <div style={{ marginTop: "0.3rem" }}>
+          <div style={{ marginTop: "0.3rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             <a href={url} download style={{ fontSize: "0.78rem", color: "#3b82f6" }}>
               下载视频
             </a>
@@ -79,6 +83,7 @@ export default function ArtifactViewer({ artifact }: Props) {
         </div>
       )}
 
+      {/* Image preview — only from url */}
       {url && isImage && (
         <div style={{ marginTop: "0.4rem" }}>
           <img
@@ -86,7 +91,7 @@ export default function ArtifactViewer({ artifact }: Props) {
             alt={artifact.title}
             style={{ maxWidth: "120px", maxHeight: "160px", borderRadius: "6px", objectFit: "contain" }}
           />
-          <div style={{ marginTop: "0.3rem" }}>
+          <div style={{ marginTop: "0.3rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             <a href={url} download style={{ fontSize: "0.78rem", color: "#3b82f6" }}>
               下载图片
             </a>
@@ -94,6 +99,7 @@ export default function ArtifactViewer({ artifact }: Props) {
         </div>
       )}
 
+      {/* Manifest download */}
       {url && isManifest && (
         <div style={{ marginTop: "0.4rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <a
@@ -113,9 +119,17 @@ export default function ArtifactViewer({ artifact }: Props) {
         </div>
       )}
 
+      {/* Has url but not media — show it as info */}
       {url && !isVideo && !isImage && !isManifest && (
         <div style={{ marginTop: "0.3rem", fontSize: "0.72rem", color: "#93c5fd", fontFamily: "monospace" }}>
           {url}
+        </div>
+      )}
+
+      {/* Has only path (no url) — show warning */}
+      {hasOnlyPath && (
+        <div style={{ marginTop: "0.3rem", fontSize: "0.72rem", color: "#f59e0b" }}>
+          仅有本地路径，无法浏览器预览：<span style={{ fontFamily: "monospace" }}>{path}</span>
         </div>
       )}
     </div>

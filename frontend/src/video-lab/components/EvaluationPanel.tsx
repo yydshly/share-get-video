@@ -54,8 +54,7 @@ function StarRating({
 }
 
 function EvaluationDisplay({ evaluation }: { evaluation: VideoExperimentEvaluation }) {
-  const dims = DIMENSIONS.filter((d) => d.key !== "notes");
-  const scores = dims.map((d) => (evaluation as Record<string, unknown>)[d.key] as number).filter(Boolean);
+  const scores = DIMENSIONS.map((d) => (evaluation as Record<string, unknown>)[d.key] as number).filter(Boolean);
   const avg = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2) : "—";
 
   return (
@@ -72,7 +71,7 @@ function EvaluationDisplay({ evaluation }: { evaluation: VideoExperimentEvaluati
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.75rem" }}>
-        {DIMENSIONS.filter((d) => d.key !== "notes").map((dim) => {
+        {DIMENSIONS.map((dim) => {
           const score = (evaluation as Record<string, unknown>)[dim.key] as number;
           return (
             <div key={dim.key} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.82rem" }}>
@@ -114,6 +113,10 @@ export default function EvaluationPanel({ experimentId, existingEvaluation, apiB
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(!!existingEvaluation);
+
+  // All 7 dimensions must be rated (1-5) before saving
+  const allRated = DIMENSIONS.every((d) => scores[d.key] >= 1 && scores[d.key] <= 5);
+  const ratedCount = DIMENSIONS.filter((d) => scores[d.key] >= 1).length;
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -233,9 +236,15 @@ export default function EvaluationPanel({ experimentId, existingEvaluation, apiB
           </div>
         )}
 
+        {!allRated && (
+          <div style={{ fontSize: "0.78rem", color: "#f59e0b", marginBottom: "0.5rem" }}>
+            请完成所有 {DIMENSIONS.length} 个维度评分后再保存（还需 {DIMENSIONS.length - ratedCount} 个）
+          </div>
+        )}
+
         <button
           onClick={handleSave}
-          disabled={isSaving || Object.values(scores).every((v) => v === 0)}
+          disabled={isSaving || !allRated}
           style={{
             background: "#10b981",
             color: "white",

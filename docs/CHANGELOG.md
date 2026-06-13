@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3.1] - 2026-06-14
+
+### Fixed
+- **Artifact URLs**: `frame_image`, `cover_image`, `video_output` artifacts now include `url` field in payload (`path_to_url`-derived) so ArtifactViewer can preview in browser
+- **manifestUrl in file**: `manifestUrl` is now computed before `write_manifest()` is called, so the actual `manifest.json` file on disk contains the field
+- **EvaluationPanel validation**: Save button now requires all 7 dimensions to be rated (1–5) before enabling; partial submissions are blocked client-side with a hint message
+
 ## [0.2.3] - 2026-06-14
 
 ### Added
