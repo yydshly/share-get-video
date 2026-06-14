@@ -121,6 +121,8 @@ def run_local_frame_tts_video(
                     "visual_source": "Pillow frames",
                     "audio_source": "MiniMax TTS",
                     "subtitle_mode": "SRT",
+                    "subtitle_renderer": assets.get("subtitleRenderer", "ass"),
+                    "subtitle_style": assets.get("subtitleStyle", {}),
                 },
             )
 

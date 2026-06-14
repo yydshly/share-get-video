@@ -320,9 +320,11 @@ export default function RoutePlaygroundPage() {
 
   const [exportText, setExportText] = useState("");
   const [showExport, setShowExport] = useState(false);
+  const [scoringOpen, setScoringOpen] = useState<Record<string, boolean>>({});
+  const [selectedPreview, setSelectedPreview] = useState<BenchmarkResult | null>(null);
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto" }}>
+    <div style={{ padding: "2rem", maxWidth: "1280px", margin: "0 auto" }}>
       {/* Header */}
       <div style={{ marginBottom: "2rem" }}>
         <Link to="/video-lab" style={{ color: "#64748b", fontSize: "0.85rem", textDecoration: "none" }}>← 返回首页</Link>
@@ -502,7 +504,7 @@ export default function RoutePlaygroundPage() {
             </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(560px, 1fr))", gap: "1.25rem", marginBottom: "2rem" }}>
             {results.map((r) => {
               const info = CHAIN_INFO[r.chainId];
               const color = STATUS_COLOR[r.status] ?? "#94a3b8";
@@ -511,6 +513,7 @@ export default function RoutePlaygroundPage() {
               const avgScore = ratedDims.length > 0
                 ? (ratedDims.reduce((a, [, v]) => a + (v as number), 0) / ratedDims.length).toFixed(1)
                 : null;
+              const isScoringOpen = scoringOpen[r.chainId] ?? false;
 
               return (
                 <div key={r.chainId} style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "1rem" }}>
@@ -534,16 +537,7 @@ export default function RoutePlaygroundPage() {
                     )}
                   </div>
 
-                  {/* Chain metadata */}
-                  <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.75rem", lineHeight: 1.6 }}>
-                    <div><span style={{ color: "#94a3b8" }}>画面：</span>{r.visualSource || info?.visualSource}</div>
-                    <div><span style={{ color: "#94a3b8" }}>音频：</span>{r.audioSource || info?.audioSource}</div>
-                    <div><span style={{ color: "#94a3b8" }}>字幕：</span>{r.subtitleMode || info?.subtitleMode}</div>
-                    {r.failedStep && <div style={{ color: "#ef4444" }}>失败步骤：{r.failedStep}</div>}
-                    {r.failedReason && <div style={{ color: "#ef4444", fontSize: "0.7rem" }}>{r.failedReason}</div>}
-                  </div>
-
-                  {/* Final video player */}
+                  {/* Large video player - 9:16, ~340x620 */}
                   {r.status === "succeeded" && r.finalVideoUrl && (
                     <div style={{ marginBottom: "0.75rem" }}>
                       <div style={{ fontSize: "0.7rem", color: "#10b981", marginBottom: "0.25rem", fontWeight: 600 }}>最终成片</div>
@@ -552,22 +546,38 @@ export default function RoutePlaygroundPage() {
                         display: "flex",
                         justifyContent: "center",
                         background: "#0f172a",
-                        borderRadius: "8px",
-                        padding: "0.5rem",
+                        borderRadius: "10px",
+                        padding: "1rem",
                       }}>
                         <video
                           controls
                           src={r.finalVideoUrl}
                           style={{
-                            width: "min(100%, 240px)",
+                            width: "min(100%, 340px)",
                             aspectRatio: "9 / 16",
-                            maxHeight: "420px",
-                            borderRadius: "6px",
+                            maxHeight: "620px",
+                            borderRadius: "8px",
                             background: "#020617",
                             objectFit: "contain",
                           }}
                         />
                       </div>
+                      <button
+                        onClick={() => setSelectedPreview(r)}
+                        style={{
+                          marginTop: "0.5rem",
+                          width: "100%",
+                          background: "#1e293b",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "6px",
+                          padding: "0.4rem",
+                          fontSize: "0.75rem",
+                          cursor: "pointer",
+                        }}
+                      >
+                        🔍 大预览
+                      </button>
                     </div>
                   )}
 
@@ -582,19 +592,28 @@ export default function RoutePlaygroundPage() {
                     </div>
                   )}
 
+                  {/* Chain metadata */}
+                  <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.5rem", lineHeight: 1.6 }}>
+                    <div><span style={{ color: "#94a3b8" }}>画面：</span>{r.visualSource || info?.visualSource}</div>
+                    <div><span style={{ color: "#94a3b8" }}>音频：</span>{r.audioSource || info?.audioSource}</div>
+                    <div><span style={{ color: "#94a3b8" }}>字幕：</span>{r.subtitleMode || info?.subtitleMode}</div>
+                    {r.failedStep && <div style={{ color: "#ef4444" }}>失败步骤：{r.failedStep}</div>}
+                    {r.failedReason && <div style={{ color: "#ef4444", fontSize: "0.7rem" }}>{r.failedReason}</div>}
+                  </div>
+
                   {/* Intermediate artifact links */}
                   {(r.status === "succeeded" || r.status === "manual_required") && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.75rem" }}>
                       {r.audioUrl && (
                         <a href={r.audioUrl} target="_blank" rel="noopener noreferrer"
                           style={{ fontSize: "0.75rem", color: "#10b981", textDecoration: "none", display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                          🔊 播放音频
+                          🔊 音频
                         </a>
                       )}
                       {r.srtUrl && (
                         <a href={r.srtUrl} target="_blank" rel="noopener noreferrer"
                           style={{ fontSize: "0.75rem", color: "#f59e0b", textDecoration: "none", display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                          📝 打开字幕
+                          📝 SRT
                         </a>
                       )}
                       {r.manifestUrl && (
@@ -607,59 +626,137 @@ export default function RoutePlaygroundPage() {
                   )}
 
                   {/* Flags: hasVisual, hasAudio, hasReadableText */}
-                  <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", fontSize: "0.75rem" }}>
+                  <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", fontSize: "0.7rem" }}>
                     <span style={{ color: r.hasVisual ? "#10b981" : "#ef4444" }}>
-                      {r.hasVisual ? "✅ 有画面" : "❌ 无画面"}
+                      {r.hasVisual ? "✅ 画面" : "❌ 画面"}
                     </span>
                     <span style={{ color: r.hasAudio ? "#10b981" : "#ef4444" }}>
-                      {r.hasAudio ? "✅ 有音频" : "❌ 无音频"}
+                      {r.hasAudio ? "✅ 音频" : "❌ 音频"}
                     </span>
                     <span style={{ color: r.hasReadableText ? "#10b981" : "#ef4444" }}>
-                      {r.hasReadableText ? "✅ 有字幕" : "❌ 无字幕"}
+                      {r.hasReadableText ? "✅ 字幕" : "❌ 字幕"}
                     </span>
                   </div>
 
                   {/* Warnings */}
                   {r.warnings?.length > 0 && (
-                    <div style={{ fontSize: "0.75rem", color: "#ef4444", marginBottom: "0.75rem" }}>
+                    <div style={{ fontSize: "0.7rem", color: "#ef4444", marginBottom: "0.5rem" }}>
                       {r.warnings.map((w, i) => <div key={i}>⚠️ {w}</div>)}
                     </div>
                   )}
 
-                  {/* Scoring */}
+                  {/* Collapsed scoring */}
                   {(r.status === "succeeded" || r.status === "manual_required") && (
-                    <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "0.75rem" }}>
-                      <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem", color: "#475569" }}>评分</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>
-                        {SCORE_DIMENSIONS.map((dim) => (
-                          <div key={dim.key} style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                            <span style={{ fontSize: "0.7rem", color: "#94a3b8", width: "4.5rem", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{dim.label}</span>
-                            <select
-                              value={score?.scores[dim.key] ?? ""}
-                              onChange={(e) => updateScore(r.chainId, dim.key, e.target.value ? Number(e.target.value) : null)}
-                              style={{ fontSize: "0.75rem", border: "1px solid #e2e8f0", borderRadius: "4px", padding: "0.1rem 0.25rem" }}
-                            >
-                              <option value="">-</option>
-                              {[1, 2, 3, 4, 5].map((v) => <option key={v} value={v}>{v}</option>)}
-                            </select>
+                    <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "0.5rem", marginTop: "0.5rem" }}>
+                      <button
+                        onClick={() => setScoringOpen((prev) => ({ ...prev, [r.chainId]: !(prev[r.chainId] ?? false) }))}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#475569",
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          padding: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        {isScoringOpen ? "▼" : "▶"} 评分
+                      </button>
+                      {isScoringOpen && (
+                        <div style={{ marginTop: "0.5rem" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>
+                            {SCORE_DIMENSIONS.map((dim) => (
+                              <div key={dim.key} style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                                <span style={{ fontSize: "0.7rem", color: "#94a3b8", width: "4.5rem", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{dim.label}</span>
+                                <select
+                                  value={score?.scores[dim.key] ?? ""}
+                                  onChange={(e) => updateScore(r.chainId, dim.key, e.target.value ? Number(e.target.value) : null)}
+                                  style={{ fontSize: "0.75rem", border: "1px solid #e2e8f0", borderRadius: "4px", padding: "0.1rem 0.25rem" }}
+                                >
+                                  <option value="">-</option>
+                                  {[1, 2, 3, 4, 5].map((v) => <option key={v} value={v}>{v}</option>)}
+                                </select>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                      <textarea
-                        placeholder="一句话结论..."
-                        value={score?.conclusion ?? ""}
-                        onChange={(e) => setScores((prev) => ({
-                          ...prev,
-                          [r.chainId]: { ...prev[r.chainId], conclusion: e.target.value },
-                        }))}
-                        rows={2}
-                        style={{ width: "100%", marginTop: "0.5rem", fontSize: "0.75rem", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "0.4rem", resize: "none" }}
-                      />
+                          <textarea
+                            placeholder="一句话结论..."
+                            value={score?.conclusion ?? ""}
+                            onChange={(e) => setScores((prev) => ({
+                              ...prev,
+                              [r.chainId]: { ...prev[r.chainId], conclusion: e.target.value },
+                            }))}
+                            rows={2}
+                            style={{ width: "100%", marginTop: "0.5rem", fontSize: "0.75rem", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "0.4rem", resize: "none" }}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Large preview modal */}
+      {selectedPreview && (
+        <div
+          onClick={() => setSelectedPreview(null)}
+          style={{
+            position: "fixed", inset: 0,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+            padding: "2rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#0f172a",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              maxWidth: "480px",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", marginBottom: "1rem" }}>
+              <strong style={{ color: "white", fontSize: "0.95rem" }}>
+                {CHAIN_INFO[selectedPreview.chainId]?.name ?? selectedPreview.chainId}
+              </strong>
+              <button
+                onClick={() => setSelectedPreview(null)}
+                style={{ background: "none", color: "white", border: "none", fontSize: "1.2rem", cursor: "pointer" }}
+              >
+                ✕
+              </button>
+            </div>
+            <video
+              controls
+              autoPlay
+              src={selectedPreview.finalVideoUrl}
+              style={{
+                width: "100%",
+                maxWidth: "420px",
+                aspectRatio: "9 / 16",
+                borderRadius: "8px",
+                background: "#020617",
+                objectFit: "contain",
+              }}
+            />
+            <div style={{ marginTop: "1rem", fontSize: "0.75rem", color: "#94a3b8", textAlign: "center" }}>
+              点击外部关闭 · 可切换不同链路对比
+            </div>
           </div>
         </div>
       )}

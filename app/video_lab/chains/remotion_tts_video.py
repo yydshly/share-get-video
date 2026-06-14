@@ -17,7 +17,7 @@ from app.video_lab.chains.models import ChainResult, ChainStatus
 from app.video_lab.chains import write_chain_manifest
 from app.video_lab.adapters.remotion_template import run_remotion_template
 from app.video_lab.planners.voiceover_planner import generate_voiceover
-from app.video_lab.planners.subtitle_planner import generate_srt_from_segments
+from app.video_lab.planners.subtitle_planner import generate_srt_from_segments, generate_ass_from_segments
 from app.video_lab.providers.minimax import MiniMaxTTSClient
 from app.video_lab.renderers.file_store import (
     get_experiment_dir,
@@ -236,21 +236,43 @@ def run_remotion_tts_video(
             created_at=start_time,
         )
 
-    # ── Step 4: Generate SRT subtitles ───────────────────────────────────
-    logs.append("[Step 4] Generating SRT subtitles...")
+    # ── Step 4: Generate SRT + ASS subtitles ─────────────────────────────
+    logs.append("[Step 4] Generating SRT + ASS subtitles...")
     srt_dir = exp_dir / "subtitles"
     srt_dir.mkdir(parents=True, exist_ok=True)
     srt_path = srt_dir / "subtitles.srt"
+    ass_path = srt_dir / "subtitles.ass"
     try:
         srt_result = generate_srt_from_segments(segments, output_path=srt_path)
         srt_url = srt_result.get("srtUrl", "")
-        logs.append(f"  SRT: {srt_path}, subtitles: {len(srt_result.get('subtitles', []))}")
+        ass_result = generate_ass_from_segments(
+            segments,
+            output_path=ass_path,
+            play_res_x=resolution[0],
+            play_res_y=resolution[1],
+        )
+        subtitle_renderer = "ass"
+        subtitle_style = {
+            "renderer": "ass",
+            "playResX": resolution[0],
+            "playResY": resolution[1],
+            "fontSize": ass_result.get("style", {}).get("font_size"),
+            "marginV": ass_result.get("style", {}).get("margin_v"),
+        }
+        logs.append(
+            f"  SRT: {srt_path.name}, ASS: {ass_path.name}, "
+            f"PlayRes {ass_result.get('playResX')}x{ass_result.get('playResY')}, "
+            f"fontSize={subtitle_style['fontSize']}"
+        )
     except Exception as e:
         logs.append(f"  ERROR: {e}")
         # Non-fatal: we can still compose without subtitles
-        warnings.append(f"SRT generation failed, continuing without subtitles: {e}")
+        warnings.append(f"Subtitle generation failed, continuing without subtitles: {e}")
         srt_path = None
+        ass_path = None
         srt_url = ""
+        subtitle_renderer = "none"
+        subtitle_style = {}
 
     # ── Step 5: FFmpeg compose final with audio + subtitles ──────────────
     logs.append("[Step 5] FFmpeg compose final video with audio + subtitles...")
@@ -277,13 +299,18 @@ def run_remotion_tts_video(
     final_output = exp_dir / "final_with_audio.mp4"
     subtitle_fallback = False
 
-    if srt_path:
+    # Determine burn-in from params (default True)
+    burn_in = bool(params.get("subtitle", {}).get("burnIn", True)) if isinstance(params.get("subtitle"), dict) else True
+
+    if srt_path or ass_path:
         av_result = compose_av_with_subtitles(
             video_path=silent_video_path,
             audio_path=audio_path,
             srt_path=srt_path,
+            ass_path=ass_path,
             output_path=final_output,
             resolution=resolution,
+            burn_in=burn_in,
             timeout=300,
         )
         if not av_result.get("success"):
@@ -336,6 +363,8 @@ def run_remotion_tts_video(
             "visual_source": "Remotion template",
             "audio_source": "MiniMax TTS",
             "subtitle_mode": "SRT" if not subtitle_fallback else "audio_only",
+            "subtitle_renderer": av_result.get("subtitle_renderer", "none") if not subtitle_fallback else "none",
+            "subtitle_style": av_result.get("subtitle_style", {}) if not subtitle_fallback else {},
             "warnings": warnings,
         },
     )

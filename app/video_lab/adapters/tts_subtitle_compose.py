@@ -28,7 +28,7 @@ from app.video_lab.models import (
 from app.video_lab.planners.content_structurer import structure_content
 from app.video_lab.planners.key_point_extractor import extract_key_points
 from app.video_lab.planners.voiceover_planner import generate_voiceover
-from app.video_lab.planners.subtitle_planner import generate_srt_from_segments
+from app.video_lab.planners.subtitle_planner import generate_srt_from_segments, generate_ass_from_segments, DEFAULT_ASS_STYLE
 from app.video_lab.providers.minimax import MiniMaxTTSClient, MiniMaxTTSError
 from app.video_lab.renderers.file_store import (
     get_experiment_dir,
@@ -296,13 +296,20 @@ def run_tts_subtitle_compose(
     steps.append(step5)
     all_logs.extend(step5.logs)
 
-    # Step 6: generate SRT subtitles
+    # Step 6: generate SRT + ASS subtitles
     segments = voiceover_result.get("segments", [])
     subtitle_dir = exp_dir / "subtitles"
     subtitle_dir.mkdir(parents=True, exist_ok=True)
     srt_path = subtitle_dir / "subtitles.srt"
+    ass_path = subtitle_dir / "subtitles.ass"
 
     srt_result = generate_srt_from_segments(segments, output_path=srt_path)
+    ass_result = generate_ass_from_segments(
+        segments,
+        output_path=ass_path,
+        play_res_x=resolution[0],
+        play_res_y=resolution[1],
+    )
     artifact_srt = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_srt",
         type=ArtifactType.SUBTITLE_PLAN,
@@ -314,16 +321,34 @@ def run_tts_subtitle_compose(
             "subtitleCount": len(srt_result.get("subtitles", [])),
         },
     )
+    artifact_ass = VideoProductionArtifact(
+        artifact_id=f"{experiment_id}_art_ass",
+        type=ArtifactType.SUBTITLE_PLAN,
+        title="Subtitle ASS",
+        summary=f"ASS, {len(ass_result.get('subtitles', []))} entries, fontSize={ass_result.get('style', {}).get('font_size')}",
+        payload={
+            "path": ass_result.get("assPath", ""),
+            "url": ass_result.get("assUrl", ""),
+            "playResX": ass_result.get("playResX"),
+            "playResY": ass_result.get("playResY"),
+            "style": ass_result.get("style", {}),
+            "renderer": "ass",
+        },
+    )
     step6 = make_step(
         step_id=f"{experiment_id}_step_06_subtitles",
-        name="Generate SRT Subtitles",
-        description="Generate SRT subtitle file from voiceover segments",
+        name="Generate Subtitles (SRT + ASS)",
+        description="Generate SRT and ASS subtitle files from voiceover segments",
         status=ProductionStepStatus.SUCCEEDED,
         input_summary=f"{len(segments)} voiceover segments",
-        output_summary=f"{len(srt_result.get('subtitles', []))} subtitle entries",
+        output_summary=f"{len(srt_result.get('subtitles', []))} entries (SRT + ASS)",
         key_data={"subtitleCount": len(srt_result.get("subtitles", []))},
-        logs=["[6/9] Generate SRT subtitles", f"  Subtitles: {len(srt_result.get('subtitles', []))}"],
-        artifacts=[artifact_srt],
+        logs=[
+            "[6/9] Generate subtitles",
+            f"  SRT: {srt_path.name}, ASS: {ass_path.name}",
+            f"  ASS PlayRes: {ass_result.get('playResX')}x{ass_result.get('playResY')}, fontSize={ass_result.get('style', {}).get('font_size')}",
+        ],
+        artifacts=[artifact_srt, artifact_ass],
     )
     steps.append(step6)
     all_logs.extend(step6.logs)
@@ -428,13 +453,15 @@ def run_tts_subtitle_compose(
 
     final_output = exp_dir / "final_with_audio.mp4"
 
-    # Try with subtitles first
+    # Try with subtitles first (ASS preferred, SRT fallback)
     av_result = compose_av_with_subtitles(
         video_path=silent_video_path,
         audio_path=audio_path,
         srt_path=srt_path,
+        ass_path=ass_path,
         output_path=final_output,
         resolution=resolution,
+        burn_in=render_params.burn_in if hasattr(render_params, "burn_in") else True,
         timeout=300,
     )
 
@@ -516,6 +543,8 @@ def run_tts_subtitle_compose(
         "fps": 30,
         "audioDurationSec": tts_result.get("durationSec", 0),
         "subtitleCount": len(srt_result.get("subtitles", [])),
+        "subtitleRenderer": av_result.get("subtitle_renderer", "none"),
+        "subtitleStyle": av_result.get("subtitle_style", {}),
         "subtitleBurned": subtitle_burned,
         "subtitleFallback": subtitle_fallback,
         "outputVideo": str(final_output),
@@ -524,6 +553,8 @@ def run_tts_subtitle_compose(
         "audioUrl": path_to_url(audio_path),
         "srtPath": str(srt_path),
         "srtUrl": srt_result.get("srtUrl", ""),
+        "assPath": ass_result.get("assPath", ""),
+        "assUrl": ass_result.get("assUrl", ""),
         "silentVideo": str(silent_video_path),
         "createdAt": datetime.utcnow().isoformat(),
         "manifestUrl": manifest_url,
@@ -593,6 +624,8 @@ def run_tts_subtitle_compose(
             "subtitleCount": len(srt_result.get("subtitles", [])),
             "subtitleBurned": subtitle_burned,
             "subtitleFallback": subtitle_fallback,
+            "subtitleRenderer": av_result.get("subtitle_renderer", "none"),
+            "subtitleStyle": av_result.get("subtitle_style", {}),
             "format": "mp4",
         },
         logs=all_logs,
