@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.4.1] - 2026-06-14
+
+### Fixed
+- **transition_composer.py**: Replaced pixel-by-pixel Python loop in `generate_fade_frames()` with Pillow's native `Image.blend()` for significant performance improvement on 1080x1920 frames
+- **FFmpeg composition order**: FFmpeg now uses `frameSequence` order instead of `duration_per_frame` dict ordering, ensuring transition frames are properly inserted between main frames
+
+### Added
+- **ffmpeg_composer.py**: Added `compose_video_from_frame_sequence()` function for sequence-aware video composition
+- **ffmpeg_composer.py**: Added `build_concat_file_content()` helper function for generating concat demuxer file content
+- **local_frame_renderer.py**: Now returns `frameSequence` (ordered list of all frames) and `durationByPath` (path-keyed duration dict)
+- **manifest/assets**: Added `frameSequenceCount` and `transitionOrderApplied` fields
+- **Step 11 keyData**: Now includes `frameSequenceCount` and `transitionOrderApplied`
+
+### Changed
+- **build_frame_sequence_with_transitions()**: Now accepts `main_durations` parameter to preserve real main frame durations through transition sequence
+- **local_frame_compose.py**: Now prioritizes `frameSequence`-based composition when available, falls back to original method otherwise
+
 ## [0.2.4] - 2026-06-14
 
 ### Added

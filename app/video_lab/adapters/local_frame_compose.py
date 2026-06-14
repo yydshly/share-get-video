@@ -26,7 +26,7 @@ from app.video_lab.renderers.file_store import (
     write_manifest,
 )
 from app.video_lab.renderers.local_frame_renderer import generate_frames
-from app.video_lab.renderers.ffmpeg_composer import check_ffmpeg_available, compose_video_from_frames
+from app.video_lab.renderers.ffmpeg_composer import check_ffmpeg_available, compose_video_from_frames, compose_video_from_frame_sequence
 
 
 def make_step(
@@ -343,14 +343,33 @@ def run_local_frame_compose(
 
     # Step 11: FFmpeg compose MP4
     output_mp4 = exp_dir / "output.mp4"
-    ffmpeg_result = compose_video_from_frames(
-        frames_dir=frames_dir,
-        output_path=output_mp4,
-        duration_per_frame=frame_result.get("duration_per_frame", {}),
-        fps=30,
-        resolution=resolution,
-        timeout=300,
-    )
+
+    # V0.2.4.1: Use frameSequence if available for proper transition ordering
+    frame_sequence = frame_result.get("frameSequence")
+    duration_by_path = frame_result.get("durationByPath", {})
+
+    if frame_sequence and len(frame_sequence) > 0:
+        # Use sequence-based composition which respects transition order
+        ffmpeg_result = compose_video_from_frame_sequence(
+            frame_sequence=frame_sequence,
+            output_path=output_mp4,
+            duration_by_path=duration_by_path,
+            fps=30,
+            resolution=resolution,
+            timeout=300,
+        )
+        transition_order_applied = True
+    else:
+        # Fallback to original composition
+        ffmpeg_result = compose_video_from_frames(
+            frames_dir=frames_dir,
+            output_path=output_mp4,
+            duration_per_frame=frame_result.get("duration_per_frame", {}),
+            fps=30,
+            resolution=resolution,
+            timeout=300,
+        )
+        transition_order_applied = False
 
     video_artifact = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_video",
@@ -374,11 +393,16 @@ def run_local_frame_compose(
                 "outputUrl": path_to_url(output_mp4),
                 "ffmpegCommand": ffmpeg_result.get("ffmpeg_command", ""),
                 "ffmpegMessage": ffmpeg_result.get("message", ""),
+                # V0.2.4.1 new fields
+                "frameSequenceCount": frame_result.get("frameSequenceCount", 0),
+                "transitionOrderApplied": transition_order_applied,
             },
             logs=[
                 "[11/12] FFmpeg compose MP4",
                 f"  FFmpeg: {ffmpeg_result.get('version', 'unknown')}",
                 f"  Output: {output_mp4.name}",
+                f"  FrameSequence: {frame_result.get('frameSequenceCount', 0)} frames",
+                f"  TransitionOrder: {transition_order_applied}",
             ],
             artifacts=[video_artifact],
         )
@@ -395,6 +419,9 @@ def run_local_frame_compose(
                 "error": ffmpeg_result.get("message", "unknown error"),
                 "ffmpegCommand": ffmpeg_result.get("ffmpeg_command", ""),
                 "ffmpegMessage": ffmpeg_result.get("message", ""),
+                # V0.2.4.1 new fields
+                "frameSequenceCount": frame_result.get("frameSequenceCount", 0),
+                "transitionOrderApplied": transition_order_applied,
             },
             logs=[
                 "[11/12] FFmpeg compose MP4",
@@ -436,6 +463,9 @@ def run_local_frame_compose(
         "transitionType": "fade",
         "transitionFrames": frame_result.get("transitionFrames", 0),
         "highlightTerms": frame_result.get("highlightTerms", []),
+        # V0.2.4.1 new fields
+        "frameSequenceCount": frame_result.get("frameSequenceCount", 0),
+        "transitionOrderApplied": transition_order_applied,
     }
     write_manifest(experiment_id, manifest)
 
@@ -462,6 +492,9 @@ def run_local_frame_compose(
         "transitionEnabled": frame_result.get("transitionEnabled", True),
         "transitionFrames": frame_result.get("transitionFrames", 0),
         "highlightTermsCount": len(frame_result.get("highlightTerms", [])),
+        # V0.2.4.1 new fields
+        "frameSequenceCount": frame_result.get("frameSequenceCount", 0),
+        "transitionOrderApplied": transition_order_applied,
     }
 
     conclusion_artifact = VideoProductionArtifact(
@@ -518,6 +551,9 @@ def run_local_frame_compose(
             "transitionType": "fade",
             "transitionFrames": frame_result.get("transitionFrames", 0),
             "highlightTerms": frame_result.get("highlightTerms", []),
+            # V0.2.4.1 new fields
+            "frameSequenceCount": frame_result.get("frameSequenceCount", 0),
+            "transitionOrderApplied": transition_order_applied,
         },
         logs=all_logs,
         provider="Pillow + FFmpeg",

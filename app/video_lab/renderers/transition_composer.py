@@ -48,31 +48,13 @@ def generate_fade_frames(
         frame_b = frame_b.resize(frame_a.size, Image.LANCZOS)
 
     frame_paths: List[Path] = []
-    width, height = frame_a.size
 
     for i in range(1, transition_frames + 1):
         # Calculate blend ratio (0.0 = frame_a, 1.0 = frame_b)
         ratio = i / (transition_frames + 1)
 
-        # Create blended frame
-        blended = Image.new("RGB", (width, height))
-
-        # Get pixel data
-        pixels_a = frame_a.load()
-        pixels_b = frame_b.load()
-        pixels_blended = blended.load()
-
-        for y in range(height):
-            for x in range(width):
-                r_a, g_a, b_a = pixels_a[x, y]
-                r_b, g_b, b_b = pixels_b[x, y]
-
-                # Blend: start with A, end with B
-                r = int(r_a * (1 - ratio) + r_b * ratio)
-                g = int(g_a * (1 - ratio) + g_b * ratio)
-                b = int(b_a * (1 - ratio) + b_b * ratio)
-
-                pixels_blended[x, y] = (r, g, b)
+        # Use Pillow's native Image.blend for performance
+        blended = Image.blend(frame_a, frame_b, ratio)
 
         # Save transition frame
         output_name = f"{transition_prefix}_{i:03d}.png"
@@ -112,6 +94,7 @@ def build_frame_sequence_with_transitions(
     frames_dir: Path,
     transition_frames: int = TRANSITION_FRAMES_DEFAULT,
     enabled: bool = True,
+    main_durations: Dict[str, float] = None,
 ) -> Dict[str, Any]:
     """
     Build a complete frame sequence with transitions between consecutive frames.
@@ -122,6 +105,7 @@ def build_frame_sequence_with_transitions(
         frames_dir: Directory to save transition frames
         transition_frames: Number of intermediate frames per transition
         enabled: Whether to generate transitions
+        main_durations: Optional dict mapping filename to real main frame durations
 
     Returns:
         Dict with:
@@ -130,6 +114,9 @@ def build_frame_sequence_with_transitions(
         - transition_type: Type of transition used
         - duration_per_frame: Dict mapping frame path to duration
     """
+    if main_durations is None:
+        main_durations = {}
+
     sequence: List[Dict[str, Any]] = []
     duration_per_frame: Dict[str, float] = {}
 
@@ -137,7 +124,9 @@ def build_frame_sequence_with_transitions(
         # No transitions, just return original frames
         for fp in frame_paths:
             sequence.append({"path": str(fp), "type": "main"})
-            duration_per_frame[str(fp)] = 0.0  # Will be set by caller
+            # Use real duration if available, otherwise 0.0
+            filename = Path(fp).name
+            duration_per_frame[str(fp)] = main_durations.get(filename, 0.0)
         return {
             "sequence": sequence,
             "transition_count": 0,
@@ -146,13 +135,16 @@ def build_frame_sequence_with_transitions(
             "transitionEnabled": enabled,
         }
 
-    # Main frame duration (slightly shorter when transitions are present)
-    main_duration = 0.1  # Will be adjusted by caller
+    # Transition duration is shorter
     transition_duration = 0.08  # Shorter duration for transition frames
 
     for i, frame_path in enumerate(frame_paths):
+        # Get real main frame duration if available
+        filename = Path(frame_path).name
+        main_duration = main_durations.get(filename, 0.1)
+
         # Add main frame
-        sequence.append({"path": str(frame_path), "type": "main", "index": i})
+        sequence.append({"path": str(frame_path), "type": "main", "index": i, "duration": main_duration})
         duration_per_frame[str(frame_path)] = main_duration
 
         # Add transition frames after this frame (if not last)
@@ -173,6 +165,7 @@ def build_frame_sequence_with_transitions(
                     "index": i,
                     "transition_index": j,
                     "transition_of": str(frame_path),
+                    "duration": transition_duration,
                 })
                 duration_per_frame[trans_path_str] = transition_duration
 

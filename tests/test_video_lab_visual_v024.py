@@ -422,6 +422,292 @@ class TestLocalFrameComposeV024Visual:
         assert "highlightTerms" in step10.keyData
 
 
+# ─────────────────────────────────────────
+# V0.2.4.1 Tests - Transition Sequence Fix
+# ─────────────────────────────────────────
+class TestFFmpegComposerSequence:
+    """Tests for compose_video_from_frame_sequence and build_concat_file_content."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        ensure_runtime_exists()
+        self.test_exp_id = "test_ffmpeg_sequence"
+        self.frames_dir = get_frames_dir(self.test_exp_id)
+
+    def test_build_concat_file_content_order(self):
+        """build_concat_file_content should write frames in sequence order."""
+        from app.video_lab.renderers.ffmpeg_composer import build_concat_file_content
+        from PIL import Image
+
+        # Create test frames
+        frames = []
+        for i in range(3):
+            frame = Image.new("RGB", (100, 100), (i * 50, i * 30, i * 10))
+            path = self.frames_dir / f"frame_{i}.png"
+            frame.save(path)
+            frames.append(str(path))
+
+        # Create sequence: frame_0 -> fade -> fade -> frame_1 -> fade -> fade -> frame_2
+        sequence = [
+            {"path": frames[0], "type": "main"},
+            {"path": str(self.frames_dir / "fade_00_001.png"), "type": "transition"},
+            {"path": str(self.frames_dir / "fade_00_002.png"), "type": "transition"},
+            {"path": frames[1], "type": "main"},
+            {"path": str(self.frames_dir / "fade_01_001.png"), "type": "transition"},
+            {"path": str(self.frames_dir / "fade_01_002.png"), "type": "transition"},
+            {"path": frames[2], "type": "main"},
+        ]
+
+        duration_by_path = {
+            frames[0]: 4.0,
+            frames[1]: 3.0,
+            frames[2]: 4.0,
+            str(self.frames_dir / "fade_00_001.png"): 0.08,
+            str(self.frames_dir / "fade_00_002.png"): 0.08,
+            str(self.frames_dir / "fade_01_001.png"): 0.08,
+            str(self.frames_dir / "fade_01_002.png"): 0.08,
+        }
+
+        content = build_concat_file_content(sequence, duration_by_path)
+        lines = content.strip().split("\n")
+
+        # Check that frame_0 appears before fade_00_001
+        frame_0_idx = next(i for i, l in enumerate(lines) if "frame_0.png" in l)
+        fade_00_idx = next(i for i, l in enumerate(lines) if "fade_00_001" in l)
+        assert frame_0_idx < fade_00_idx, "frame_0 should come before its transition frames"
+
+        # Check that fade_00_001 appears before frame_1
+        frame_1_idx = next(i for i, l in enumerate(lines) if "frame_1.png" in l)
+        assert fade_00_idx < frame_1_idx, "transition frames should come before next main frame"
+
+    def test_build_concat_file_content_repeats_last_frame(self):
+        """build_concat_file_content should repeat the last frame at the end."""
+        from app.video_lab.renderers.ffmpeg_composer import build_concat_file_content
+        from PIL import Image
+
+        frame = Image.new("RGB", (100, 100), (50, 100, 150))
+        path = self.frames_dir / "single.png"
+        frame.save(path)
+
+        sequence = [{"path": str(path), "type": "main"}]
+        duration_by_path = {str(path): 3.0}
+
+        content = build_concat_file_content(sequence, duration_by_path)
+        lines = content.strip().split("\n")
+
+        # Should have 2 entries for single frame (file + duration, then repeat)
+        assert len([l for l in lines if "single.png" in l]) == 2
+
+    def test_build_concat_file_content_uses_filename_fallback(self):
+        """build_concat_file_content should use filename as fallback for duration lookup."""
+        from app.video_lab.renderers.ffmpeg_composer import build_concat_file_content
+        from PIL import Image
+
+        frame = Image.new("RGB", (100, 100), (50, 100, 150))
+        path = self.frames_dir / "test_frame.png"
+        frame.save(path)
+
+        sequence = [{"path": str(path), "type": "main"}]
+        # Use filename as key instead of full path
+        duration_by_path = {"test_frame.png": 5.0}
+
+        content = build_concat_file_content(sequence, duration_by_path)
+        lines = content.strip().split("\n")
+
+        # Duration line should have 5.0
+        duration_line = next(l for l in lines if "duration" in l)
+        assert "5.0" in duration_line
+
+
+class TestTransitionSequenceOrdering:
+    """Tests for frame sequence ordering in build_frame_sequence_with_transitions."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        ensure_runtime_exists()
+        self.test_exp_id = "test_sequence_order"
+        self.frames_dir = get_frames_dir(self.test_exp_id)
+
+    def test_sequence_starts_and_ends_with_main(self):
+        """frameSequence should start and end with main frames."""
+        from app.video_lab.renderers.transition_composer import build_frame_sequence_with_transitions
+        from PIL import Image
+
+        # Create 3 test frames
+        frames = []
+        for i in range(3):
+            frame = Image.new("RGB", (100, 100), (i * 50, i * 30, i * 10))
+            path = self.frames_dir / f"frame_{i}.png"
+            frame.save(path)
+            frames.append(path)
+
+        result = build_frame_sequence_with_transitions(
+            frames, self.frames_dir,
+            transition_frames=2, enabled=True
+        )
+
+        sequence = result["sequence"]
+
+        # First and last should be main
+        assert sequence[0]["type"] == "main", "First frame should be main"
+        assert sequence[-1]["type"] == "main", "Last frame should be main"
+
+    def test_transition_frames_between_main_frames(self):
+        """Transition frames should appear between main frames."""
+        from app.video_lab.renderers.transition_composer import build_frame_sequence_with_transitions
+        from PIL import Image
+
+        # Create 2 test frames
+        frames = []
+        for i in range(2):
+            frame = Image.new("RGB", (100, 100), (i * 100, i * 50, i * 25))
+            path = self.frames_dir / f"frame_{i}.png"
+            frame.save(path)
+            frames.append(path)
+
+        result = build_frame_sequence_with_transitions(
+            frames, self.frames_dir,
+            transition_frames=3, enabled=True
+        )
+
+        sequence = result["sequence"]
+
+        # Pattern should be: main, transition, transition, transition, main
+        assert sequence[0]["type"] == "main"
+        assert sequence[1]["type"] == "transition"
+        assert sequence[2]["type"] == "transition"
+        assert sequence[3]["type"] == "transition"
+        assert sequence[4]["type"] == "main"
+
+    def test_transition_count_correct(self):
+        """transition_count should equal number of transition frames in sequence."""
+        from app.video_lab.renderers.transition_composer import build_frame_sequence_with_transitions
+        from PIL import Image
+
+        frames = []
+        for i in range(3):
+            frame = Image.new("RGB", (100, 100), (i * 50, i * 30, i * 10))
+            path = self.frames_dir / f"frame_{i}.png"
+            frame.save(path)
+            frames.append(path)
+
+        result = build_frame_sequence_with_transitions(
+            frames, self.frames_dir,
+            transition_frames=2, enabled=True
+        )
+
+        expected_transitions = (len(frames) - 1) * 2  # 2 transitions between 3 frames
+        assert result["transition_count"] == expected_transitions
+
+        actual_transition_count = sum(1 for f in result["sequence"] if f["type"] == "transition")
+        assert actual_transition_count == expected_transitions
+
+    def test_main_durations_passed_through(self):
+        """Real main frame durations should be preserved when passed via main_durations."""
+        from app.video_lab.renderers.transition_composer import build_frame_sequence_with_transitions
+        from PIL import Image
+
+        frames = []
+        for i in range(2):
+            frame = Image.new("RGB", (100, 100), (i * 100, i * 50, i * 25))
+            path = self.frames_dir / f"frame_{i}.png"
+            frame.save(path)
+            frames.append(path)
+
+        main_durations = {
+            "frame_0.png": 4.0,
+            "frame_1.png": 3.0,
+        }
+
+        result = build_frame_sequence_with_transitions(
+            frames, self.frames_dir,
+            transition_frames=2, enabled=True,
+            main_durations=main_durations
+        )
+
+        # Check that main frames have the correct durations
+        main_frames = [f for f in result["sequence"] if f["type"] == "main"]
+        assert len(main_frames) == 2
+
+        # Find each main frame's duration in duration_per_frame
+        for mf in main_frames:
+            path_str = mf["path"]
+            dur = result["duration_per_frame"].get(path_str)
+            filename = Path(path_str).name
+            expected = main_durations.get(filename)
+            if expected:
+                assert dur == expected, f"Main frame {filename} should have duration {expected}, got {dur}"
+
+
+class TestLocalFrameComposeV0241Sequence:
+    """Tests for V0.2.4.1 transition sequence integration."""
+
+    def test_local_frame_compose_returns_frame_sequence(self):
+        """run_local_frame_compose should return frameSequence in result."""
+        from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+
+        result = run_local_frame_compose(
+            experiment_id="exp_seq_test",
+            test_case_id="case_ai_frontier_daily_001",
+            input_payload={"content": "AI安全风险上升，准确率达88.9%。"},
+            params={"targetDuration": 15},
+        )
+
+        # The frame_result from generate_frames should have frameSequence
+        # We can check the rawOutput or look at step data
+        raw_output = result.rawOutput or {}
+
+        # Step 10 should have frameSequenceCount
+        step10 = None
+        for step in result.productionSteps:
+            if "Pillow" in step.name:
+                step10 = step
+                break
+
+        if step10:
+            assert "frameSequenceCount" in step10.keyData or "totalFrames" in step10.keyData
+
+    def test_local_frame_compose_manifest_contains_sequence_fields(self):
+        """Manifest should contain V0.2.4.1 frameSequenceCount and transitionOrderApplied."""
+        from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+        from app.video_lab.renderers.file_store import read_manifest
+
+        exp_id = "exp_seq_manifest_test"
+        run_local_frame_compose(
+            experiment_id=exp_id,
+            test_case_id="case_ai_frontier_daily_001",
+            input_payload={"content": "AI安全风险上升，准确率达88.9%。"},
+            params={"targetDuration": 15},
+        )
+
+        manifest = read_manifest(exp_id)
+
+        # V0.2.4.1 fields
+        assert "frameSequenceCount" in manifest, "manifest should contain frameSequenceCount"
+        assert "transitionOrderApplied" in manifest, "manifest should contain transitionOrderApplied"
+        assert manifest["transitionOrderApplied"] is True
+        assert manifest["frameSequenceCount"] > manifest["totalFrames"]
+
+    def test_local_frame_compose_assets_contains_sequence_fields(self):
+        """result.assets should contain V0.2.4.1 frameSequenceCount and transitionOrderApplied."""
+        from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
+
+        result = run_local_frame_compose(
+            experiment_id="exp_seq_assets_test",
+            test_case_id="case_ai_frontier_daily_001",
+            input_payload={"content": "AI安全风险上升，准确率达88.9%。"},
+            params={"targetDuration": 15},
+        )
+
+        assets = result.assets
+
+        # V0.2.4.1 fields
+        assert "frameSequenceCount" in assets
+        assert "transitionOrderApplied" in assets
+        assert assets["transitionOrderApplied"] is True
+        assert assets["frameSequenceCount"] > assets.get("frameCount", 0)
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

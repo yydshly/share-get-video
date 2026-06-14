@@ -280,27 +280,40 @@ def generate_frames(
         "transition_duration_per_frame": {},
     }
 
-    if enable_transitions and len(frame_outputs) >= 2:
-        # Get main frame paths in order
-        main_frame_paths = [Path(f["path"]) for f in frame_outputs]
+    # Build main frame paths for sequence
+    main_frame_paths = [Path(f["path"]) for f in frame_outputs]
 
-        # Build sequence with transitions
+    if enable_transitions and len(main_frame_paths) >= 2:
+        # Pass real main frame durations to build_frame_sequence_with_transitions
         trans_result = build_frame_sequence_with_transitions(
             frame_paths=main_frame_paths,
             frames_dir=frames_dir,
             transition_frames=transition_frames,
             enabled=True,
+            main_durations=duration_per_frame,  # Pass real durations by filename
         )
 
         transition_info["transitionFrames"] = trans_result["transition_count"]
         transition_info["transition_sequence"] = trans_result["sequence"]
         transition_info["transition_duration_per_frame"] = trans_result["duration_per_frame"]
 
-        # Update duration_per_frame with transition durations
+        # Use the sequence's duration_per_frame which now has real main durations
+        duration_by_path = trans_result["duration_per_frame"]
+        # Also keep filename-keyed version for backward compatibility
         for frame_path_str, dur in trans_result["duration_per_frame"].items():
             key = Path(frame_path_str).name
             if key not in duration_per_frame:
                 duration_per_frame[key] = dur
+    else:
+        # No transitions - build simple sequence without transitions
+        simple_sequence = [{"path": str(p), "type": "main", "index": i} for i, p in enumerate(main_frame_paths)]
+        transition_info["transition_sequence"] = simple_sequence
+        # Build duration_by_path from duration_per_frame (filename-keyed)
+        duration_by_path = {}
+        for f in frame_outputs:
+            fp = Path(f["path"])
+            duration_by_path[str(fp)] = duration_per_frame.get(fp.name, 0.0)
+            duration_by_path[fp.name] = duration_per_frame.get(fp.name, 0.0)
 
     # Deduplicate highlights
     unique_highlights = list(set(all_highlights))
@@ -323,6 +336,10 @@ def generate_frames(
         "highlightTerms": unique_highlights,
         "overview_frame": frame_outputs[1]["path"] if len(frame_outputs) > 1 else None,
         "summary_frame": frame_outputs[-1]["path"] if frame_outputs else None,
+        # V0.2.4.1 new fields
+        "frameSequence": transition_info["transition_sequence"],
+        "durationByPath": duration_by_path,
+        "frameSequenceCount": len(transition_info["transition_sequence"]),
     }
 
 
