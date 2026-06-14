@@ -4,6 +4,27 @@
 
 V0.3.1 upgrades `template_programmatic_render` from mock to real route. The route now renders real MP4 videos using Remotion/React.
 
+## V0.3.1.1 Fixes (2026-06-14)
+
+### Path Fixes
+- `REMOTION_ROOT_TSX` changed from `Path("remotion/src/Root.tsx")` to `Path("src/Root.tsx")` — paths are relative to `cwd=remotion`, not project root
+- Props path uses `./src/props.json` prefix for Windows CLI compatibility
+- `output.mp4` uses `resolve()` for absolute path
+- `shell=True` added to `subprocess.run` — Windows requires it for `.cmd` files like `npx.cmd`
+
+### Root.tsx Rewrite
+- Now uses standard Remotion `Composition` pattern with `registerRoot(RemotionRoot)`
+- Composition `id="AiNewsVideo"` matches CLI `--compName` argument
+
+### manifestUrl Fix
+- Adapter: `manifest_url` computed BEFORE building the manifest dict (was previously read from `render_result` which could be stale)
+- Renderer: manifest file now contains `manifestUrl` field with the correct final URL
+
+### Verified Render
+- **Remotion 真实渲染成功**: `npx remotion render ./src/Root.tsx AiNewsVideo <output> --props=./src/props.json --codec=h264`
+- Output: 2.8MB MP4, 45s duration, 1080x1920 portrait
+- Chrome headless auto-downloaded to `remotion/node_modules/.remotion/chrome-headless-shell/`
+
 ## Architecture
 
 ```
@@ -84,8 +105,8 @@ cd remotion && npm install
 
 ```bash
 cd remotion
-npx remotion render src/Root.tsx AiNewsVideo out/video.mp4 \
-  --props=src/props.json --codec=h264
+npx remotion render ./src/Root.tsx AiNewsVideo out/video.mp4 \
+  --props=./src/props.json --codec=h264
 ```
 
 ### Via Route Benchmark

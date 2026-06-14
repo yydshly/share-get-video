@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.1.1] - 2026-06-14
+
+### Fixed
+- **Remotion CLI path**: `REMOTION_ROOT_TSX` changed from `remotion/src/Root.tsx` to `src/Root.tsx` (relative to `cwd=remotion`)
+- **Props path**: `--props` now uses `./src/props.json` prefix for Windows compatibility
+- **output.mp4**: Now uses `resolve()` absolute path to avoid cwd confusion
+- **shell=True for subprocess**: Added `shell=True` to `subprocess.run` for Windows (`npx` is `npx.cmd`)
+- **Root.tsx**: Rewritten to use standard `Composition` pattern with `registerRoot`
+- **manifestUrl writing order**: Fixed adapter to compute `manifest_url` BEFORE building manifest dict
+- **Renderer manifest**: `remotion_renderer.py` now writes `manifestUrl` into the manifest file
+
+### Verified
+- **Remotion真实渲染**: Successfully rendered MP4 via `npx remotion render` (2.8MB, 45s video)
+- **Chrome headless**: Remotion downloads and uses `chrome-headless-shell` automatically
+
 ## [0.3.1] - 2026-06-14
 
 ### Added

@@ -14,8 +14,9 @@ from app.video_lab.renderers.file_store import get_experiment_dir, path_to_url, 
 
 # Path to the Remotion workspace (relative to project root)
 REMOTION_DIR = Path("remotion")
-REMOTION_SRC = REMOTION_DIR / "src"
-REMOTION_ROOT_TSX = REMOTION_SRC / "Root.tsx"
+# Paths passed to CLI are relative to cwd=REMOTION_DIR
+REMOTION_ROOT_TSX = Path("src") / "Root.tsx"
+REMOTION_PROPS_PATH = Path("src") / "props.json"
 REMOTION_ENTRY = "AiNewsVideo"
 
 
@@ -36,13 +37,14 @@ def check_remotion_available() -> tuple[bool, str]:
     if not npm_path:
         return False, "npm not found. Install Node.js/npm to use Remotion rendering."
 
-    # Check npx
+    # Check npx - use shell=True on Windows since npx is npx.cmd
     try:
         result = subprocess.run(
             ["npx", "--version"],
             capture_output=True,
             text=True,
             timeout=10,
+            shell=True,  # Windows: npx is npx.cmd
         )
         if result.returncode != 0:
             return False, "npx not available. Check Node.js installation."
@@ -80,7 +82,8 @@ def render_remotion_video(
     warnings: list[str] = []
     logs: list[str] = []
     exp_dir = get_experiment_dir(experiment_id)
-    output_mp4 = exp_dir / "output.mp4"
+    # Use absolute path for output to avoid cwd confusion
+    output_mp4 = exp_dir.resolve() / "output.mp4"
 
     # Check environment
     available, avail_msg = check_remotion_available()
@@ -94,24 +97,28 @@ def render_remotion_video(
             "warnings": [avail_msg],
         }
 
-    # Write props JSON to remotion workspace
-    remotion_props_path = REMOTION_DIR / "src" / "props.json"
+    # Write props JSON to remotion workspace src/ (relative to cwd=remotion)
+    remotion_props_path = REMOTION_DIR / REMOTION_PROPS_PATH  # = remotion/src/props.json on disk
     remotion_props_path.parent.mkdir(parents=True, exist_ok=True)
     with open(remotion_props_path, "w", encoding="utf-8") as f:
         json.dump(props, f, ensure_ascii=False, indent=2)
-    logs.append(f"[Remotion] Props written to {remotion_props_path}")
+    logs.append(f"[Remotion] cwd: {REMOTION_DIR.resolve()}")
+    logs.append(f"[Remotion] root: {REMOTION_ROOT_TSX}")
+    logs.append(f"[Remotion] props: {REMOTION_PROPS_PATH} -> {remotion_props_path}")
+    logs.append(f"[Remotion] output: {output_mp4}")
 
     # Build npx remotion render command
     # npx remotion render <entry> <compName> <output> --props=<propsPath> --codec=h264
+    # Note: --props path must use ./ prefix for relative paths on Windows
     cmd = [
         "npx",
         "remotion",
         "render",
-        str(REMOTION_ROOT_TSX),
+        "./" + str(REMOTION_ROOT_TSX),  # ./src/Root.tsx
         REMOTION_ENTRY,
         str(output_mp4),
         "--props",
-        str(remotion_props_path),
+        "./" + str(REMOTION_PROPS_PATH),  # ./src/props.json
         "--codec",
         "h264",
     ]
@@ -124,6 +131,7 @@ def render_remotion_video(
             capture_output=True,
             text=True,
             timeout=timeout,
+            shell=True,  # Windows: shell needed for .cmd files like npx.cmd
         )
         stdout = result.stdout
         stderr = result.stderr
@@ -135,7 +143,9 @@ def render_remotion_video(
             video_url = path_to_url(output_mp4)
             logs.append(f"[Remotion] Success: {output_mp4} -> {video_url}")
 
-            # Write manifest
+            # Write manifest with final manifestUrl
+            manifest_path = get_experiment_dir(experiment_id) / "manifest.json"
+            manifest_url = path_to_url(manifest_path)
             manifest = {
                 "experimentId": experiment_id,
                 "method": "template_programmatic_render",
@@ -146,14 +156,14 @@ def render_remotion_video(
                 "stylePreset": props.get("stylePreset", "ai_frontier_dark"),
                 "outputVideo": str(output_mp4),
                 "outputVideoUrl": video_url,
+                "manifestUrl": manifest_url,
                 "props": props,
                 "createdAt": subprocess.check_output(
                     ["python", "-c", "from datetime import datetime; print(datetime.utcnow().isoformat())"],
                     text=True,
                 ).strip(),
             }
-            manifest_path = write_manifest(experiment_id, manifest)
-            manifest_url = path_to_url(manifest_path)
+            write_manifest(experiment_id, manifest)
 
             return {
                 "success": True,

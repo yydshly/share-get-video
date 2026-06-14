@@ -22,6 +22,7 @@
 - `template_programmatic_render` 依赖 `npx remotion` CLI
 - 环境不可用时 route 返回 `failed`，其他路线不受影响
 - 安装方式: `cd remotion && npm install`
+- **V0.3.1.1 已验证真实渲染**（2.8MB MP4，45s，1080x1920）
 
 ### 4. 无数据库
 
@@ -38,7 +39,7 @@
 
 ### 6. Remotion 模板为最小验证版
 
-- V0.3.1 Remotion 模板不做最终视觉追求
+- V0.3.1.1 Remotion 模板不做最终视觉追求
 - 仅 Cover + KeyPoint Cards + Summary 三个基本页面
 - 无 TTS、无 AI 图片、无复杂动画
 - 计划在后续版本中优化视觉质量
@@ -65,7 +66,7 @@
 |------|---------|---------|
 | local_frame_compose | V0.2 ✅ | Pillow + FFmpeg |
 | 模板参数化 | V0.2.5 ✅ | render_params.py |
-| Remotion 渲染 | V0.3.1 ✅ | remotion workspace + npx remotion render |
+| Remotion 渲染 | V0.3.1.1 ✅ | remotion workspace + npx remotion render + shell=True fix |
 | TTS 接入 | V0.3.2 | MiniMax TTS API |
 | AI 视频接入 | V0.4 | 接入 Runway/Kling 等 API |
 | LLM/TTS/图像 | V0.5 | 接入 OpenAI/ElevenLabs/DALL-E |

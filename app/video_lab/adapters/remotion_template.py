@@ -282,9 +282,11 @@ def run_remotion_template(
     all_logs.extend(step6.logs)
 
     video_url = render_result.get("videoUrl", "")
-    manifest_url = render_result.get("manifestUrl", "")
-
     # Step 7: write manifest and conclusion
+    # Compute manifest_url BEFORE building the dict so the written file has the correct URL
+    manifest_path = get_experiment_dir(experiment_id) / "manifest.json"
+    manifest_url = path_to_url(manifest_path)
+
     manifest = {
         "experimentId": experiment_id,
         "method": method_category,
@@ -301,8 +303,7 @@ def run_remotion_template(
         "renderMessage": render_result.get("message", ""),
         "manifestUrl": manifest_url,
     }
-    manifest_path = write_manifest(experiment_id, manifest)
-    manifest_url = path_to_url(manifest_path)
+    write_manifest(experiment_id, manifest)
 
     manifest_artifact = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_manifest",
