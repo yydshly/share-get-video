@@ -187,10 +187,10 @@ def render_cover_template(
 ) -> Dict[str, Any]:
     """
     Render enhanced cover frame with:
-    - Top label: "AI Frontier Radar"
-    - Large title
-    - Subtitle
-    - 3 signal tags
+    - Top label: "AI前沿" + 栏目感
+    - Large title (更集中)
+    - Hook line (V0.3.6-a2: 增加点击理由)
+    - 3 prominent signal tags (V0.3.6-a2: 更大更醒目)
     - Background gradient (or AI image) with decorative elements
     - Date and footer
     """
@@ -227,39 +227,44 @@ def render_cover_template(
         fill=COLORS["accent_blue"]
     )
 
-    # Top label
-    label_text = "AI Frontier Radar"
+    # Top label - V0.3.6-a2: "AI前沿" + 栏目感
+    label_text = "AI前沿"
     bbox = draw.textbbox((0, 0), label_text, font=font_label)
     label_w = bbox[2] - bbox[0]
     draw.text(((width - label_w) // 2, line_y + 30), label_text, font=font_label, fill=COLORS["accent_cyan"])
 
-    # Main title - split into lines if needed
+    # Main title - V0.3.6-a2: 更集中，向上移动
     title_max_width = int(width * 0.88)
     title_lines = split_lines_with_max_count(title, font_title, title_max_width, draw, max_lines=3)
     title_line_h = get_text_size("测试", font_title, draw)[1] + 12
-    title_start_y = height // 2 - len(title_lines) * title_line_h // 2 - 80
+    # V0.3.6-a2: 标题上移，给hook line留空间
+    title_start_y = height // 2 - len(title_lines) * title_line_h // 2 - 140
 
     for i, line in enumerate(title_lines):
         bbox = draw.textbbox((0, 0), line, font=font_title)
         tw = bbox[2] - bbox[0]
         draw.text(((width - tw) // 2, title_start_y + i * title_line_h), line, font=font_title, fill=COLORS["text_primary"])
 
-    # Subtitle
-    subtitle_y = title_start_y + len(title_lines) * title_line_h + 30
-    draw_centered_text(draw, subtitle, subtitle_y, width, font_subtitle, COLORS["text_secondary"])
+    # Hook line - V0.3.6-a2: 增加点击理由
+    hook_text = subtitle if subtitle else "今天这3件事，值得注意"
+    hook_font_size = int(font_size_subtitle * 0.9)
+    font_hook, _ = find_chinese_font(hook_font_size)
+    hook_y = title_start_y + len(title_lines) * title_line_h + 20
+    draw_centered_text(draw, hook_text, hook_y, width, font_hook, COLORS["highlight_yellow"])
 
-    # Signal tags
-    tags_y = height // 2 + 120
-    tag_spacing = 30
+    # Signal tags - V0.3.6-a2: 更大更醒目
+    tags_y = hook_y + 80  # V0.3.6-a2: 调整位置给hook line腾空间
+    tag_spacing = 40       # V0.3.6-a2: 标签间距增大
     total_tags_width = 0
-    tag_sizes = []
+    # V0.3.6-a2: 使用更大的字号
+    font_size_tag_larger = int(font_size_tag * 1.25)
+    font_tag_larger, _ = find_chinese_font(font_size_tag_larger)
     for tag in tags[:3]:
         style = get_category_style("默认")
-        bbox = draw.textbbox((0, 0), tag, font=font_tag)
+        bbox = draw.textbbox((0, 0), tag, font=font_tag_larger)
         tw = bbox[2] - bbox[0]
         th = bbox[3] - bbox[1]
-        padding = 16
-        tag_sizes.append((tw + padding * 2, th + padding))
+        padding = 20  # V0.3.6-a2: 更大内边距
         total_tags_width += tw + padding * 2 + tag_spacing
 
     total_tags_width -= tag_spacing
@@ -267,21 +272,22 @@ def render_cover_template(
 
     for i, tag in enumerate(tags[:3]):
         style = get_category_style("默认")
-        bbox = draw.textbbox((0, 0), tag, font=font_tag)
+        bbox = draw.textbbox((0, 0), tag, font=font_tag_larger)
         tw = bbox[2] - bbox[0]
         th = bbox[3] - bbox[1]
-        padding = 16
+        padding = 20  # V0.3.6-a2: 更大内边距
         tag_w = tw + padding * 2
         tag_h = th + padding
 
+        # V0.3.6-a2: 更醒目的卡片样式
         draw.rounded_rectangle(
             [(current_x, tags_y - tag_h // 2), (current_x + tag_w, tags_y + tag_h // 2)],
-            radius=10,
+            radius=14,  # V0.3.6-a2: 更大圆角
             fill=style["bg"],
             outline=style["border"],
-            width=1,
+            width=2,     # V0.3.6-a2: 更粗边框
         )
-        draw.text((current_x + padding, tags_y - th // 2 - 2), tag, font=font_tag, fill=style["text"])
+        draw.text((current_x + padding, tags_y - th // 2 - 2), tag, font=font_tag_larger, fill=style["text"])
         current_x += tag_w + tag_spacing
 
     # Bottom decorative line
@@ -324,7 +330,8 @@ def render_overview_template(
     resolution: Tuple[int, int] = (1080, 1920),
 ) -> Dict[str, Any]:
     """
-    Render overview frame showing top 4 key points with indices.
+    Render overview frame showing top 4 key points as compact cards.
+    V0.3.6-a2: Converted from text list to card list for better visual focus.
     """
     width, height = resolution
     img = render_gradient_background(width, height)
@@ -342,47 +349,73 @@ def render_overview_template(
     warnings.extend(w2)
     warnings.extend(w3)
 
-    # Title
+    # Title - V0.3.6-a2: 更集中
     title_text = "今日重点"
-    draw_centered_text(draw, title_text, height // 5, width, font_title, COLORS["highlight_yellow"])
+    title_y = int(height * 0.12)
+    draw_centered_text(draw, title_text, title_y, width, font_title, COLORS["highlight_yellow"])
 
     # Decorative line under title
-    line_y = height // 5 + 60
+    line_y = title_y + 70
     draw.rectangle(
         [(width // 4, line_y), (width * 3 // 4, line_y + SPACING["decor_line_height"])],
         fill=COLORS["accent_blue"]
     )
 
-    # Items - show max 4
-    display_items = items[:4]
-    item_start_y = height // 3
-    item_spacing = (height - item_start_y - 200) // max(len(display_items), 1)
+    # Cards layout - V0.3.6-a2: 3条卡片集中在画面中部
+    display_items = items[:3]  # V0.3.6-a2: 最多3条，减少空间浪费
+    card_margin_h = int(width * 0.08)
+    card_width = width - card_margin_h * 2
+    card_height = int(height * 0.18)  # V0.3.6-a2: 固定卡片高度
+    card_gap = int(height * 0.03)     # V0.3.6-a2: 卡片间距
+    cards_start_y = int(height * 0.32)  # V0.3.6-a2: 卡片起始位置
 
     for i, item in enumerate(display_items):
-        idx = i + 1
-        idx_text = f"{idx:02d}"
-        title = truncate_text(item.get("title", "未知"), 20)
+        card_y = cards_start_y + i * (card_height + card_gap)
+        card_x = card_margin_h
 
-        # Index number
-        bbox = draw.textbbox((0, 0), idx_text, font=font_index)
-        idx_w = bbox[2] - bbox[0]
-        draw.text((width // 3 - 80, item_start_y + i * item_spacing), idx_text, font=font_index, fill=COLORS["accent_blue"])
+        # Card background - V0.3.6-a2: 半透明卡片
+        card_bg = blend_colors(COLORS["bg_card"], COLORS["bg_primary"], 0.3)
+        draw.rounded_rectangle(
+            [(card_x, card_y), (card_x + card_width, card_y + card_height)],
+            radius=16,
+            fill=card_bg,
+            outline=COLORS["border_active"],
+            width=1,
+        )
 
-        # Title text
-        title_lines = split_lines_with_max_count(title, font_item, int(width * 0.5), draw, max_lines=2)
+        # Left accent bar
+        accent_bar_w = 6
+        draw.rounded_rectangle(
+            [(card_x + 16, card_y + 20), (card_x + 16 + accent_bar_w, card_y + card_height - 20)],
+            radius=3,
+            fill=COLORS["accent_blue"],
+        )
+
+        # Index number - V0.3.6-a2: 更醒目
+        idx_text = f"{i+1:02d}"
+        bbox_idx = draw.textbbox((0, 0), idx_text, font=font_index)
+        idx_w = bbox_idx[2] - bbox_idx[0]
+        idx_h = bbox_idx[3] - bbox_idx[1]
+        idx_x = card_x + 40
+        idx_y = card_y + (card_height - idx_h) // 2 - 2
+        draw.text((idx_x, idx_y), idx_text, font=font_index, fill=COLORS["accent_blue"])
+
+        # Title text - V0.3.6-a2: 更大，更集中
+        title = truncate_text(item.get("title", "未知"), 24)
+        title_x = idx_x + idx_w + 30
+        avail_title_width = card_width - (title_x - card_x) - 30
+        title_lines = split_lines_with_max_count(title, font_item, avail_title_width, draw, max_lines=2)
+        line_h = get_text_size("测试", font_item, draw)[1] + 8
+        total_text_h = len(title_lines) * line_h
+        text_start_y = card_y + (card_height - total_text_h) // 2 - 2
         for j, line in enumerate(title_lines):
-            draw.text((width // 3, item_start_y + i * item_spacing + j * (get_text_size("测试", font_item, draw)[1] + 6)), line, font=font_item, fill=COLORS["text_primary"])
-
-        # Separator line
-        if i < len(display_items) - 1:
-            sep_y = item_start_y + (i + 1) * item_spacing - 20
-            draw.rectangle([(width // 4, sep_y), (width * 3 // 4, sep_y + 1)], fill=COLORS["border_subtle"])
+            draw.text((title_x, text_start_y + j * line_h), line, font=font_item, fill=COLORS["text_primary"])
 
     # Footer
-    footer_text = "AI Frontier Radar · 每日更新"
+    footer_text = "AI前沿 · 每日更新"
     bbox = draw.textbbox((0, 0), footer_text, font=font_index)
     fw = bbox[2] - bbox[0]
-    draw.text(((width - fw) // 2, height - 100), footer_text, font=font_index, fill=COLORS["text_dim"])
+    draw.text(((width - fw) // 2, height - 80), footer_text, font=font_index, fill=COLORS["text_dim"])
 
     output_path = frames_dir / "overview.png"
     img.save(output_path, "PNG")

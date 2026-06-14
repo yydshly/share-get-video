@@ -239,18 +239,20 @@ def _format_srt_time(seconds: float) -> str:
 
 # Default safe-area subtitle style for 1080x1920 portrait video.
 # Use ASS file with explicit PlayResX/Y so FFmpeg/libass scales correctly.
+# V0.3.6-a2: Enhanced for short-video readability - larger font, better vertical
+# position (avoiding player controls), wider max_chars, stronger background.
 DEFAULT_ASS_STYLE = {
-    "font_size": 32,
-    "margin_v": 240,
+    "font_size": 36,           # V0.3.6-a2: 32→36 (短视频字幕更醒目)
+    "margin_v": 150,          # V0.3.6-a2: 240→150 (距底部120-180px，避免控制条遮挡)
     "margin_lr": 80,
     "outline": 2,
-    "shadow": 1,
-    "alignment": 2,  # bottom center
-    "max_chars": 18,
+    "shadow": 3,              # V0.3.6-a2: 1→3 (更强阴影分离度)
+    "alignment": 2,           # bottom center
+    "max_chars": 22,           # V0.3.6-a2: 18→22 (字幕宽度控制72-82%)
     "max_lines": 2,
     "primary_colour": "&H00FFFFFF",   # white
     "outline_colour": "&H00000000",   # black
-    "back_colour": "&H99000000",      # semi-transparent black
+    "back_colour": "&HBb000000",      # V0.3.6-a2: 99→BB 更不透明底板
     "font_name": "Microsoft YaHei",
 }
 
