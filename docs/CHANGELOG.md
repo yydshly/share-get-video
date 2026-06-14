@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.3] - 2026-06-14
+
+### Added
+- **tts_subtitle_compose route**: New real route — MiniMax TTS voiceover + SRT subtitles + FFmpeg AV composition
+  - `app/video_lab/providers/minimax/tts_client.py`: MiniMax TTS client (8 tests)
+  - `app/video_lab/planners/voiceover_planner.py`: Template-based Chinese voiceover script generator (4 tests)
+  - `app/video_lab/planners/subtitle_planner.py`: Extended with `generate_srt_from_segments()` for SRT file generation (6 tests)
+  - `app/video_lab/renderers/ffmpeg_av_composer.py`: AV composer with subtitles filter (6 tests)
+  - `app/video_lab/adapters/tts_subtitle_compose.py`: 9-step adapter (5 tests)
+  - `.env.example`: MiniMax TTS environment variables
+- **RouteScorePanel manual route scoring**: `scoreableStatuses = ["succeeded", "manual"]` — manual routes now show scoring UI
+- **_build_warnings for manual_completed**: Returns `[]` for `status == "manual_completed"`, no misleading warning shown
+- **RouteResultCard manual route explanation**: Shows purple explanation text for manual routes
+- **RouteResultCard audio/subtitle links**: Shows 🔊 播放音频 and 📝 打开字幕 links for TTS routes
+
+### Changed
+- **tts_subtitle_compose registry**: Status changed from `mock` to `real`, adapter_category set, pipeline updated to 9 steps
+- **README.md**: Updated route table to include tts_subtitle_compose and hyperframes_html_render
+
+### Fixed
+- **test_route_benchmark.py**: Updated mock route test to use `ai_asset_then_compose` (tts_subtitle_compose is now real)
+
+### Docs
+- **docs/TTS_SUBTITLE_ROUTE_V0.3.3.md**: New documentation for TTS subtitle route
+
 ## [0.3.2.1] - 2026-06-14
 
 ### Fixed

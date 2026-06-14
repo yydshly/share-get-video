@@ -94,14 +94,14 @@ def test_create_benchmark_with_local_frame_compose():
 
 def test_create_benchmark_with_mock_route():
     """Benchmark with mock route should return mock result."""
-    # Note: template_programmatic_render is now real (V0.3.1)
-    # Use tts_subtitle_compose which is still mock
+    # Note: tts_subtitle_compose is now real (V0.3.3)
+    # Use ai_asset_then_compose which is still mock
     payload = {
         "testCaseId": "case_ai_frontier_daily_001",
         "title": "Mock Benchmark",
         "inputPayload": {"content": "测试"},
         "commonParams": {},
-        "routeIds": ["tts_subtitle_compose"],
+        "routeIds": ["ai_asset_then_compose"],
     }
 
     resp = client.post("/video-lab/route-benchmarks", json=payload)
@@ -109,7 +109,7 @@ def test_create_benchmark_with_mock_route():
     data = resp.json()
 
     result = data["results"][0]
-    assert result["routeId"] == "tts_subtitle_compose"
+    assert result["routeId"] == "ai_asset_then_compose"
     assert result["status"] == "mock"
 
 

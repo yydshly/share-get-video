@@ -38,7 +38,7 @@ V0.3.0 新增多路线横向验证框架（Route Benchmark）。
 | `local_frame_compose` | 本地图像帧合成 | **real** | Pillow + FFmpeg |
 | `template_programmatic_render` | Remotion 程序化渲染 | **real ✅** | Remotion/React 模板渲染 MP4（V0.3.1.1 已验证真实渲染） |
 | `hyperframes_html_render` | HyperFrames HTML 渲染 | **manual** | 生成 HTML → HeyGen HyperFrames 插件 → MP4（V0.3.2 视觉验证中） |
-| `tts_subtitle_compose` | TTS + 字幕合成 | mock | 需 TTS API |
+| `tts_subtitle_compose` | TTS + 字幕合成 | **real ✅** | MiniMax TTS 旁白 + SRT 字幕 + FFmpeg 合成（V0.3.3） |
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | mock | 需 LLM/TTS/图像 API |
 | `ai_video_direct` | 大模型直接生成视频 | reserved | 视频模型 API 未接入 |
 | `hybrid_pipeline` | 混合编排流水线 | reserved | 需完整路由引擎 |

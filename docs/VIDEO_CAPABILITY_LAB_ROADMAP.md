@@ -195,6 +195,17 @@
 - [ ] 对比 local_frame_compose / Remotion / HyperFrames 三条路线视觉质量
 - [ ] 评估是否值得升级为 real route
 
+### V0.3.3 已完成 ✅
+- **TTS + 字幕合成路线**
+  - `providers/minimax/tts_client.py`: MiniMax TTS 客户端
+  - `planners/voiceover_planner.py`: 口播稿生成器（模板，不调用 LLM）
+  - `planners/subtitle_planner.py`: SRT 字幕文件生成
+  - `renderers/ffmpeg_av_composer.py`: 音视频字幕合成
+  - `adapters/tts_subtitle_compose.py`: 9 步 real adapter
+  - `tts_subtitle_compose` registry status: `mock` → `real`
+  - 详见 `docs/TTS_SUBTITLE_ROUTE_V0.3.3.md`
+- **第四条 real 路线**：MiniMax TTS 旁白 + SRT 字幕 + FFmpeg 合成
+
 ---
 
 ## V0.4 - 接入视频模型 Adapter

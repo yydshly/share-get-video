@@ -331,6 +331,24 @@ function RouteResultCard({ result }: { result: RouteResult }) {
     (a) => a?.type === "manifest"
   );
 
+  // Find audio artifact (for TTS routes)
+  const audioArtifact = (result.artifacts as ArtifactEntry[] | undefined)?.find(
+    (a) => {
+      const p = a?.payload as Record<string, unknown> | undefined;
+      return p?.url && String(p.url).endsWith(".mp3");
+    }
+  );
+  const audioUrl = audioArtifact?.payload?.url as string | undefined;
+
+  // Find SRT subtitle artifact
+  const srtArtifact = (result.artifacts as ArtifactEntry[] | undefined)?.find(
+    (a) => {
+      const p = a?.payload as Record<string, unknown> | undefined;
+      return p?.url && String(p.url).endsWith(".srt");
+    }
+  );
+  const srtUrl = srtArtifact?.payload?.url as string | undefined;
+
   return (
     <div
       style={{
@@ -388,6 +406,32 @@ function RouteResultCard({ result }: { result: RouteResult }) {
           >
             打开 manifest
           </a>
+        </div>
+      )}
+
+      {/* Show audio and subtitle links for TTS routes */}
+      {(audioUrl || srtUrl) && (
+        <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          {audioUrl && (
+            <a
+              href={audioUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: "0.75rem", color: "#10b981", textDecoration: "none" }}
+            >
+              🔊 播放音频
+            </a>
+          )}
+          {srtUrl && (
+            <a
+              href={srtUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: "0.75rem", color: "#f59e0b", textDecoration: "none" }}
+            >
+              📝 打开字幕
+            </a>
+          )}
         </div>
       )}
 

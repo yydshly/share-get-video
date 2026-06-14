@@ -4,6 +4,7 @@ export type MethodCategory =
   | "local_frame_compose"
   | "local_media_compose"
   | "template_programmatic_render"
+  | "tts_subtitle_compose"
   | "ai_video_direct"
   | "ai_asset_then_compose"
   | "hybrid_pipeline";

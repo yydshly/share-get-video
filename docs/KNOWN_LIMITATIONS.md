@@ -1,22 +1,28 @@
 # Known Limitations
 
-## 当前 V0.3.2 已知限制
+## 当前 V0.3.3 已知限制
 
 ### 1. 部分 Adapter 已升级为真实渲染
 
 - `local_frame_compose` - **已支持真实渲染**（Pillow + FFmpeg）
 - `template_programmatic_render` - **已支持真实渲染**（Remotion/React 模板）
 - `hyperframes_html_render` - **manual 状态**（生成 HTML artifact，需人工复制到 HeyGen HyperFrames 插件渲染）
+- `tts_subtitle_compose` - **已支持真实渲染**（MiniMax TTS + FFmpeg）
 - `local_media_compose` - 返回模拟数据，不调用 FFmpeg
 - `ai_video_direct` - Reserved 状态，无 API 接入
 - `ai_asset_then_compose` - 返回模拟数据，不调用 LLM/TTS/图像生成
 - `hybrid_pipeline` - 返回模拟数据，无真实路由引擎
-- `tts_subtitle_compose` - 返回模拟数据，不调用 TTS API
 
 ### 2. FFmpeg 必须可用
 
 - `local_frame_compose` 依赖 FFmpeg 进行视频合成
+- `tts_subtitle_compose` 依赖 FFmpeg 进行音视频字幕合成
 - FFmpeg 不可用时，视频合成步骤会失败（`step.status = failed`），实验整体状态为 `failed`
+
+### 2b. MiniMax TTS API Key 必须配置
+
+- `tts_subtitle_compose` 依赖 `MINIMAX_API_KEY` 环境变量
+- API Key 不可用时，TTS 步骤会失败（`step.status = failed`），返回明确错误信息
 
 ### 3. Remotion 需要 Node.js 环境
 

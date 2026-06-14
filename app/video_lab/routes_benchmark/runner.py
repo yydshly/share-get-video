@@ -19,6 +19,7 @@ from app.video_lab.routes_benchmark.registry import (
 from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
 from app.video_lab.adapters.remotion_template import run_remotion_template
 from app.video_lab.adapters.hyperframes_html_render import run_hyperframes_html_render
+from app.video_lab.adapters.tts_subtitle_compose import run_tts_subtitle_compose
 from app.video_lab.adapters.local_media_compose import run_local_media_compose
 from app.video_lab.adapters.ai_asset_then_compose import run_ai_asset_then_compose
 from app.video_lab.adapters.ai_video_direct import run_ai_video_direct
@@ -30,6 +31,7 @@ _ADAPTERS: dict[str, Any] = {
     "local_frame_compose": run_local_frame_compose,
     "template_programmatic_render": run_remotion_template,
     "hyperframes_html_render": run_hyperframes_html_render,
+    "tts_subtitle_compose": run_tts_subtitle_compose,
     "local_media_compose": run_local_media_compose,
     "ai_asset_then_compose": run_ai_asset_then_compose,
     "ai_video_direct": run_ai_video_direct,
