@@ -231,6 +231,37 @@ def assess_quality(
     checks.append(QualityCheck("has_cover", dim, PASS if has_cover else WARN,
         "有封面帧" if has_cover else "无封面帧", value=has_cover, expected=True))
 
+    # ── 维度5：可读性 (V0.3.6-a) ──────────────────────────
+    dim = "readability"
+
+    # 检查关键点标题是否过短
+    short_titles = [k.get("title", "") for k in kps if len(k.get("title", "")) < 8]
+    checks.append(QualityCheck("title_length", dim, FAIL if len(short_titles) > len(kps) * 0.5 else (WARN if short_titles else PASS),
+        f"关键点标题过短（<8字）的数量: {len(short_titles)}" if short_titles else "关键点标题长度正常",
+        value=len(short_titles), expected=0))
+
+    # 检查 display/body 是否过长（未拆分）
+    long_displays = []
+    for k in kps:
+        body = k.get("body", "") or k.get("display", "") or ""
+        if len(body) > 120:
+            long_displays.append(len(body))
+    checks.append(QualityCheck("body_length", dim,
+        FAIL if len(long_displays) > len(kps) * 0.5 else (WARN if long_displays else PASS),
+        f"正文过长（>120字）的关键点数量: {len(long_displays)}" if long_displays else "正文长度适中",
+        value=len(long_displays), expected=0))
+
+    # 检查字幕条数是否合理（太少说明切分不够细）
+    min_expected_subtitles = max(1, len(kps))
+    if subtitle_count < min_expected_subtitles * 0.5:
+        checks.append(QualityCheck("subtitle_density", dim, WARN,
+            f"字幕条数({subtitle_count})偏少，建议至少 {min_expected_subtitles} 条",
+            value=subtitle_count, expected=f">={int(min_expected_subtitles * 0.5)}"))
+    else:
+        checks.append(QualityCheck("subtitle_density", dim, PASS,
+            f"字幕条数({subtitle_count})合理",
+            value=subtitle_count, expected=f">={int(min_expected_subtitles * 0.5)}"))
+
     return QualityReport(
         checks=checks,
         needs_human=["visual_aesthetics", "voice_naturalness", "overall_shareability"],

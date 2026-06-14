@@ -83,7 +83,7 @@ const CoverPage: React.FC<{
       {/* Title */}
       <h1
         style={{
-          fontSize: 56,
+          fontSize: 64,
           fontWeight: 800,
           color: C.textPrimary,
           textAlign: "left",
@@ -92,7 +92,7 @@ const CoverPage: React.FC<{
           lineHeight: 1.15,
           opacity: titleOpacity,
           transform: `translateY(${titleY}px)`,
-          textShadow: "0 0 60px rgba(59, 130, 246, 0.3)",
+          textShadow: "0 0 80px rgba(59, 130, 246, 0.4)",
         }}
       >
         {title}
@@ -102,12 +102,13 @@ const CoverPage: React.FC<{
       {subtitle && (
         <p
           style={{
-            fontSize: 26,
+            fontSize: 30,
             color: C.textSecondary,
             textAlign: "left",
-            marginTop: 12,
+            marginTop: 16,
             marginBottom: 0,
             opacity: subtitleOpacity,
+            lineHeight: 1.4,
           }}
         >
           {subtitle}
@@ -130,21 +131,21 @@ const CoverPage: React.FC<{
                 display: "flex",
                 alignItems: "center",
                 gap: 16,
-                marginBottom: 18,
+                marginBottom: 20,
                 opacity: itemOpacity,
                 transform: `translateX(${itemX}px)`,
               }}
             >
               <div
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
                   background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: 800,
                   color: C.textPrimary,
                   flexShrink: 0,
@@ -154,7 +155,7 @@ const CoverPage: React.FC<{
               </div>
               <div
                 style={{
-                  fontSize: 22,
+                  fontSize: 26,
                   fontWeight: 600,
                   color: C.textPrimary,
                   overflow: "hidden",
@@ -176,7 +177,7 @@ const CoverPage: React.FC<{
           bottom: 40,
           left: 50,
           right: 50,
-          fontSize: 18,
+          fontSize: 20,
           color: C.textMuted,
           opacity: interpolate(frame, [30, 50], [0, 1], { extrapolateRight: "clamp" }),
           display: "flex",
@@ -270,15 +271,15 @@ const KeyPointCard: React.FC<{
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 64,
-              height: 64,
-              borderRadius: 16,
+              width: 72,
+              height: 72,
+              borderRadius: 18,
               background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
-              fontSize: 28,
+              fontSize: 32,
               fontWeight: 800,
               color: C.textPrimary,
               opacity: indexOpacity,
-              boxShadow: `0 0 20px ${C.accent}40`,
+              boxShadow: `0 0 30px ${C.accent}60`,
             }}
           >
             {String(index + 1).padStart(2, "0")}
@@ -301,17 +302,17 @@ const KeyPointCard: React.FC<{
           </div>
         </div>
 
-        {/* Title - balanced 32px, can span 3-4 lines */}
+        {/* Title - V0.3.6-a: increased to 44px for mobile readability */}
         <h2
           style={{
-            fontSize: 32,
+            fontSize: 44,
             fontWeight: 800,
             color: C.textPrimary,
             margin: 0,
             marginBottom: 28,
             lineHeight: 1.3,
             opacity: titleOpacity,
-            textShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
+            textShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
           }}
         >
           {kp.title}
@@ -329,14 +330,14 @@ const KeyPointCard: React.FC<{
           }}
         />
 
-        {/* Body - 24px, multi-line, fills the card */}
+        {/* Body - V0.3.6-a: increased to 32px for mobile readability */}
         <p
           style={{
-            fontSize: 24,
+            fontSize: 32,
             color: C.textSecondary,
             margin: 0,
-            marginBottom: 24,
-            lineHeight: 1.6,
+            marginBottom: 28,
+            lineHeight: 1.7,
             opacity: bodyOpacity,
           }}
         >
@@ -350,7 +351,7 @@ const KeyPointCard: React.FC<{
               marginTop: 32,
               paddingTop: 20,
               borderTop: `1px solid ${C.border}`,
-              fontSize: 18,
+              fontSize: 20,
               color: C.textMuted,
               opacity: sourceOpacity,
             }}
@@ -400,7 +401,7 @@ const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
       <div style={{ maxWidth: 900, width: "100%" }}>
         <h2
           style={{
-            fontSize: 40,
+            fontSize: 48,
             fontWeight: 800,
             color: C.textPrimary,
             margin: 0,
@@ -427,21 +428,21 @@ const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 16,
-                  marginBottom: 18,
+                  marginBottom: 20,
                   opacity: itemOpacity,
                   transform: `translateX(${itemX}px)`,
                 }}
               >
                 <div
                   style={{
-                    width: 28,
-                    height: 28,
+                    width: 32,
+                    height: 32,
                     borderRadius: 8,
                     background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: 800,
                     color: C.textPrimary,
                     flexShrink: 0,
@@ -452,15 +453,15 @@ const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
                 <div>
                   <div
                     style={{
-                      fontSize: 22,
+                      fontSize: 26,
                       fontWeight: 700,
                       color: C.textPrimary,
-                      marginBottom: 4,
+                      marginBottom: 6,
                     }}
                   >
                     {kp.title}
                   </div>
-                  <div style={{ fontSize: 18, color: C.textMuted, lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 22, color: C.textMuted, lineHeight: 1.5 }}>
                     {kp.body}
                   </div>
                 </div>
