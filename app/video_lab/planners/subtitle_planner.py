@@ -130,7 +130,7 @@ def generate_srt_from_segments(
     }
 
 
-def _split_subtitle_text(text: str, max_chars: int = 35) -> list[str]:
+def _split_subtitle_text(text: str, max_chars: int = 22) -> list[str]:
     """Split Chinese text into subtitle lines of reasonable length (max 2 lines for safe area)."""
     if not text:
         return []

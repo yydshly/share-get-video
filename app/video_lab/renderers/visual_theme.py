@@ -56,31 +56,33 @@ COLORS: Dict[str, Tuple[int, int, int]] = {
 # ─────────────────────────────────────────
 # Typography - Font Sizes
 # ─────────────────────────────────────────
+# V0.3.8: Reduced ~30% to avoid "大字报" look.
+# Information cards, not poster headlines.
 FONT_SIZES: Dict[str, int] = {
-    "cover_title": 80,
-    "cover_subtitle": 36,
-    "cover_tag": 24,
-    "cover_label": 20,
+    "cover_title": 56,
+    "cover_subtitle": 28,
+    "cover_tag": 20,
+    "cover_label": 18,
 
-    "overview_title": 64,
-    "overview_item": 32,
-    "overview_index": 48,
+    "overview_title": 44,
+    "overview_item": 24,
+    "overview_index": 36,
 
-    "keypoint_index": 28,
-    "keypoint_category": 22,
-    "keypoint_title": 52,
-    "keypoint_body": 30,
-    "keypoint_source": 20,
+    "keypoint_index": 24,
+    "keypoint_category": 18,
+    "keypoint_title": 34,
+    "keypoint_body": 24,
+    "keypoint_source": 18,
 
-    "summary_title": 56,
-    "summary_body": 28,
-    "summary_cta": 22,
+    "summary_title": 40,
+    "summary_body": 24,
+    "summary_cta": 20,
 
-    "highlight": 56,
-    "highlight_large": 72,
+    "highlight": 40,
+    "highlight_large": 48,
 
-    "tag": 18,
-    "footer": 18,
+    "tag": 16,
+    "footer": 16,
 }
 
 # ─────────────────────────────────────────

@@ -1,6 +1,6 @@
-// AiNewsVideo.tsx - V0.3.1 minimum verification Remotion template
+// AiNewsVideo.tsx - V0.3.8 timeline-style Remotion template
 // Portrait 9:16, 1080x1920
-// Pages: Cover, KeyPoint cards, Summary
+// Pages: Compact cover with keypoint list, keypoint cards, summary
 
 import React from "react";
 import {
@@ -28,50 +28,48 @@ const C = {
   glow: "rgba(59, 130, 246, 0.15)",
 };
 
-// ─── Cover Page ───────────────────────────────────────────────────────────────
-const CoverPage: React.FC<{ title: string; subtitle?: string; duration: number }> = ({
-  title,
-  subtitle,
-  duration,
-}) => {
+// ─── Cover Page (V0.3.8: compact, includes 3-point preview list) ─────────────
+const CoverPage: React.FC<{
+  title: string;
+  subtitle?: string;
+  keyPoints: KeyPoint[];
+  duration: number;
+}> = ({ title, subtitle, keyPoints, duration }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const titleOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
   const titleY = interpolate(frame, [0, 15], [30, 0], { extrapolateRight: "clamp" });
   const subtitleOpacity = interpolate(frame, [10, 25], [0, 1], { extrapolateRight: "clamp" });
-  const lineOpacity = interpolate(frame, [15, 30], [0, 1], { extrapolateRight: "clamp" });
+  const listOpacity = interpolate(frame, [20, 40], [0, 1], { extrapolateRight: "clamp" });
 
   return (
     <AbsoluteFill
       style={{
         background: C.bg,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: "80px 60px",
+        justifyContent: "flex-start",
+        alignItems: "stretch",
+        padding: "60px 50px",
       }}
     >
       {/* Glow accent */}
       <div
         style={{
           position: "absolute",
-          top: "15%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 400,
-          height: 400,
+          top: "10%",
+          left: "30%",
+          width: 500,
+          height: 500,
           borderRadius: "50%",
           background: C.glow,
-          filter: "blur(80px)",
+          filter: "blur(100px)",
         }}
       />
 
       {/* Top label */}
       <div
         style={{
-          position: "absolute",
-          top: 60,
-          fontSize: 22,
+          fontSize: 20,
           color: C.accent,
           fontWeight: 700,
           letterSpacing: 4,
@@ -79,18 +77,19 @@ const CoverPage: React.FC<{ title: string; subtitle?: string; duration: number }
           opacity: subtitleOpacity,
         }}
       >
-        AI 前沿
+        AI 前沿 · 速览
       </div>
 
       {/* Title */}
       <h1
         style={{
-          fontSize: 96,
+          fontSize: 56,
           fontWeight: 800,
           color: C.textPrimary,
-          textAlign: "center",
+          textAlign: "left",
           margin: 0,
-          lineHeight: 1.1,
+          marginTop: 24,
+          lineHeight: 1.15,
           opacity: titleOpacity,
           transform: `translateY(${titleY}px)`,
           textShadow: "0 0 60px rgba(59, 130, 246, 0.3)",
@@ -103,10 +102,11 @@ const CoverPage: React.FC<{ title: string; subtitle?: string; duration: number }
       {subtitle && (
         <p
           style={{
-            fontSize: 36,
+            fontSize: 26,
             color: C.textSecondary,
-            textAlign: "center",
-            marginTop: 24,
+            textAlign: "left",
+            marginTop: 12,
+            marginBottom: 0,
             opacity: subtitleOpacity,
           }}
         >
@@ -114,35 +114,92 @@ const CoverPage: React.FC<{ title: string; subtitle?: string; duration: number }
         </p>
       )}
 
-      {/* Decorative line */}
-      <div
-        style={{
-          width: 120,
-          height: 4,
-          background: `linear-gradient(90deg, ${C.accent}, ${C.accent2})`,
-          borderRadius: 2,
-          marginTop: 48,
-          opacity: lineOpacity,
-        }}
-      />
+      {/* Timeline preview of 3 keypoints */}
+      <div style={{ marginTop: 60, opacity: listOpacity }}>
+        {keyPoints.slice(0, 3).map((kp, i) => {
+          const itemOpacity = interpolate(frame, [25 + i * 5, 35 + i * 5], [0, 1], {
+            extrapolateRight: "clamp",
+          });
+          const itemX = interpolate(frame, [25 + i * 5, 35 + i * 5], [-20, 0], {
+            extrapolateRight: "clamp",
+          });
+          return (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                marginBottom: 18,
+                opacity: itemOpacity,
+                transform: `translateX(${itemX}px)`,
+              }}
+            >
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: C.textPrimary,
+                  flexShrink: 0,
+                }}
+              >
+                {String(i + 1).padStart(2, "0")}
+              </div>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 600,
+                  color: C.textPrimary,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {kp.title}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Bottom info */}
       <div
         style={{
           position: "absolute",
-          bottom: 60,
-          fontSize: 24,
+          bottom: 40,
+          left: 50,
+          right: 50,
+          fontSize: 18,
           color: C.textMuted,
-          opacity: interpolate(frame, [20, 35], [0, 1], { extrapolateRight: "clamp" }),
+          opacity: interpolate(frame, [30, 50], [0, 1], { extrapolateRight: "clamp" }),
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
         }}
       >
-        AI 资讯共享视频 · V0.3.1
+        <div
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: C.accent,
+            boxShadow: `0 0 8px ${C.accent}`,
+          }}
+        />
+        <span>{keyPoints.length} 条要点 · 今日速览</span>
       </div>
     </AbsoluteFill>
   );
 };
 
-// ─── Key Point Card ──────────────────────────────────────────────────────────
+// ─── Key Point Card (V0.3.8: smaller title, source line, tag pill) ───────────
 const KeyPointCard: React.FC<{
   kp: KeyPoint;
   index: number;
@@ -174,7 +231,7 @@ const KeyPointCard: React.FC<{
         background: C.bg,
         justifyContent: "center",
         alignItems: "center",
-        padding: "80px 60px",
+        padding: "70px 50px",
       }}
     >
       {/* Card container */}
@@ -183,13 +240,13 @@ const KeyPointCard: React.FC<{
           width: "100%",
           maxWidth: 900,
           background: C.card,
-          borderRadius: 24,
+          borderRadius: 20,
           border: `1px solid ${C.border}`,
-          padding: "64px 56px",
+          padding: "40px 36px",
           position: "relative",
           opacity: cardOpacity,
           transform: `translateY(${cardY}px)`,
-          boxShadow: `0 0 80px ${C.glow}, 0 20px 60px rgba(0,0,0,0.5)`,
+          boxShadow: `0 0 60px ${C.glow}, 0 16px 50px rgba(0,0,0,0.5)`,
         }}
       >
         {/* Accent glow */}
@@ -205,49 +262,66 @@ const KeyPointCard: React.FC<{
           }}
         />
 
-        {/* Index badge */}
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 64,
-            height: 64,
-            borderRadius: 16,
-            background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
-            fontSize: 28,
-            fontWeight: 800,
-            color: C.textPrimary,
-            marginBottom: 32,
-            opacity: indexOpacity,
-          }}
-        >
-          {String(index + 1).padStart(2, "0")}
+        {/* Header row: index badge + tag pill */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 48,
+              height: 48,
+              borderRadius: 12,
+              background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
+              fontSize: 20,
+              fontWeight: 800,
+              color: C.textPrimary,
+              opacity: indexOpacity,
+            }}
+          >
+            {String(index + 1).padStart(2, "0")}
+          </div>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: C.accent,
+              background: "rgba(59, 130, 246, 0.15)",
+              border: `1px solid rgba(59, 130, 246, 0.3)`,
+              borderRadius: 999,
+              padding: "4px 12px",
+              letterSpacing: 1,
+              textTransform: "uppercase",
+              opacity: indexOpacity,
+            }}
+          >
+            KEY POINT
+          </div>
         </div>
 
-        {/* Title */}
+        {/* Title - reduced from 72 to 40 */}
         <h2
           style={{
-            fontSize: 72,
+            fontSize: 40,
             fontWeight: 800,
             color: C.textPrimary,
             margin: 0,
-            marginBottom: 28,
-            lineHeight: 1.15,
+            marginBottom: 20,
+            lineHeight: 1.2,
             opacity: titleOpacity,
-            textShadow: "0 0 40px rgba(59, 130, 246, 0.2)",
+            textShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
           }}
         >
           {kp.title}
         </h2>
 
-        {/* Body */}
+        {/* Body - reduced from 38 to 24 */}
         <p
           style={{
-            fontSize: 38,
+            fontSize: 24,
             color: C.textSecondary,
             margin: 0,
-            marginBottom: 24,
+            marginBottom: 16,
             lineHeight: 1.5,
             opacity: bodyOpacity,
           }}
@@ -259,7 +333,7 @@ const KeyPointCard: React.FC<{
         {kp.source && (
           <div
             style={{
-              fontSize: 24,
+              fontSize: 16,
               color: C.textMuted,
               opacity: sourceOpacity,
             }}
@@ -272,7 +346,7 @@ const KeyPointCard: React.FC<{
   );
 };
 
-// ─── Summary Page ─────────────────────────────────────────────────────────────
+// ─── Summary Page (V0.3.8: timeline recap) ───────────────────────────────────
 const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
   title,
   keyPoints,
@@ -289,7 +363,7 @@ const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
         background: C.bg,
         justifyContent: "center",
         alignItems: "center",
-        padding: "80px 60px",
+        padding: "60px 50px",
       }}
     >
       {/* Glow */}
@@ -309,16 +383,16 @@ const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
       <div style={{ maxWidth: 900, width: "100%" }}>
         <h2
           style={{
-            fontSize: 80,
+            fontSize: 40,
             fontWeight: 800,
             color: C.textPrimary,
             margin: 0,
-            marginBottom: 48,
+            marginBottom: 32,
             opacity: titleOpacity,
             transform: `translateY(${titleY}px)`,
           }}
         >
-          {title}
+          今日回顾
         </h2>
 
         <div style={{ opacity: listOpacity }}>
@@ -326,7 +400,7 @@ const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
             const itemOpacity = interpolate(frame, [15 + i * 8, 25 + i * 8], [0, 1], {
               extrapolateRight: "clamp",
             });
-            const itemY = interpolate(frame, [15 + i * 8, 25 + i * 8], [20, 0], {
+            const itemX = interpolate(frame, [15 + i * 8, 25 + i * 8], [-20, 0], {
               extrapolateRight: "clamp",
             });
             return (
@@ -335,37 +409,43 @@ const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
                 style={{
                   display: "flex",
                   alignItems: "flex-start",
-                  gap: 20,
-                  marginBottom: 24,
+                  gap: 16,
+                  marginBottom: 18,
                   opacity: itemOpacity,
-                  transform: `translateY(${itemY}px)`,
+                  transform: `translateX(${itemX}px)`,
                 }}
               >
                 <div
                   style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    background: C.accent,
-                    marginTop: 14,
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    fontWeight: 800,
+                    color: C.textPrimary,
                     flexShrink: 0,
-                    boxShadow: `0 0 12px ${C.accent}`,
                   }}
-                />
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </div>
                 <div>
-                  <span
+                  <div
                     style={{
-                      fontSize: 34,
+                      fontSize: 22,
                       fontWeight: 700,
                       color: C.textPrimary,
+                      marginBottom: 4,
                     }}
                   >
                     {kp.title}
-                  </span>
-                  <span style={{ fontSize: 28, color: C.textMuted }}>
-                    {" "}
-                    — {kp.body}
-                  </span>
+                  </div>
+                  <div style={{ fontSize: 18, color: C.textMuted, lineHeight: 1.4 }}>
+                    {kp.body}
+                  </div>
                 </div>
               </div>
             );
@@ -386,10 +466,10 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   const { fps } = useVideoConfig();
 
   // Layout timing (in frames)
-  // Cover: 0 → 90 frames (~3s)
-  // Each KeyPoint card: 90 → 90 + 150 = 240 frames (~5s each)
+  // Cover: 0 → 120 frames (~4s) — extended to show 3-point preview
+  // Each KeyPoint card: 120 → 120 + 5*150 = 870 frames (~5s each, 3 cards = 15s)
   // Summary: last 150 frames (~5s)
-  const COVER_DURATION = 90; // 3s
+  const COVER_DURATION = 120; // 4s
   const CARD_DURATION = 150; // 5s
   const SUMMARY_DURATION = 150; // 5s
 
@@ -403,9 +483,14 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
 
   return (
     <AbsoluteFill style={{ background: C.bg }}>
-      {/* Cover */}
+      {/* Cover - now shows 3-point timeline */}
       <Sequence from={0} durationInFrames={COVER_DURATION}>
-        <CoverPage title={title} subtitle={subtitle} duration={COVER_DURATION} />
+        <CoverPage
+          title={title}
+          subtitle={subtitle}
+          keyPoints={keyPoints}
+          duration={COVER_DURATION}
+        />
       </Sequence>
 
       {/* Key Point Cards */}

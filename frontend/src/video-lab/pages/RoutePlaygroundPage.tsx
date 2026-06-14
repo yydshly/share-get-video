@@ -240,6 +240,11 @@ export default function RoutePlaygroundPage() {
     const lines = [
       "# V0.3 完整视频生成链路对比报告",
       "",
+      `## 运行元数据`,
+      `- **benchmarkId**: ${benchmarkId ?? "(无)"}`,
+      `- **运行时间**: ${new Date().toLocaleString("zh-CN")}`,
+      `- **参与链路数**: ${selectedChains.length}`,
+      "",
       "## 测试输入",
       "",
       "```",
@@ -262,18 +267,25 @@ export default function RoutePlaygroundPage() {
 
       lines.push(`## ${info?.name ?? r.chainId}`);
       lines.push(`- **chainId**: ${r.chainId}`);
+      lines.push(`- **benchmarkId**: ${benchmarkId ?? "(无)"}`);
       lines.push(`- **画面来源**: ${r.visualSource || info?.visualSource || "-"}`);
       lines.push(`- **音频来源**: ${r.audioSource || info?.audioSource || "-"}`);
       lines.push(`- **字幕方式**: ${r.subtitleMode || info?.subtitleMode || "-"}`);
       lines.push(`- **状态**: ${statusLabel(r.status)}`);
       lines.push(`- **是否生成最终视频**: ${r.status === "succeeded" ? "✅ 是" : r.status === "manual_required" ? "⚠️ 需人工" : r.status === "failed" ? "❌ 否" : "⏳ 待验证"}`);
+      lines.push(`- **elapsedMs**: ${r.elapsedMs ?? 0}`);
       lines.push(`- **finalVideoUrl**: ${r.finalVideoUrl || "(无)"}`);
       if (r.status === "manual_required") lines.push(`- **htmlUrl**: ${r.htmlUrl || "-"}`);
       if (r.audioUrl) lines.push(`- **audioUrl**: ${r.audioUrl}`);
       if (r.srtUrl) lines.push(`- **srtUrl**: ${r.srtUrl}`);
+      if (r.manifestUrl) lines.push(`- **manifestUrl**: ${r.manifestUrl}`);
       if (r.failedStep) lines.push(`- **failedStep**: ${r.failedStep}`);
       if (r.failedReason) lines.push(`- **失败原因**: ${r.failedReason}`);
-      if (r.warnings?.length) lines.push(`- **warnings**: ${r.warnings.join("; ")}`);
+      if (r.warnings?.length) {
+        lines.push(`- **warnings**: ${r.warnings.join("; ")}`);
+      } else {
+        lines.push(`- **warnings**: (无)`);
+      }
       lines.push(`- **综合评分**: ${avgScore}`);
       if (score?.conclusion) lines.push(`- **结论**: ${score.conclusion}`);
       lines.push("");
@@ -490,7 +502,7 @@ export default function RoutePlaygroundPage() {
             </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
             {results.map((r) => {
               const info = CHAIN_INFO[r.chainId];
               const color = STATUS_COLOR[r.status] ?? "#94a3b8";
@@ -535,11 +547,27 @@ export default function RoutePlaygroundPage() {
                   {r.status === "succeeded" && r.finalVideoUrl && (
                     <div style={{ marginBottom: "0.75rem" }}>
                       <div style={{ fontSize: "0.7rem", color: "#10b981", marginBottom: "0.25rem", fontWeight: 600 }}>最终成片</div>
-                      <video
-                        controls
-                        src={r.finalVideoUrl}
-                        style={{ width: "100%", maxHeight: "160px", borderRadius: "6px", background: "#0f172a", objectFit: "contain" }}
-                      />
+                      <div style={{
+                        width: "100%",
+                        display: "flex",
+                        justifyContent: "center",
+                        background: "#0f172a",
+                        borderRadius: "8px",
+                        padding: "0.5rem",
+                      }}>
+                        <video
+                          controls
+                          src={r.finalVideoUrl}
+                          style={{
+                            width: "min(100%, 240px)",
+                            aspectRatio: "9 / 16",
+                            maxHeight: "420px",
+                            borderRadius: "6px",
+                            background: "#020617",
+                            objectFit: "contain",
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
 

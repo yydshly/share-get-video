@@ -82,15 +82,19 @@ def compose_av_with_subtitles(
         srt_abs = srt_path_obj.as_posix()
         # Escape colons and backslashes for FFmpeg filter graph
         srt_escaped = srt_abs.replace("\\", "\\\\").replace(":", "\\:")
-        # Safe area: Fontsize=40 (20% larger than default 24), MarginV=150 (bottom safe ~8% of 1080p),
-        # Alignment=bottom (2), Outline=2, Shadow=1, PrimaryColour=white, OutlineColour=black
-        # PrimaryColour white = &HFFFFFF; OutlineColour black = &H000000
+        # Subtitle safe area:
+        # - Fontsize=28: small enough to not block the main subject
+        # - MarginV=200: ~11% bottom safe area (no padding to bottom edge)
+        # - MarginH=20: 20px horizontal margin
+        # - Alignment=2: bottom center
+        # - Outline=2 + Shadow=1: ensure readability on light backgrounds
+        # - PrimaryColour white, OutlineColour black
         srt_for_filter = (
             f",subtitles='{srt_escaped}':"
             f"force_style='"
-            f"Fontsize=40,"
-            f"MarginV=150,"
-            f"MarginH=10,"
+            f"Fontsize=28,"
+            f"MarginV=200,"
+            f"MarginH=20,"
             f"Alignment=2,"
             f"Outline=2,"
             f"Shadow=1,"
