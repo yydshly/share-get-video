@@ -15,6 +15,7 @@ def build_remotion_props(
     structured: dict[str, Any],
     key_points: dict[str, Any],
     params: dict[str, Any],
+    segment_durations: list | None = None,
 ) -> dict[str, Any]:
     """
     Build Remotion props JSON for AiNewsVideo template.
@@ -33,14 +34,14 @@ def build_remotion_props(
     title = _extract_title(lead)
     subtitle = structured.get("subtitle", "今日 AI 前沿速览")
 
-    # Build keyPoints array
+    # Build keyPoints array (prefer LLM-planned headline/display)
     kps_list = key_points.get("keyPoints", key_points.get("key_points", []))
     key_points_list = []
     for kp in kps_list:
         if isinstance(kp, dict):
             key_points_list.append({
-                "title": kp.get("title", ""),
-                "body": kp.get("body", ""),
+                "title": kp.get("headline") or kp.get("title", ""),
+                "body": kp.get("display") or kp.get("body", ""),
                 "source": kp.get("source", ""),
             })
         else:
@@ -50,12 +51,24 @@ def build_remotion_props(
                 "source": "",
             })
 
-    # Duration from params or default
-    target_duration = params.get("targetDuration", 45)
-    # Remotion template allocates ~3s cover + ~5s per keypoint + ~5s summary
     num_kps = len(key_points_list)
-    estimated_duration = 3 + num_kps * 5 + 5  # seconds
-    duration_sec = min(target_duration, max(estimated_duration, 15))
+
+    # 段时长与旁白对齐：segment_durations 顺序 [opening, item1..N, closing]
+    segment_durations_prop = None
+    duration_sec = None
+    if segment_durations and len(segment_durations) == num_kps + 2 and num_kps > 0:
+        seg = [float(s.get("durationSec", 0)) for s in segment_durations]
+        segment_durations_prop = {
+            "coverSec": round(seg[0], 2),
+            "cardSecs": [round(x, 2) for x in seg[1:-1]],
+            "summarySec": round(seg[-1], 2),
+        }
+        duration_sec = round(sum(seg), 2)
+
+    if duration_sec is None:
+        target_duration = params.get("targetDuration", 45)
+        estimated_duration = 3 + num_kps * 5 + 5
+        duration_sec = min(target_duration, max(estimated_duration, 15))
 
     props = {
         "title": title,
@@ -64,6 +77,8 @@ def build_remotion_props(
         "durationSec": duration_sec,
         "stylePreset": "ai_frontier_dark",
     }
+    if segment_durations_prop:
+        props["segmentDurations"] = segment_durations_prop
 
     # Write props to runtime directory
     props_path = _write_props_json(experiment_id, props)

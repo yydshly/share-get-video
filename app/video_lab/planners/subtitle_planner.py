@@ -90,25 +90,10 @@ def generate_srt_from_segments(
             "srtUrl": "..."
         }
     """
+    # 每段旁白拆成多条短字幕，时间按字数比例分配，与 TTS 同步、不截断
     subtitles = []
     for seg in segments:
-        text = seg.get("text", "").strip()
-        if not text:
-            continue
-
-        start_sec = float(seg.get("startSec", 0))
-        duration = float(seg.get("durationSec", 5))
-        end_sec = start_sec + duration
-
-        # Split long text into sub-lines (max ~20 chars each)
-        sub_lines = _split_subtitle_text(text)
-
-        subtitles.append({
-            "startSec": start_sec,
-            "endSec": end_sec,
-            "text": text,
-            "subLines": sub_lines,
-        })
+        subtitles.extend(_segment_to_entries(seg, max_chars=20, max_lines=2))
 
     # Build SRT content
     srt_content = _build_srt_content(subtitles)
@@ -147,13 +132,90 @@ def _split_subtitle_text(text: str, max_chars: int = 22) -> list[str]:
     return lines[:2] if lines else [text[:max_chars]]
 
 
+def _wrap_chars(text: str, max_chars: int) -> list[str]:
+    """Wrap text into lines of <= max_chars (no truncation)."""
+    if not text:
+        return [""]
+    return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
+
+
+def _chunk_text(text: str, max_chars: int) -> list[str]:
+    """把整句旁白按标点切成多条短字幕块（每块最多约 2 行），不丢内容。"""
+    import re
+    limit = max_chars * 2
+    # 按句末/句中标点切分，保留标点
+    parts = re.split(r"(?<=[。！？!?，、；,;])", text)
+    parts = [p for p in (s.strip() for s in parts) if p]
+    if not parts:
+        parts = [text]
+
+    chunks: list[str] = []
+    cur = ""
+    for p in parts:
+        if len(cur) + len(p) <= limit:
+            cur += p
+        else:
+            if cur:
+                chunks.append(cur)
+                cur = ""
+            if len(p) <= limit:
+                cur = p
+            else:
+                # 超长子句：尽量均分，避免最后留下很短的碎片
+                import math
+                n = math.ceil(len(p) / limit)
+                size = math.ceil(len(p) / n)
+                for i in range(0, len(p), size):
+                    chunks.append(p[i:i + size])
+                cur = ""
+    if cur:
+        chunks.append(cur)
+
+    # 合并过短的碎片到相邻块（避免字幕一闪而过）
+    merged: list[str] = []
+    for c in chunks:
+        if merged and len(c) < max_chars * 0.6 and len(merged[-1]) + len(c) <= limit + max_chars:
+            merged[-1] += c
+        else:
+            merged.append(c)
+    return merged or [text]
+
+
+def _segment_to_entries(seg: dict, max_chars: int, max_lines: int) -> list[dict]:
+    """把一个旁白段拆成多条时间分配好的字幕条（按字数比例分时间，不截断）。"""
+    text = (seg.get("text", "") or "").strip()
+    if not text:
+        return []
+    start = float(seg.get("startSec", 0))
+    dur = float(seg.get("durationSec", 5))
+    chunks = _chunk_text(text, max_chars)
+    total_chars = sum(len(c) for c in chunks) or 1
+
+    entries = []
+    t = start
+    for idx, c in enumerate(chunks):
+        # 最后一条用段末，避免累计误差
+        if idx == len(chunks) - 1:
+            d = max(0.4, (start + dur) - t)
+        else:
+            d = max(0.4, dur * (len(c) / total_chars))
+        entries.append({
+            "startSec": round(t, 3),
+            "endSec": round(t + d, 3),
+            "text": c,
+            "subLines": _wrap_chars(c, max_chars)[:max_lines],
+        })
+        t += d
+    return entries
+
+
 def _build_srt_content(subtitles: list[dict]) -> str:
     """Build SRT file content from subtitle list."""
     lines: list[str] = []
     for i, sub in enumerate(subtitles, start=1):
         start = _format_srt_time(sub["startSec"])
         end = _format_srt_time(sub["endSec"])
-        text = sub.get("text", "")
+        text = "\n".join(sub.get("subLines") or [sub.get("text", "")])
         lines.append(f"{i}")
         lines.append(f"{start} --> {end}")
         lines.append(text)
@@ -232,24 +294,10 @@ def generate_ass_from_segments(
     eff_max_chars = max_chars if max_chars is not None else eff_style["max_chars"]
     eff_max_lines = max_lines if max_lines is not None else eff_style["max_lines"]
 
+    # 每段旁白拆成多条短字幕，时间按字数比例分配，与 TTS 同步、不截断
     subtitles = []
     for seg in segments:
-        text = seg.get("text", "").strip()
-        if not text:
-            continue
-
-        start_sec = float(seg.get("startSec", 0))
-        duration = float(seg.get("durationSec", 5))
-        end_sec = start_sec + duration
-
-        sub_lines = _split_subtitle_text(text, max_chars=eff_max_chars)[:eff_max_lines]
-
-        subtitles.append({
-            "startSec": start_sec,
-            "endSec": end_sec,
-            "text": text,
-            "subLines": sub_lines,
-        })
+        subtitles.extend(_segment_to_entries(seg, max_chars=eff_max_chars, max_lines=eff_max_lines))
 
     ass_content = _build_ass_content(
         subtitles,

@@ -479,34 +479,48 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   subtitle,
   keyPoints,
   durationSec,
+  segmentDurations,
 }) => {
   const { fps } = useVideoConfig();
 
-  // V0.3.8.2: Layout timing
-  // Cover: 2.5s, Each KeyPoint card: 4.5s, Summary: 2s
-  // Total: 2.5 + 3*4.5 + 2 = 18s (matches typical audio duration)
-  // V0.3.8.2: shorter cover, normal cards, shorter summary
-  const COVER_DURATION = 75;   // 2.5s
-  const CARD_DURATION = 135;   // 4.5s
-  const SUMMARY_DURATION = 60; // 2s
+  // 每段时长：优先使用与旁白对齐的 segmentDurations，否则回退固定时长
+  const FIXED_COVER = 75;   // 2.5s
+  const FIXED_CARD = 135;   // 4.5s
+  const FIXED_SUMMARY = 60; // 2s
 
-  const cardStart = COVER_DURATION;
-  const summaryStart = COVER_DURATION + keyPoints.length * CARD_DURATION;
+  const useAligned =
+    !!segmentDurations &&
+    Array.isArray(segmentDurations.cardSecs) &&
+    segmentDurations.cardSecs.length === keyPoints.length;
 
-  const totalFrames = Math.max(
-    summaryStart + SUMMARY_DURATION,
-    fps * durationSec
-  );
+  const coverFrames = useAligned
+    ? Math.max(30, Math.round(segmentDurations!.coverSec * fps))
+    : FIXED_COVER;
+  const cardFramesArr = useAligned
+    ? segmentDurations!.cardSecs.map((s) => Math.max(45, Math.round(s * fps)))
+    : keyPoints.map(() => FIXED_CARD);
+  const summaryFrames = useAligned
+    ? Math.max(30, Math.round(segmentDurations!.summarySec * fps))
+    : FIXED_SUMMARY;
+
+  // 累计起点
+  const cardStarts: number[] = [];
+  let acc = coverFrames;
+  for (const f of cardFramesArr) {
+    cardStarts.push(acc);
+    acc += f;
+  }
+  const summaryStart = acc;
 
   return (
     <AbsoluteFill style={{ background: C.bg }}>
       {/* Cover - now shows 3-point timeline */}
-      <Sequence from={0} durationInFrames={COVER_DURATION}>
+      <Sequence from={0} durationInFrames={coverFrames}>
         <CoverPage
           title={title}
           subtitle={subtitle}
           keyPoints={keyPoints}
-          duration={COVER_DURATION}
+          duration={coverFrames}
         />
       </Sequence>
 
@@ -514,21 +528,21 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
       {keyPoints.map((kp, i) => (
         <Sequence
           key={i}
-          from={cardStart + i * CARD_DURATION}
-          durationInFrames={CARD_DURATION}
+          from={cardStarts[i]}
+          durationInFrames={cardFramesArr[i]}
         >
           <KeyPointCard
             kp={kp}
             index={i}
             startFrame={0}
-            totalDuration={CARD_DURATION}
+            totalDuration={cardFramesArr[i]}
             fps={fps}
           />
         </Sequence>
       ))}
 
       {/* Summary */}
-      <Sequence from={summaryStart} durationInFrames={SUMMARY_DURATION}>
+      <Sequence from={summaryStart} durationInFrames={summaryFrames}>
         <SummaryPage title={title} keyPoints={keyPoints} />
       </Sequence>
     </AbsoluteFill>

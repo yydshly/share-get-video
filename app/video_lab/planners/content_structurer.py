@@ -1,34 +1,31 @@
 """
 Content Structurer - 将原始输入转为结构化内容
+
+将 AI 资讯报告解析为：lead（总起）+ items（每条新闻的 title + source）。
+
+兼容两种书写格式（统一按"行"处理，对是否有空行不敏感）：
+- 标准格式：标题 + 空行 + "依据：..."
+- 紧凑格式：标题 与 "依据：..." 仅以单换行相邻，条目之间也无空行
+
+解析规则（前瞻配对，避免重复 / 丢条）：
+1. 第一行为 lead（总起段落）。
+2. 其余行中，以"依据"开头的行归为当前条目的 source（可多行累加）；
+   其它行视为一条新 title，遇到新 title 时先收尾上一条。
 """
 
-import re
 from typing import Any
 
 
 def structure_content(raw_content: str, input_type: str) -> dict[str, Any]:
-    """
-    将原始输入文本结构化。
-    适用于 AI_INSIGHT_SUMMARY 类型输入。
+    """将原始输入文本结构化为 lead + items。"""
+    text = (raw_content or "").strip()
+    lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
 
-    支持两种格式：
-    - 标准格式：标题 + blank line + "依据：" 行
-    - 紧凑格式：标题 + 单行 "依据："（无 blank line 分隔）
-    """
-    # 预处理：统一换行符
-    text = raw_content.strip()
+    if not lines:
+        return {"lead": "", "items": [], "totalItems": 0, "inputType": input_type}
 
-    # 先按双换行拆分（标准段落格式）
-    double_newline_split = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-
-    if len(double_newline_split) > 2:
-        # 标准格式：lead + 多个 item 段落
-        lead = double_newline_split[0]
-        body_paragraphs = double_newline_split[1:]
-        items = _parse_items_from_paragraphs(body_paragraphs)
-    else:
-        # 紧凑格式：单换行分隔或无分隔
-        lead, items = _parse_compact_format(text)
+    lead = lines[0]
+    items = _pair_titles_and_sources(lines[1:])
 
     return {
         "lead": lead,
@@ -38,82 +35,34 @@ def structure_content(raw_content: str, input_type: str) -> dict[str, Any]:
     }
 
 
-def _parse_items_from_paragraphs(paragraphs: list[str]) -> list[dict[str, str]]:
-    """从段落列表中提取 title+source 项目。"""
-    items = []
-    current_title = None
-    current_source = None
-
-    for para in paragraphs:
-        if para.startswith("依据：") or para.startswith("依据:"):
-            # 这是一个 source 行
-            source = para
-            if current_title:
-                items.append({"title": current_title, "source": source})
-            current_source = source
-        else:
-            # 这是一个 title 行
-            if current_title and current_source:
-                items.append({"title": current_title, "source": current_source})
-            current_title = para
-            current_source = None
-
-    if current_title:
-        items.append({"title": current_title, "source": current_source or ""})
-
-    return items
+def _is_source_line(line: str) -> bool:
+    """判断某行是否为"依据"行（source）。"""
+    return line.startswith("依据：") or line.startswith("依据:")
 
 
-def _parse_compact_format(text: str) -> tuple[str, list[dict[str, str]]]:
-    """
-    解析紧凑格式（单换行或无明确分隔）。
-    格式示例：
-      lead 文本
-      标题1内容
-      依据：依据 1
-      标题2内容
-      依据：依据 1
-    """
-    # 按单换行拆分
-    lines = text.split("\n")
-    lines = [ln.strip() for ln in lines if ln.strip()]
+def _pair_titles_and_sources(lines: list[str]) -> list[dict[str, str]]:
+    """将行序列配对为 [{title, source}]，每个 title 收尾一次（不重复、不丢条）。"""
+    items: list[dict[str, str]] = []
+    current_title: str | None = None
+    current_sources: list[str] = []
 
-    if not lines:
-        return "", []
-
-    # 前几行可能是 lead（直到遇到 "依据：" 开头的行）
-    lead_parts = []
-    body_lines = []
-    in_lead = True
+    def flush() -> None:
+        nonlocal current_title, current_sources
+        if current_title is not None:
+            items.append({
+                "title": current_title,
+                "source": " ".join(current_sources).strip(),
+            })
+        current_title = None
+        current_sources = []
 
     for ln in lines:
-        if in_lead and (ln.startswith("依据：") or ln.startswith("依据:")):
-            in_lead = False
-            body_lines.append(ln)
-        elif in_lead:
-            lead_parts.append(ln)
+        if _is_source_line(ln):
+            current_sources.append(ln)
         else:
-            body_lines.append(ln)
-
-    lead = " ".join(lead_parts)
-
-    # 解析 body_lines 成 items
-    items = []
-    current_title = None
-    current_source = None
-
-    for ln in body_lines:
-        if ln.startswith("依据：") or ln.startswith("依据:"):
-            if current_title:
-                items.append({"title": current_title, "source": ln})
-            current_source = ln
-        else:
-            if current_title and current_source:
-                items.append({"title": current_title, "source": current_source})
+            # 新标题：先收尾上一条
+            flush()
             current_title = ln
-            current_source = None
 
-    if current_title:
-        items.append({"title": current_title, "source": current_source or ""})
-
-    return lead, items
+    flush()
+    return items

@@ -10,6 +10,7 @@ import VideoComparePage from "./video-lab/pages/VideoComparePage";
 import VideoAdvicePage from "./video-lab/pages/VideoAdvicePage";
 import RouteBenchmarkPage from "./video-lab/pages/RouteBenchmarkPage";
 import RoutePlaygroundPage from "./video-lab/pages/RoutePlaygroundPage";
+import VisualComposePage from "./video-lab/pages/VisualComposePage";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/video-lab/advice" element={<VideoAdvicePage />} />
         <Route path="/video-lab/route-benchmark" element={<RouteBenchmarkPage />} />
         <Route path="/video-lab/route-playground" element={<RoutePlaygroundPage />} />
+        <Route path="/video-lab/visual-compose" element={<VisualComposePage />} />
         <Route path="/" element={<Navigate to="/video-lab" replace />} />
       </Routes>
     </BrowserRouter>

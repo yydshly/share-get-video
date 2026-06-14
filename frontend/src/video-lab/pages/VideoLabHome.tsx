@@ -4,6 +4,13 @@ import { Link } from "react-router-dom";
 
 const NAV_CARDS = [
   {
+    to: "/video-lab/visual-compose",
+    title: "视频生成对比",
+    desc: "投报告 → 多技术各出片 → 质量分对比",
+    icon: "🎥",
+    color: "#2563eb",
+  },
+  {
     to: "/video-lab/test-cases",
     title: "测试用例",
     desc: "查看内置标准测试场景",

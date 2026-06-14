@@ -36,9 +36,14 @@ from app.video_lab.renderers.file_store import (
     path_to_url,
     write_manifest,
 )
-from app.video_lab.renderers.local_frame_renderer import generate_frames
 from app.video_lab.renderers.ffmpeg_av_composer import compose_av_with_subtitles, compose_video_with_audio, check_ffmpeg_available
 from app.video_lab.renderers.render_params import parse_local_frame_params, resolve_resolution
+from app.video_lab.renderers.visual import (
+    VisualRenderRequest,
+    get_visual_renderer,
+    resolve_visual_route,
+    DEFAULT_VISUAL_ROUTE,
+)
 
 
 def make_step(
@@ -158,14 +163,40 @@ def run_tts_subtitle_compose(
     steps.append(step2)
     all_logs.extend(step2.logs)
 
-    # Step 3: extract key points
-    key_points = extract_key_points(structured, target_duration)
-    kps_list = key_points.get("keyPoints", [])
-    if len(kps_list) > render_params.key_point_count:
-        kps_list = kps_list[: render_params.key_point_count]
-    key_points["keyPoints"] = kps_list
-    key_points["key_points"] = kps_list
-    key_points["totalPoints"] = len(kps_list)
+    # Step 3: plan shots (LLM 规划展示方式，失败回退确定性)；构建 key_points
+    from app.video_lab.planners.llm_content_planner import plan_shots
+    use_llm_plan = params.get("useLlmPlan", True) if isinstance(params, dict) else True
+    plan = plan_shots(
+        raw_content,
+        max_items=render_params.key_point_count,
+        test_case_id=test_case_id,
+        use_llm=use_llm_plan,
+    )
+    plan_shots_list = plan.get("shots", [])
+    # 用规划好的封面标题作为 lead（封面更干净）
+    if plan.get("coverTitle"):
+        structured["lead"] = plan["coverTitle"]
+
+    kps_list = []
+    for i, s in enumerate(plan_shots_list, 1):
+        kps_list.append({
+            "index": i,
+            "headline": s.get("headline", ""),
+            "display": s.get("display", ""),
+            "narration": s.get("narration", ""),
+            "title": s.get("headline", ""),
+            "body": s.get("display", ""),
+            "source": "",
+            "category": "",
+        })
+    key_points = {
+        "keyPoints": kps_list,
+        "key_points": kps_list,
+        "totalPoints": len(kps_list),
+        "selectedFrom": len(kps_list),
+        "planSource": plan.get("source", "fallback"),
+    }
+    all_logs.append(f"  plan source: {plan.get('source')}, shots: {len(kps_list)}")
 
     artifact_kp = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_keypoints",
@@ -188,8 +219,31 @@ def run_tts_subtitle_compose(
     steps.append(step3)
     all_logs.extend(step3.logs)
 
-    # Step 4: generate voiceover plan
-    voiceover_result = generate_voiceover(structured, key_points, target_duration)
+    # Step 4: build voiceover from plan (opening + per-shot narration + closing)
+    # 每段对应一张画面，便于音画时序对齐；字幕也与之一致
+    vo_parts = []
+    opening = (plan.get("opening") or "").strip()
+    closing = (plan.get("closing") or "").strip()
+    if opening:
+        vo_parts.append(opening)
+    for s in plan_shots_list:
+        vo_parts.append((s.get("narration") or s.get("display") or s.get("headline") or "").strip())
+    if closing:
+        vo_parts.append(closing)
+
+    vo_segments = []
+    cursor = 0.0
+    for idx, text in enumerate(vo_parts, 1):
+        est = max(2.5, len(text) * 0.28)  # 估算，TTS 后会按真实音频重缩放
+        vo_segments.append({"index": idx, "text": text, "startSec": round(cursor, 2), "durationSec": round(est, 2)})
+        cursor += est
+    voiceover_result = {
+        "voiceoverText": " ".join(p for p in vo_parts if p),
+        "segments": vo_segments,
+        "estimatedDurationSec": round(cursor, 2),
+        "hasOpening": bool(opening),
+        "hasClosing": bool(closing),
+    }
     artifact_vo = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_voiceover",
         type=ArtifactType.VOICEOVER_PLAN,
@@ -296,8 +350,23 @@ def run_tts_subtitle_compose(
     steps.append(step5)
     all_logs.extend(step5.logs)
 
-    # Step 6: generate SRT + ASS subtitles
+    # Rescale subtitle timeline to the REAL TTS audio duration to avoid drift.
+    # 旁白段时长是估算的，与真实 TTS 时长脱节会导致字幕比音频早/晚结束。
+    real_audio_dur = float(tts_result.get("durationSec", 0) or 0)
     segments = voiceover_result.get("segments", [])
+    if real_audio_dur > 0 and segments:
+        last = segments[-1]
+        estimated_total = float(last.get("startSec", 0)) + float(last.get("durationSec", 0))
+        if estimated_total > 0:
+            scale = real_audio_dur / estimated_total
+            for seg in segments:
+                seg["startSec"] = round(float(seg.get("startSec", 0)) * scale, 2)
+                seg["durationSec"] = round(float(seg.get("durationSec", 0)) * scale, 2)
+            voiceover_result["segments"] = segments
+            voiceover_result["estimatedDurationSec"] = round(real_audio_dur, 2)
+            all_logs.append(f"  Rescaled subtitle timeline x{scale:.2f} to match audio {real_audio_dur:.1f}s")
+
+    # Step 6: generate SRT + ASS subtitles
     subtitle_dir = exp_dir / "subtitles"
     subtitle_dir.mkdir(parents=True, exist_ok=True)
     srt_path = subtitle_dir / "subtitles.srt"
@@ -353,79 +422,76 @@ def run_tts_subtitle_compose(
     steps.append(step6)
     all_logs.extend(step6.logs)
 
-    # Step 7: generate silent video (reusing local_frame_renderer)
-    frame_result = generate_frames(
+    # Step 7: generate silent video via pluggable VisualRenderer
+    # 视觉路线可插拔：默认 local_frame_compose (Pillow)，可用 params.visualRoute 切换
+    # （如 template_programmatic_render = Remotion）。下游 TTS/字幕/合成保持共享。
+    visual_route = resolve_visual_route(params)
+    renderer = get_visual_renderer(visual_route)
+    if renderer is None:
+        renderer = get_visual_renderer(DEFAULT_VISUAL_ROUTE)
+        visual_route = DEFAULT_VISUAL_ROUTE
+
+    # 画面时长对齐真实音频时长（成片为 audio_preserved），避免画面比音频短一截
+    visual_target = real_audio_dur if real_audio_dur > 0 else target_duration
+    visual_request = VisualRenderRequest(
         experiment_id=experiment_id,
         structured=structured,
         key_points=key_points,
-        target_duration_sec=target_duration,
+        target_duration_sec=visual_target,
         resolution=resolution,
-        enable_transitions=render_params.transition_enabled,
-        transition_frames=render_params.transition_frames,
-        highlight_mode=render_params.highlight_mode,
-        include_overview=render_params.include_overview,
-        include_summary=render_params.include_summary,
+        params=params or {},
+        audio_duration_sec=float(tts_result.get("durationSec", 0)),
+        voiceover_segments=segments,  # 已按真实音频重缩放，用于画面/配音时序对齐
+        test_case_id=test_case_id,
+        input_payload=input_payload,
     )
-    all_warnings.extend(frame_result.get("warnings", []))
+    visual_result = renderer.render(visual_request)
+    all_warnings.extend(visual_result.warnings)
+    all_logs.extend(visual_result.logs)
 
-    silent_video_path = exp_dir / "silent.mp4"
-    frame_sequence = frame_result.get("frameSequence", [])
-    duration_by_path = frame_result.get("durationByPath", {})
-
-    from app.video_lab.renderers.ffmpeg_composer import compose_video_from_frame_sequence
-    if frame_sequence and len(frame_sequence) > 0:
-        ffmpeg_result = compose_video_from_frame_sequence(
-            frame_sequence=frame_sequence,
-            output_path=silent_video_path,
-            duration_by_path=duration_by_path,
-            fps=30,
-            resolution=resolution,
-            timeout=300,
-        )
-    else:
-        from app.video_lab.renderers.file_store import get_frames_dir
-        frames_dir = get_frames_dir(experiment_id)
-        from app.video_lab.renderers.ffmpeg_composer import compose_video_from_frames
-        ffmpeg_result = compose_video_from_frames(
-            frames_dir=frames_dir,
-            output_path=silent_video_path,
-            duration_per_frame=frame_result.get("duration_per_frame", {}),
-            fps=30,
-            resolution=resolution,
-            timeout=300,
-        )
-
-    if not ffmpeg_result.get("success"):
+    if not visual_result.success:
         step7 = make_step(
             step_id=f"{experiment_id}_step_07_silent_video",
             name="Generate Silent Video",
-            description="Generate silent video from frames using Pillow + FFmpeg",
+            description=f"Generate silent video via visual route '{visual_route}'",
             status=ProductionStepStatus.FAILED,
-            input_summary="Frames from local_frame_renderer",
-            output_summary=f"FFmpeg failed: {ffmpeg_result.get('message', '')}",
-            key_data={"ffmpegSuccess": False, "error": ffmpeg_result.get("message", "")},
-            logs=["[7/9] Generate silent video", f"  ERROR: {ffmpeg_result.get('message', '')}"],
+            input_summary=f"Visual route: {visual_route}",
+            output_summary=f"Visual render failed: {visual_result.message}",
+            key_data={"visualRoute": visual_route, "success": False, "error": visual_result.message},
+            logs=["[7/9] Generate silent video", f"  route={visual_route}", f"  ERROR: {visual_result.message}"],
         )
         steps.append(step7)
         all_logs.extend(step7.logs)
-        return _build_failed_result(experiment_id, method_category, steps, ffmpeg_result.get("message", "FFmpeg failed"))
+        return _build_failed_result(experiment_id, method_category, steps, visual_result.message or "Visual render failed")
+
+    silent_video_path = Path(visual_result.silent_video_path)
+    cover_path = visual_result.cover_path
 
     artifact_silent = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_silent",
         type=ArtifactType.VIDEO_OUTPUT,
         title="Silent Video",
         summary=f"Path: {silent_video_path}",
-        payload={"path": str(silent_video_path), "url": path_to_url(silent_video_path)},
+        payload={
+            "path": str(silent_video_path),
+            "url": visual_result.silent_video_url or path_to_url(silent_video_path),
+            "visualRoute": visual_route,
+        },
     )
     step7 = make_step(
         step_id=f"{experiment_id}_step_07_silent_video",
         name="Generate Silent Video",
-        description="Generate silent video from frames using Pillow + FFmpeg",
+        description=f"Generate silent video via visual route '{visual_route}'",
         status=ProductionStepStatus.SUCCEEDED,
-        input_summary="Frames from local_frame_renderer",
-        output_summary=f"Success: {silent_video_path.name}",
-        key_data={"ffmpegSuccess": True, "frameCount": frame_result.get("total_frames", 0)},
-        logs=["[7/9] Generate silent video", f"  Frames: {frame_result.get('total_frames', 0)}", f"  Output: {silent_video_path.name}"],
+        input_summary=f"Visual route: {visual_route}",
+        output_summary=f"Success: {silent_video_path.name} (route={visual_route})",
+        key_data={
+            "visualRoute": visual_route,
+            "success": True,
+            "frameCount": visual_result.frame_count,
+            "visualDurationSec": visual_result.total_duration_sec,
+        },
+        logs=["[7/9] Generate silent video", f"  route={visual_route}", f"  Output: {silent_video_path.name}"],
         artifacts=[artifact_silent],
     )
     steps.append(step7)
@@ -532,6 +598,24 @@ def run_tts_subtitle_compose(
     steps.append(step8)
     all_logs.extend(step8.logs)
 
+    # Quality assessment - 自动判定视频质量（确定性检查）
+    from app.video_lab.quality import assess_quality
+    quality_report = assess_quality(
+        source_content=raw_content,
+        structured=structured,
+        key_points=key_points,
+        voiceover=voiceover_result,
+        audio_duration_sec=float(tts_result.get("durationSec", 0)),
+        subtitle_count=len(srt_result.get("subtitles", [])),
+        subtitle_burned=subtitle_burned,
+        visual_duration_sec=float(visual_result.total_duration_sec),
+        has_cover=bool(cover_path),
+        frame_count=int(visual_result.frame_count),
+        warnings=all_warnings,
+        target_duration_sec=float(target_duration),
+    )
+    quality_dict = quality_report.to_dict()
+
     # Step 9: conclusion and manifest
     manifest_path = get_experiment_dir(experiment_id) / "manifest.json"
     manifest_url = path_to_url(manifest_path)
@@ -559,8 +643,17 @@ def run_tts_subtitle_compose(
         "createdAt": datetime.utcnow().isoformat(),
         "manifestUrl": manifest_url,
         "warnings": all_warnings,
+        "quality": quality_dict,
     }
     write_manifest(experiment_id, manifest)
+
+    quality_artifact = VideoProductionArtifact(
+        artifact_id=f"{experiment_id}_art_quality",
+        type=ArtifactType.EVALUATION,
+        title="Quality Report",
+        summary=f"overall={quality_dict['overallScore']} | {quality_dict['counts']}",
+        payload=quality_dict,
+    )
 
     manifest_artifact = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_manifest",
@@ -599,7 +692,7 @@ def run_tts_subtitle_compose(
         output_summary=f"Manifest: {manifest_path.name}",
         key_data={"succeededSteps": 9, "audioDurationSec": tts_result.get("durationSec", 0)},
         logs=["[9/9] Generate conclusion", f"  Audio: {tts_result.get('durationSec', 0)}s", f"  Manifest: {manifest_path.name}"],
-        artifacts=[manifest_artifact, conclusion_artifact],
+        artifacts=[manifest_artifact, conclusion_artifact, quality_artifact],
     )
     steps.append(step9)
     all_logs.extend(step9.logs)
@@ -615,7 +708,7 @@ def run_tts_subtitle_compose(
     return VideoExperimentResult(
         experimentId=experiment_id,
         videoUrl=path_to_url(final_output),
-        coverUrl=path_to_url(frame_result.get("cover", "")) if frame_result.get("cover") else "",
+        coverUrl=path_to_url(cover_path) if cover_path else "",
         assets={
             "method": method_category,
             "engine": "minimax-tts",
@@ -627,6 +720,8 @@ def run_tts_subtitle_compose(
             "subtitleRenderer": av_result.get("subtitle_renderer", "none"),
             "subtitleStyle": av_result.get("subtitle_style", {}),
             "format": "mp4",
+            "qualityScore": quality_dict["overallScore"],
+            "qualityDimensions": quality_dict["dimensionScores"],
         },
         logs=all_logs,
         provider="MiniMax TTS",
@@ -641,6 +736,7 @@ def run_tts_subtitle_compose(
             "subtitleFallback": subtitle_fallback,
             "ttsSuccess": True,
             "warnings": all_warnings,
+            "quality": quality_dict,
             "riskAssessment": {
                 "accuracy": "high - text precise and controllable",
                 "stability": "medium - depends on TTS API stability",

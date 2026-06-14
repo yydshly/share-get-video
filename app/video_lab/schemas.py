@@ -79,6 +79,27 @@ class CreateBenchmarkRequest(BaseModel):
     }
 
 
+class VisualComposeRequest(BaseModel):
+    """JSON body for POST /video-lab/visual-compose (单条视觉路线端到端出片)"""
+
+    content: str = Field(..., min_length=1, description="报告原文")
+    visualRoute: str = Field(..., min_length=1, description="视觉路线 routeId")
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="生成参数 (targetDuration, aspectRatio, keyPointCount, useLlmPlan...)",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "content": "今日 AI 前沿...",
+                "visualRoute": "ai_asset_then_compose",
+                "params": {"targetDuration": 45, "aspectRatio": "9:16", "keyPointCount": 6},
+            }
+        }
+    }
+
+
 class CreateChainBenchmarkRequest(BaseModel):
     """JSON body for POST /video-lab/chain-benchmarks"""
 

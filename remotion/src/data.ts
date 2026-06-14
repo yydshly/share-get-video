@@ -7,12 +7,20 @@ export type KeyPoint = {
   source?: string;
 };
 
+export type SegmentDurations = {
+  coverSec: number;
+  cardSecs: number[];
+  summarySec: number;
+};
+
 export type AiNewsVideoProps = {
   title: string;
   subtitle?: string;
   keyPoints: KeyPoint[];
   durationSec: number;
   stylePreset: "ai_frontier_dark";
+  // 每段时长（与旁白对齐）；缺省时模板用固定时长
+  segmentDurations?: SegmentDurations;
 };
 
 export const defaultProps: AiNewsVideoProps = {

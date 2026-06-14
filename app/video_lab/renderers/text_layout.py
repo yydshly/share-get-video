@@ -298,6 +298,66 @@ def fit_font_size(
     return font_candidates[-1] if font_candidates else 16
 
 
+def fit_wrapped_text(
+    text: str,
+    max_width: int,
+    max_height: int,
+    draw: ImageDraw.ImageDraw,
+    size_max: int = 64,
+    size_min: int = 22,
+    line_spacing: int = 14,
+    step: int = 2,
+):
+    """在给定区域内，选出能容纳**全部文字（不截断）**的最大字号并换行。
+
+    返回 (font, lines, font_size, line_height, overflow)：
+    - 从 size_max 往下试，第一个让"换行后总高度 <= max_height"的字号即采用；
+    - 若连最小字号都放不下，返回最小字号的换行结果并 overflow=True（仍包含全部文字，
+      不丢内容；由上层据此告警，质量层可感知）。
+    """
+    text = (text or "").strip()
+    if not text:
+        font, _ = find_chinese_font(size_min)
+        return font, [""], size_min, size_min + line_spacing, False
+
+    last = None
+    for size in range(size_max, size_min - 1, -step):
+        font, _ = find_chinese_font(size)
+        lines = wrap_text(text, font, max_width, draw)
+        line_h = get_text_size("测试", font, draw)[1] + line_spacing
+        total_h = len(lines) * line_h
+        last = (font, lines, size, line_h)
+        if total_h <= max_height:
+            return font, lines, size, line_h, False
+
+    # 连最小字号都放不下：返回最小字号结果（全文保留），标记 overflow
+    font, lines, size, line_h = last
+    return font, lines, size, line_h, True
+
+
+def split_headline_and_detail(text: str) -> Tuple[str, str]:
+    """把一句新闻拆成"标题"与"详情"。
+
+    优先按中文/英文冒号切分（"标题：详情"）；无冒号则按第一个句末标点切；
+    再无则整句作为标题。
+    """
+    text = (text or "").strip()
+    if not text:
+        return "", ""
+    for sep in ("：", ":"):
+        if sep in text:
+            head, _, rest = text.partition(sep)
+            head = head.strip()
+            rest = rest.strip()
+            if head and rest:
+                return head, rest
+    # 退化：按第一个句末标点
+    for i, ch in enumerate(text):
+        if ch in "。！？!?" and 4 <= i <= 24:
+            return text[: i + 1].strip(), text[i + 1:].strip()
+    return text, ""
+
+
 def wrap_text_by_visual_width(
     text: str,
     font: ImageFont.FreeTypeFont,

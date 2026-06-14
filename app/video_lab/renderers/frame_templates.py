@@ -51,6 +51,38 @@ def render_gradient_background(width: int, height: int) -> Image.Image:
     return img
 
 
+def load_background_image(
+    path: str,
+    width: int,
+    height: int,
+    darken: float = 0.55,
+) -> Image.Image:
+    """Load an AI-generated image, cover-crop to (width,height), darken for legibility.
+
+    darken: 0..1，叠加黑色遮罩的不透明度，越大画面越暗、文字越清晰。
+    失败时回退到渐变背景。
+    """
+    try:
+        bg = Image.open(path).convert("RGB")
+    except Exception:
+        return render_gradient_background(width, height)
+
+    # cover-crop（保持比例铺满，居中裁剪）
+    src_w, src_h = bg.size
+    scale = max(width / src_w, height / src_h)
+    new_w, new_h = int(src_w * scale), int(src_h * scale)
+    bg = bg.resize((new_w, new_h), Image.LANCZOS)
+    left = (new_w - width) // 2
+    top = (new_h - height) // 2
+    bg = bg.crop((left, top, left + width, top + height))
+
+    # 暗化遮罩（顶部稍轻、底部更重，利于卡片与文字）
+    overlay = Image.new("RGB", (width, height), (0, 0, 0))
+    a = int(max(0.0, min(1.0, darken)) * 255)
+    bg = Image.blend(bg, overlay, a / 255.0)
+    return bg
+
+
 def draw_decorative_elements(draw: ImageDraw.ImageDraw, width: int, height: int) -> None:
     """Add subtle decorative elements: corner glows, dots."""
     # Top-left glow
@@ -151,6 +183,7 @@ def render_cover_template(
     date_str: str,
     frames_dir: Path,
     resolution: Tuple[int, int] = (1080, 1920),
+    background_path: str | None = None,
 ) -> Dict[str, Any]:
     """
     Render enhanced cover frame with:
@@ -158,13 +191,17 @@ def render_cover_template(
     - Large title
     - Subtitle
     - 3 signal tags
-    - Background gradient with decorative elements
+    - Background gradient (or AI image) with decorative elements
     - Date and footer
     """
     width, height = resolution
-    img = render_gradient_background(width, height)
-    draw = ImageDraw.Draw(img)
-    draw_decorative_elements(draw, width, height)
+    if background_path:
+        img = load_background_image(background_path, width, height, darken=0.5)
+        draw = ImageDraw.Draw(img)
+    else:
+        img = render_gradient_background(width, height)
+        draw = ImageDraw.Draw(img)
+        draw_decorative_elements(draw, width, height)
 
     warnings = []
 
@@ -363,6 +400,38 @@ def render_overview_template(
 # ─────────────────────────────────────────
 # Keypoint Frame Template
 # ─────────────────────────────────────────
+def _draw_lines_with_highlights(
+    draw: ImageDraw.ImageDraw,
+    lines: List[str],
+    x: int,
+    y: int,
+    font: ImageFont.FreeTypeFont,
+    line_h: int,
+    base_color: Tuple[int, int, int],
+    highlight_color: Tuple[int, int, int],
+) -> int:
+    """Draw wrapped lines left-aligned, highlighting numbers. Returns bottom y."""
+    import re
+    highlights = extract_highlights(" ".join(lines))
+    pattern = "|".join(re.escape(h) for h in highlights) if highlights else None
+
+    cur_y = y
+    for line in lines:
+        cur_x = x
+        if pattern:
+            parts = re.split(f"({pattern})", line)
+        else:
+            parts = [line]
+        for part in parts:
+            if not part:
+                continue
+            color = highlight_color if (highlights and part in highlights) else base_color
+            draw.text((cur_x, cur_y), part, font=font, fill=color)
+            cur_x += draw.textbbox((0, 0), part, font=font)[2] - draw.textbbox((0, 0), part, font=font)[0]
+        cur_y += line_h
+    return cur_y
+
+
 def render_keypoint_template(
     index: int,
     total: int,
@@ -372,105 +441,137 @@ def render_keypoint_template(
     source: str,
     frames_dir: Path,
     resolution: Tuple[int, int] = (1080, 1920),
+    background_path: str | None = None,
 ) -> Dict[str, Any]:
     """
-    V0.3.8.2: Render a denser keypoint frame with:
-    - Top: index + category tag
-    - Center: large main title (info card)
-    - Mid: body explanation (filled, not blank)
-    - Bottom: source attribution
+    Render a keypoint card that FILLS the card with auto-fit fonts and never
+    truncates content:
+    - Header: big index + optional category tag (hidden when default/empty)
+    - Headline (`title`): auto-fit large text
+    - Detail (`body`): auto-fit body text, fills remaining space
+    - Numbers are highlighted; placeholder source is dropped
+    - background_path: 若提供 AI 生成的背景图，则用其作背景 + 半透明信息卡
     """
+    from app.video_lab.renderers.text_layout import fit_wrapped_text
+
     width, height = resolution
-    img = render_gradient_background(width, height)
-    draw = ImageDraw.Draw(img)
 
-    warnings = []
-    font_size_index = int(FONT_SIZES["keypoint_index"] * (width / 1080))
-    font_size_category = int(FONT_SIZES["keypoint_category"] * (width / 1080))
-    font_size_title = int(FONT_SIZES["keypoint_title"] * (width / 1080))
-    font_size_body = int(FONT_SIZES["keypoint_body"] * (width / 1080))
-    font_size_source = int(FONT_SIZES["keypoint_source"] * (width / 1080))
-
-    font_index, w = find_chinese_font(font_size_index)
-    font_category, w2 = find_chinese_font(font_size_category)
-    font_title, w3 = find_chinese_font(font_size_title)
-    font_body, w4 = find_chinese_font(font_size_body)
-    font_source, w5 = find_chinese_font(font_size_source)
-    warnings.extend(w)
-    warnings.extend(w2)
-    warnings.extend(w3)
-    warnings.extend(w4)
-    warnings.extend(w5)
-
-    category_style = get_category_style(category)
-
-    # V0.3.8.2: Information card background in the center to fill space
+    # Card geometry
     card_x1 = int(width * 0.06)
     card_y1 = int(height * 0.12)
     card_x2 = int(width * 0.94)
     card_y2 = int(height * 0.92)
-    draw.rounded_rectangle(
-        [(card_x1, card_y1), (card_x2, card_y2)],
-        radius=20,
-        fill=COLORS["bg_card"],
-        outline=COLORS["border_active"],
-        width=2,
-    )
 
-    # Header row: big index + category tag
+    if background_path:
+        # AI 背景图 + 半透明卡片（图透出来、文字仍清晰）
+        base = load_background_image(background_path, width, height, darken=0.45).convert("RGBA")
+        card_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        cdraw = ImageDraw.Draw(card_layer)
+        card_rgb = COLORS["bg_card"]
+        cdraw.rounded_rectangle(
+            [(card_x1, card_y1), (card_x2, card_y2)],
+            radius=20,
+            fill=(card_rgb[0], card_rgb[1], card_rgb[2], 205),  # ~80% opaque
+            outline=(COLORS["border_active"][0], COLORS["border_active"][1], COLORS["border_active"][2], 255),
+            width=2,
+        )
+        img = Image.alpha_composite(base, card_layer).convert("RGB")
+        draw = ImageDraw.Draw(img)
+    else:
+        img = render_gradient_background(width, height)
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle(
+            [(card_x1, card_y1), (card_x2, card_y2)],
+            radius=20,
+            fill=COLORS["bg_card"],
+            outline=COLORS["border_active"],
+            width=2,
+        )
+
+    warnings = []
+    scale = width / 1080
+
+    font_size_index = int(FONT_SIZES["keypoint_index"] * scale)
+    font_size_category = int(FONT_SIZES["keypoint_category"] * scale)
+    font_index, w = find_chinese_font(font_size_index)
+    font_category, w2 = find_chinese_font(font_size_category)
+    warnings.extend(w)
+    warnings.extend(w2)
+
+    inner_x = card_x1 + 50
+    inner_w = (card_x2 - card_x1) - 100
+
+    # Header: big index + " / total"
     header_y = card_y1 + 50
-    # Big index "01" on the left
     big_idx_text = f"{index:02d}"
-    big_idx_font_size = int(FONT_SIZES["highlight_large"] * (width / 1080))
+    big_idx_font_size = int(FONT_SIZES["highlight_large"] * scale)
     big_idx_font, _w_big = find_chinese_font(big_idx_font_size)
     warnings.extend(_w_big)
-    # Gradient colored number — use accent_blue
-    draw.text((card_x1 + 50, header_y), big_idx_text, font=big_idx_font, fill=COLORS["accent_blue"])
+    draw.text((inner_x, header_y), big_idx_text, font=big_idx_font, fill=COLORS["accent_blue"])
+    idx_w = draw.textbbox((0, 0), big_idx_text, font=big_idx_font)[2]
+    draw.text((inner_x + idx_w + 12, header_y + 34), f"/ {total:02d}", font=font_index, fill=COLORS["text_tertiary"])
 
-    # "/ total" small text after
-    total_text = f" / {total:02d}"
-    total_bbox = draw.textbbox((0, 0), total_text, font=font_index)
-    total_w = total_bbox[2] - total_bbox[0]
-    draw.text((card_x1 + 50 + draw.textbbox((0, 0), big_idx_text, font=big_idx_font)[2] + 10, header_y + 30),
-              total_text, font=font_index, fill=COLORS["text_tertiary"])
+    # Category tag — only when meaningful
+    show_category = bool(category) and category not in ("默认", "default", "")
+    if show_category:
+        cat_style = get_category_style(category)
+        draw_tag(draw, category, card_x2 - 140, header_y + 40, font_category, cat_style)
 
-    # Category tag on the right
-    draw_tag(draw, category, card_x2 - 130, header_y + 40, font_category, category_style)
-
-    # Decorative bar under header
+    # Header divider
     bar_y = header_y + 130
-    draw.rectangle([(card_x1 + 50, bar_y), (card_x2 - 50, bar_y + 2)], fill=COLORS["border_subtle"])
+    draw.rectangle([(inner_x, bar_y), (card_x2 - 50, bar_y + 2)], fill=COLORS["border_subtle"])
 
-    # Title block — V0.3.8.2: medium title, more lines
-    title_max_width = int((card_x2 - card_x1) * 0.86)
-    title_lines = split_lines_with_max_count(title, font_title, title_max_width, draw, max_lines=4)
-    title_line_h = get_text_size("测试", font_title, draw)[1] + 12
-    title_start_y = bar_y + 40
+    # Content region (everything below the divider)
+    content_top = bar_y + 44
+    content_bottom = card_y2 - 56
+    content_h = content_bottom - content_top
 
-    for i, line in enumerate(title_lines):
-        bbox = draw.textbbox((0, 0), line, font=font_title)
-        tw = bbox[2] - bbox[0]
-        # Left-aligned inside card
-        draw.text((card_x1 + 50, title_start_y + i * title_line_h), line, font=font_title, fill=COLORS["text_primary"])
+    headline = (title or "").strip()
+    detail = (body or "").strip()
 
-    # Body — V0.3.8.2: anchor to lower-middle, fill with content
-    if body:
-        body_max_width = int((card_x2 - card_x1) * 0.86)
-        body_lines = split_lines_with_max_count(body, font_body, body_max_width, draw, max_lines=8)
-        body_line_h = get_text_size("测试", font_body, draw)[1] + 10
-        body_start_y = title_start_y + len(title_lines) * title_line_h + 40
+    # Allocate vertical space: headline gets up to ~45% when detail exists
+    if detail:
+        headline_box_h = int(content_h * 0.42)
+        detail_box_h = content_h - headline_box_h - 30
+    else:
+        headline_box_h = content_h
+        detail_box_h = 0
 
-        for i, line in enumerate(body_lines):
-            draw.text((card_x1 + 50, body_start_y + i * body_line_h), line, font=font_body, fill=COLORS["text_secondary"])
+    # Headline — auto-fit large
+    h_font, h_lines, h_size, h_line_h, h_overflow = fit_wrapped_text(
+        headline, inner_w, headline_box_h, draw,
+        size_max=int(76 * scale), size_min=int(34 * scale), line_spacing=int(16 * scale),
+    )
+    end_y = _draw_lines_with_highlights(
+        draw, h_lines, inner_x, content_top, h_font, h_line_h,
+        COLORS["text_primary"], COLORS["highlight_yellow"],
+    )
+    if h_overflow:
+        warnings.append(f"keypoint {index}: headline overflow (text truncated visually)")
 
-    # Source at bottom of card
-    if source:
-        source_short = truncate_text(source, 80)
-        source_lines = wrap_text(source_short, font_source, int((card_x2 - card_x1) * 0.86), draw)
-        source_line_h = get_text_size("测试", font_source, draw)[1] + 4
-        source_start_y = card_y2 - 60 - len(source_lines[:1]) * source_line_h
-        for i, line in enumerate(source_lines[:1]):
-            draw.text((card_x1 + 50, source_start_y + i * source_line_h), line, font=font_source, fill=COLORS["text_tertiary"])
+    # Detail — placed right under the headline, fills remaining space
+    if detail:
+        detail_top = end_y + int(40 * scale)
+        avail_h = content_bottom - detail_top
+        d_font, d_lines, d_size, d_line_h, d_overflow = fit_wrapped_text(
+            detail, inner_w, avail_h, draw,
+            size_max=int(46 * scale), size_min=int(24 * scale), line_spacing=int(12 * scale),
+        )
+        _draw_lines_with_highlights(
+            draw, d_lines, inner_x, detail_top, d_font, d_line_h,
+            COLORS["text_secondary"], COLORS["highlight_yellow"],
+        )
+        if d_overflow:
+            warnings.append(f"keypoint {index}: detail overflow (text truncated visually)")
+
+    # Source — only when it's real (skip placeholder like "依据 1")
+    src = (source or "").strip()
+    is_placeholder = (not src) or src.replace("依据", "").replace("：", "").replace(":", "").replace(" ", "").isdigit()
+    if src and not is_placeholder:
+        font_source, w5 = find_chinese_font(int(FONT_SIZES["keypoint_source"] * scale))
+        warnings.extend(w5)
+        src_lines = wrap_text(truncate_text(src, 60), font_source, inner_w, draw)[:1]
+        draw.text((inner_x, card_y2 - 50), src_lines[0], font=font_source, fill=COLORS["text_tertiary"])
 
     frame_name = f"frame_{index:03d}.png"
     output_path = frames_dir / frame_name
@@ -484,7 +585,7 @@ def render_keypoint_template(
         "templateVersion": TEMPLATE_VERSION,
         "visualPreset": VISUAL_PRESET,
         "category": category,
-        "highlights": extract_highlights(title + " " + body),
+        "highlights": extract_highlights(headline + " " + detail),
     }
 
 

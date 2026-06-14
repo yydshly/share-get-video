@@ -14,6 +14,7 @@ from app.video_lab.renderers.text_layout import (
     wrap_text,
     truncate_text,
     split_title_and_body,
+    split_headline_and_detail,
     get_text_size,
     extract_highlights_by_mode,
 )
@@ -113,6 +114,8 @@ def generate_frames(
     highlight_mode: str = "auto",
     include_overview: bool = True,
     include_summary: bool = True,
+    segment_durations: list | None = None,
+    backgrounds: dict | None = None,
 ) -> dict:
     """
     Generate all frames using AI Frontier Dark templates.
@@ -167,25 +170,28 @@ def generate_frames(
     # Date string
     date_str = datetime.now().strftime("%Y年%m月%d日")
 
-    # Get tags for cover from first 3 keypoints
+    # Get tags for cover from first 3 keypoints (use clean headline, not mid-word cut)
     cover_tags = []
     for kp in kps[:3]:
-        title = kp.get("title", "")[:10]
-        if title:
-            cover_tags.append(title)
+        head = (kp.get("headline") or "").strip() or split_headline_and_detail(kp.get("title", ""))[0]
+        tag = truncate_text(head.strip(), 12)
+        if tag:
+            cover_tags.append(tag)
 
     # ─────────────────────────────────────────
     # Cover Frame
     # ─────────────────────────────────────────
     lead_text = structured.get("lead", "")
-    title_part, _ = split_title_and_body(lead_text, max_title_chars=25)
+    # 用首个分句（冒号前）作为干净标题，避免在句中硬截断
+    cover_headline, _ = split_headline_and_detail(lead_text)
     cover_result = render_cover_template(
-        title=title_part or "AI 前沿资讯",
+        title=cover_headline or lead_text[:20] or "AI 前沿资讯",
         subtitle="今日要点速览",
         tags=cover_tags if cover_tags else ["安全风险", "人机协作", "企业落地"],
         date_str=date_str,
         frames_dir=frames_dir,
         resolution=resolution,
+        background_path=(backgrounds or {}).get("cover"),
     )
     frame_outputs.append({
         "type": "cover",
@@ -204,9 +210,10 @@ def generate_frames(
     if include_overview:
         overview_items = []
         for kp in kps[:4]:
+            ov_title = (kp.get("headline") or "").strip() or split_headline_and_detail(kp.get("title", "未知"))[0]
             overview_items.append({
-                "title": truncate_text(kp.get("title", "未知"), 25),
-                "category": kp.get("category", "默认"),
+                "title": truncate_text(ov_title, 16),
+                "category": (kp.get("category") or "").strip(),
             })
 
         overview_result = render_overview_template(
@@ -229,23 +236,31 @@ def generate_frames(
     # ─────────────────────────────────────────
     all_highlights = []
     for i, kp in enumerate(kps, 1):
-        title = truncate_text(kp.get("title", ""), 50)
-        body = kp.get("source", "")
-        category = kp.get("category", "默认")
+        # 优先使用 LLM 规划的 headline/display；否则从整句 title 切分
+        headline = (kp.get("headline") or "").strip()
+        detail = (kp.get("display") or "").strip()
+        if not headline and not detail:
+            full_text = kp.get("title", "").strip()
+            headline, detail = split_headline_and_detail(full_text)
+            kp_body = (kp.get("body", "") or "").strip()
+            if kp_body and not kp_body.replace("依据", "").replace(" ", "").isdigit():
+                detail = kp_body if not detail else f"{detail} {kp_body}"
+        category = (kp.get("category", "") or "").strip()  # 空/默认时模板自动隐藏
 
         # V0.2.5: Extract highlights based on highlight_mode
-        highlights = extract_highlights_by_mode(title + " " + body, highlight_mode)
+        highlights = extract_highlights_by_mode(f"{headline} {detail}", highlight_mode)
         all_highlights.extend(highlights)
 
         frame_result = render_keypoint_template(
             index=i,
             total=num_keypoints,
             category=category,
-            title=title,
-            body=body,
-            source="依据: AI前沿研究",
+            title=headline,
+            body=detail,
+            source="",
             frames_dir=frames_dir,
             resolution=resolution,
+            background_path=(backgrounds or {}).get(i),
         )
         frame_name = frame_result["frame_name"]
         frame_outputs.append({
@@ -288,6 +303,34 @@ def generate_frames(
         })
         duration_per_frame["summary.png"] = summary_duration
         all_warnings.extend(summary_result.get("warnings", []))
+
+    # ─────────────────────────────────────────
+    # A/V 时序对应：每帧时长跟随对应旁白段
+    # segment_durations 顺序：[opening, item1..N, closing]
+    # 帧顺序：cover, [overview], kp1..N, [summary]
+    # ─────────────────────────────────────────
+    if segment_durations and len(segment_durations) >= 2:
+        seg_durs = [float(s.get("durationSec", 0)) for s in segment_durations]
+        opening_dur = seg_durs[0]
+        closing_dur = seg_durs[-1]
+        item_durs = seg_durs[1:-1]
+        kp_frames = [f for f in frame_outputs if f["type"] == "keypoint"]
+        if len(item_durs) == len(kp_frames) and len(kp_frames) > 0:
+            # cover + overview 共享 opening
+            if include_overview:
+                cover_d = max(1.5, min(opening_dur * 0.3, 3.0))
+                overview_d = max(2.0, opening_dur - cover_d)
+            else:
+                cover_d = max(1.5, opening_dur)
+                overview_d = 0.0
+            duration_per_frame["cover.png"] = round(cover_d, 2)
+            if include_overview:
+                duration_per_frame["overview.png"] = round(overview_d, 2)
+            for f, d in zip(kp_frames, item_durs):
+                duration_per_frame[f["frame_name"]] = round(max(2.0, d), 2)
+            if include_summary:
+                duration_per_frame["summary.png"] = round(max(1.5, closing_dur), 2)
+            all_warnings.append(f"av-sync: frame durations aligned to {len(segment_durations)} narration segments")
 
     # ─────────────────────────────────────────
     # Generate Transitions (V0.2.4 enhancement)

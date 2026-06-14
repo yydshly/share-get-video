@@ -9,7 +9,7 @@ from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResu
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
-from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest
+from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -255,6 +255,91 @@ def get_benchmark(benchmark_id: str) -> dict[str, Any]:
         )
 
     return benchmark.to_dict()
+
+
+# ─────────────────────────────────────────────
+# Visual Routes (pluggable visual renderers)
+# ─────────────────────────────────────────────
+@router.get("/visual-routes")
+def list_visual_routes() -> list[dict[str, Any]]:
+    """List all pluggable visual rendering routes and their availability.
+
+    A chain can switch its visual layer by passing params.visualRoute = routeId.
+    """
+    from app.video_lab.renderers.visual import list_visual_renderers
+    return list_visual_renderers()
+
+
+@router.post("/visual-compose")
+def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
+    """Run ONE visual route end-to-end (LLM plan + TTS + 字幕 + 合成) and return
+    the final video URL + auto quality report. Frontend calls this per route.
+
+    Synchronous: returns after the video is produced (TTS/render may take minutes).
+    Business failures return HTTP 200 with status='failed' + failedReason.
+    """
+    import uuid
+    from app.video_lab.adapters.tts_subtitle_compose import run_tts_subtitle_compose
+
+    exp_id = f"web_{request.visualRoute}_{uuid.uuid4().hex[:8]}"
+    params = dict(request.params or {})
+    params["visualRoute"] = request.visualRoute
+
+    try:
+        result = run_tts_subtitle_compose(
+            experiment_id=exp_id,
+            test_case_id="case_ai_frontier_daily_001",
+            input_payload={"content": request.content},
+            params=params,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    raw = getattr(result, "rawOutput", {}) or {}
+    assets = getattr(result, "assets", {}) or {}
+    status = raw.get("status", "unknown")
+    failed_reason = ""
+    if status != "succeeded":
+        for step in getattr(result, "productionSteps", []):
+            if getattr(step, "status", None) and step.status.value == "failed":
+                failed_reason = step.outputSummary or step.name
+                break
+        failed_reason = failed_reason or raw.get("error", "")
+
+    # 从 manifest artifact 提取中间产物链接（音频/字幕/manifest）
+    audio_url = srt_url = manifest_url = ""
+    steps_summary = []
+    for step in getattr(result, "productionSteps", []):
+        steps_summary.append({
+            "name": step.name,
+            "status": step.status.value if getattr(step, "status", None) else "",
+            "output": step.outputSummary or "",
+        })
+        for art in getattr(step, "artifacts", []):
+            payload = art.payload if hasattr(art, "payload") else {}
+            if art.type.value == "manifest":
+                audio_url = audio_url or payload.get("audioUrl", "")
+                srt_url = srt_url or payload.get("srtUrl", "")
+                manifest_url = manifest_url or payload.get("manifestUrl", "")
+
+    return {
+        "experimentId": exp_id,
+        "visualRoute": request.visualRoute,
+        "status": status,
+        "params": params,
+        "finalVideoUrl": getattr(result, "videoUrl", "") or "",
+        "coverUrl": getattr(result, "coverUrl", "") or "",
+        "audioUrl": audio_url,
+        "srtUrl": srt_url,
+        "manifestUrl": manifest_url,
+        "audioDurationSec": assets.get("audioDurationSec", 0),
+        "subtitleCount": assets.get("subtitleCount", 0),
+        "quality": raw.get("quality", {}),
+        "failedReason": failed_reason,
+        "warnings": raw.get("warnings", []),
+        "steps": steps_summary,
+        "logs": getattr(result, "logs", []) or [],
+    }
 
 
 # ─────────────────────────────────────────────
