@@ -537,10 +537,10 @@ def render_keypoint_template(
         headline_box_h = content_h
         detail_box_h = 0
 
-    # Headline — auto-fit large
+    # Headline — auto-fit large, minimum 40px for readability on mobile
     h_font, h_lines, h_size, h_line_h, h_overflow = fit_wrapped_text(
         headline, inner_w, headline_box_h, draw,
-        size_max=int(76 * scale), size_min=int(34 * scale), line_spacing=int(16 * scale),
+        size_max=int(80 * scale), size_min=int(40 * scale), line_spacing=int(18 * scale),
     )
     end_y = _draw_lines_with_highlights(
         draw, h_lines, inner_x, content_top, h_font, h_line_h,
@@ -555,7 +555,7 @@ def render_keypoint_template(
         avail_h = content_bottom - detail_top
         d_font, d_lines, d_size, d_line_h, d_overflow = fit_wrapped_text(
             detail, inner_w, avail_h, draw,
-            size_max=int(46 * scale), size_min=int(24 * scale), line_spacing=int(12 * scale),
+            size_max=int(52 * scale), size_min=int(28 * scale), line_spacing=int(14 * scale),
         )
         _draw_lines_with_highlights(
             draw, d_lines, inner_x, detail_top, d_font, d_line_h,
