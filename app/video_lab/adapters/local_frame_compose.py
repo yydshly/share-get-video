@@ -26,6 +26,7 @@ from app.video_lab.renderers.file_store import (
     write_manifest,
 )
 from app.video_lab.renderers.local_frame_renderer import generate_frames
+from app.video_lab.renderers.render_params import parse_local_frame_params
 from app.video_lab.renderers.ffmpeg_composer import check_ffmpeg_available, compose_video_from_frames, compose_video_from_frame_sequence
 
 
@@ -67,13 +68,30 @@ def run_local_frame_compose(
     """
     method_category = "local_frame_compose"
     raw_content = input_payload.get("content", "")
-    target_duration = params.get("targetDuration", 45)
-    aspect_ratio = params.get("aspectRatio", "9:16")
+
+    # V0.2.5: Parse and validate render parameters
+    parse_result = parse_local_frame_params(params)
+    if not parse_result.is_valid:
+        # Return failed result with error
+        step_err = make_step(
+            step_id=f"{experiment_id}_step_00_params",
+            name="Parse Parameters",
+            description="Validate render parameters",
+            status=ProductionStepStatus.FAILED,
+            input_summary="Raw params",
+            output_summary=f"Parameter error: {parse_result.error}",
+            logs=[f"[0/?] Parse parameters", f"  ERROR: {parse_result.error}"],
+        )
+        return _build_failed_result_with_error(experiment_id, method_category, [step_err], f"Parameter error: {parse_result.error}")
+
+    render_params = parse_result.params
+    target_duration = render_params.target_duration
+    aspect_ratio = render_params.aspect_ratio
     resolution = (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
 
     steps = []
     all_logs = []
-    all_warnings = []
+    all_warnings = parse_result.warnings.copy()
 
     # Ensure runtime directory exists
     ensure_runtime_exists()
@@ -133,6 +151,27 @@ def run_local_frame_compose(
 
     # Step 3: extract key points
     key_points = extract_key_points(structured, target_duration)
+
+    # V0.2.5: Apply keyPointCount parameter
+    requested_kpc = render_params.key_point_count
+    kps_list = key_points.get("keyPoints", [])
+
+    # Truncate or extend to match requested keyPointCount
+    if len(kps_list) > requested_kpc:
+        kps_list = kps_list[:requested_kpc]
+    elif len(kps_list) < requested_kpc:
+        # Pad with last item if we need more
+        if kps_list:
+            last_kp = kps_list[-1]
+            while len(kps_list) < requested_kpc:
+                kps_list.append(last_kp.copy())
+                kps_list[-1]["index"] = len(kps_list)
+
+    key_points["keyPoints"] = kps_list
+    key_points["totalPoints"] = len(kps_list)
+    key_points["requestedKeyPointCount"] = requested_kpc
+    key_points["actualKeyPointCount"] = len(kps_list)
+
     artifact_kp = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_keypoints",
         type=ArtifactType.KEY_POINTS,
@@ -147,8 +186,14 @@ def run_local_frame_compose(
         status=ProductionStepStatus.SUCCEEDED,
         input_summary=f"{structured['totalItems']} content items",
         output_summary=f"Selected {key_points['totalPoints']} key points",
-        key_data={"totalPoints": key_points.get("totalPoints", 0), "selectedFrom": key_points.get("selectedFrom", 0)},
-        logs=["[3/12] Extract key points", f"  Selected: {key_points.get('totalPoints', 0)}"],
+        key_data={
+            "totalPoints": key_points.get("totalPoints", 0),
+            "selectedFrom": key_points.get("selectedFrom", 0),
+            # V0.2.5 keyPointCount
+            "requestedKeyPointCount": requested_kpc,
+            "actualKeyPointCount": len(kps_list),
+        },
+        logs=["[3/12] Extract key points", f"  Selected: {key_points.get('totalPoints', 0)} (requested: {requested_kpc})"],
         artifacts=[artifact_kp],
     )
     steps.append(step3)
@@ -162,7 +207,13 @@ def run_local_frame_compose(
         status=ProductionStepStatus.SUCCEEDED,
         input_summary=f"Test case: {test_case_id}",
         output_summary="Structured info display strategy selected",
-        key_data={"testCase": test_case_id, "strategy": "structured_info_display", "aspectRatio": aspect_ratio},
+        key_data={
+            "testCase": test_case_id,
+            "strategy": "structured_info_display",
+            "aspectRatio": aspect_ratio,
+            # V0.2.5 render params
+            "renderParams": render_params.to_dict(),
+        },
         logs=["[4/12] Determine video strategy", f"  Strategy: structured_info_display"],
     )
     steps.append(step4)
@@ -176,7 +227,12 @@ def run_local_frame_compose(
         status=ProductionStepStatus.SUCCEEDED,
         input_summary="Waiting for method selection",
         output_summary="Method: local_frame_compose (Pillow + FFmpeg)",
-        key_data={"methodCategory": method_category, "renderer": "Pillow + FFmpeg"},
+        key_data={
+            "methodCategory": method_category,
+            "renderer": "Pillow + FFmpeg",
+            # V0.2.5 render params
+            "renderParams": render_params.to_dict(),
+        },
         logs=["[5/12] Select method", f"  Method: {method_category}"],
     )
     steps.append(step5)
@@ -280,6 +336,9 @@ def run_local_frame_compose(
         key_points=key_points,
         target_duration_sec=target_duration,
         resolution=resolution,
+        enable_transitions=render_params.transition_enabled,
+        transition_frames=render_params.transition_frames,
+        highlight_mode=render_params.highlight_mode,
     )
 
     frame_artifacts = []
@@ -326,6 +385,8 @@ def run_local_frame_compose(
             "transitionEnabled": frame_result.get("transitionEnabled", True),
             "transitionFrames": frame_result.get("transitionFrames", 0),
             "highlightTerms": frame_result.get("highlightTerms", []),
+            # V0.2.5 render params
+            "renderParams": render_params.to_dict(),
         },
         logs=[
             "[10/12] Pillow generate PNG frames",
@@ -466,6 +527,8 @@ def run_local_frame_compose(
         # V0.2.4.1 new fields
         "frameSequenceCount": frame_result.get("frameSequenceCount", 0),
         "transitionOrderApplied": transition_order_applied,
+        # V0.2.5 render params
+        "renderParams": render_params.to_dict(),
     }
     write_manifest(experiment_id, manifest)
 
@@ -495,6 +558,9 @@ def run_local_frame_compose(
         # V0.2.4.1 new fields
         "frameSequenceCount": frame_result.get("frameSequenceCount", 0),
         "transitionOrderApplied": transition_order_applied,
+        # V0.2.5 new fields
+        "highlightMode": frame_result.get("highlightMode", "auto"),
+        "renderParams": render_params.to_dict(),
     }
 
     conclusion_artifact = VideoProductionArtifact(
@@ -554,6 +620,8 @@ def run_local_frame_compose(
             # V0.2.4.1 new fields
             "frameSequenceCount": frame_result.get("frameSequenceCount", 0),
             "transitionOrderApplied": transition_order_applied,
+            # V0.2.5 render params
+            "renderParams": render_params.to_dict(),
         },
         logs=all_logs,
         provider="Pillow + FFmpeg",
@@ -573,6 +641,8 @@ def run_local_frame_compose(
                 "productization": "high - low cost, easy to scale",
             },
             "productizationRecommendation": "recommended" if ffmpeg_result.get("success") else "failed",
+            # V0.2.5 render params
+            "renderParams": render_params.to_dict(),
         },
         productionSteps=steps,
     )
@@ -591,6 +661,36 @@ def _build_failed_result(experiment_id: str, method_category: str, steps: list, 
         rawOutput={
             "method": method_category,
             "status": "failed",
+            "riskAssessment": {
+                "accuracy": "n/a",
+                "stability": "n/a",
+                "visualAppeal": "n/a",
+                "productization": "n/a",
+            },
+            "productizationRecommendation": "not_applicable",
+        },
+        productionSteps=steps,
+    )
+
+
+def _build_failed_result_with_error(experiment_id: str, method_category: str, steps: list, error_msg: str) -> VideoExperimentResult:
+    """Build a failed result with an error message from param parsing."""
+    logs = []
+    for s in steps:
+        logs.extend(s.logs)
+    logs.append(f"Error: {error_msg}")
+    return VideoExperimentResult(
+        experimentId=experiment_id,
+        videoUrl="",
+        coverUrl="",
+        assets={"method": method_category, "status": "failed", "error": error_msg},
+        logs=logs,
+        provider="Pillow + FFmpeg",
+        adapter=method_category,
+        rawOutput={
+            "method": method_category,
+            "status": "param_error",
+            "error": error_msg,
             "riskAssessment": {
                 "accuracy": "n/a",
                 "stability": "n/a",

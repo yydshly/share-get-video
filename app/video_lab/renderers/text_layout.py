@@ -146,6 +146,7 @@ def extract_highlights(text: str) -> List[str]:
     """
     Extract highlight terms from text.
     Recognizes: percentages, multipliers, large numbers, Chinese number phrases.
+    Uses 'auto' mode internally.
 
     Args:
         text: Input text
@@ -153,13 +154,54 @@ def extract_highlights(text: str) -> List[str]:
     Returns:
         List of highlight terms found in text (deduplicated, order of first appearance)
     """
+    return extract_highlights_by_mode(text, "auto")
+
+
+# Highlight patterns for 'numbers' mode - only numeric patterns
+NUMBERS_ONLY_PATTERNS = [
+    # Percentages: 88.9%, 72%, 16%
+    (r'\d+\.?\d*%', 'percentage'),
+    # Multipliers: 10倍, 5x, 3X
+    (r'\d+\.?\d*[xX倍]', 'multiplier'),
+    # Decimal numbers > 10: 88.9, 72.5
+    (r'\d{2,}\.\d+', 'large_decimal'),
+    # Large round numbers: 1000, 5000, 10000
+    (r'[1-9]\d{3,}', 'large_integer'),
+]
+
+
+def extract_highlights_by_mode(text: str, mode: str = "auto") -> List[str]:
+    """
+    Extract highlight terms from text based on mode.
+
+    Modes:
+    - auto: Numbers + percentages + multipliers + Chinese number phrases + large amounts
+    - numbers: Only numeric patterns (percentages, multipliers, decimals, large integers)
+    - none: Return empty list (no highlight extraction)
+
+    Args:
+        text: Input text
+        mode: Extraction mode ('auto', 'numbers', 'none')
+
+    Returns:
+        List of highlight terms found in text (deduplicated, order of first appearance)
+    """
     if not text:
         return []
+
+    if mode == "none":
+        return []
+
+    # Select pattern set based on mode
+    if mode == "numbers":
+        patterns_to_use = NUMBERS_ONLY_PATTERNS
+    else:  # auto
+        patterns_to_use = HIGHLIGHT_PATTERNS
 
     found = []
     seen = set()
 
-    for pattern, pattern_type in HIGHLIGHT_PATTERNS:
+    for pattern, pattern_type in patterns_to_use:
         for match in re.finditer(pattern, text):
             term = match.group()
             if term not in seen:

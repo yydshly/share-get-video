@@ -12,6 +12,7 @@ import ProductionStepsTimeline from "../components/ProductionStepsTimeline";
 import EvaluationPanel from "../components/EvaluationPanel";
 import ExperimentSummaryPanel from "../components/ExperimentSummaryPanel";
 import ArtifactViewer from "../components/ArtifactViewer";
+import TemplateReviewPanel from "../components/TemplateReviewPanel";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -308,6 +309,63 @@ export default function VideoExperimentDetailPage() {
             </div>
           )}
 
+          {/* V0.2.5: Generation Parameters */}
+          {assets && assets.renderParams && typeof assets.renderParams === "object" && (
+            <div
+              style={{
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                padding: "0.75rem 1rem",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <div style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem", color: "#1e293b" }}>
+                生成参数
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+                {(assets.renderParams as Record<string, unknown>).stylePreset ? (
+                  <div style={{ fontSize: "0.8rem" }}>
+                    <span style={{ color: "#94a3b8" }}>风格：</span>
+                    <strong style={{ color: "#8b5cf6" }}>{(assets.renderParams as Record<string, unknown>).stylePreset as string}</strong>
+                  </div>
+                ) : null}
+                {(assets.renderParams as Record<string, unknown>).targetDuration ? (
+                  <div style={{ fontSize: "0.8rem" }}>
+                    <span style={{ color: "#94a3b8" }}>目标时长：</span>
+                    <strong style={{ color: "#1e293b" }}>{(assets.renderParams as Record<string, unknown>).targetDuration as number}s</strong>
+                  </div>
+                ) : null}
+                {(assets.renderParams as Record<string, unknown>).keyPointCount ? (
+                  <div style={{ fontSize: "0.8rem" }}>
+                    <span style={{ color: "#94a3b8" }}>关键点数：</span>
+                    <strong style={{ color: "#1e293b" }}>{String((assets.renderParams as Record<string, unknown>).keyPointCount)}</strong>
+                  </div>
+                ) : null}
+                {(assets.renderParams as Record<string, unknown>).highlightMode ? (
+                  <div style={{ fontSize: "0.8rem" }}>
+                    <span style={{ color: "#94a3b8" }}>高亮模式：</span>
+                    <strong style={{ color: "#1e293b" }}>{String((assets.renderParams as Record<string, unknown>).highlightMode)}</strong>
+                  </div>
+                ) : null}
+                {(assets.renderParams as Record<string, unknown>).transitionEnabled !== undefined ? (
+                  <div style={{ fontSize: "0.8rem" }}>
+                    <span style={{ color: "#94a3b8" }}>转场：</span>
+                    <strong style={{ color: ((assets.renderParams as Record<string, unknown>).transitionEnabled as boolean) ? "#10b981" : "#94a3b8" }}>
+                      {((assets.renderParams as Record<string, unknown>).transitionEnabled as boolean) ? "启用" : "关闭"}
+                    </strong>
+                  </div>
+                ) : null}
+                {(assets.renderParams as Record<string, unknown>).transitionFrames !== undefined ? (
+                  <div style={{ fontSize: "0.8rem" }}>
+                    <span style={{ color: "#94a3b8" }}>转场帧数：</span>
+                    <strong style={{ color: "#1e293b" }}>{String((assets.renderParams as Record<string, unknown>).transitionFrames)}</strong>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+
           {/* All Artifacts */}
           {result.productionSteps.length > 0 && (() => {
             const allArtifacts = result.productionSteps.flatMap((s) => s.artifacts);
@@ -332,6 +390,11 @@ export default function VideoExperimentDetailPage() {
           {/* Experiment Summary */}
           {result && (
             <ExperimentSummaryPanel result={result} evaluation={evaluation} />
+          )}
+
+          {/* V0.2.5: Template Review */}
+          {result && (
+            <TemplateReviewPanel result={result} evaluation={evaluation} />
           )}
 
           {/* Production Steps */}

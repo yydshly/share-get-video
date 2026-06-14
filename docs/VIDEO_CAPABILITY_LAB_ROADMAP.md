@@ -99,6 +99,61 @@
 
 ---
 
+## V0.2.4.1 - Fade 转场顺序与性能修复 ✅
+
+**完成时间**：2026-06-14
+
+### 问题修复
+- Fade 转场帧生成顺序错误（V0.2.4 中 fade 帧在主帧之后而非之间）
+- 大量关键点时帧生成性能问题
+
+### 修复内容
+- `transition_composer.py`: 修正 `build_frame_sequence_with_transitions` 中的顺序逻辑
+- `local_frame_renderer.py`: 直接传入真实 `main_durations` 而非估算值
+- `compose_video_from_frame_sequence`: 优先使用 frameSequence 路径
+- FFmpeg concat 顺序现在与视觉顺序一致
+
+---
+
+## V0.2.5 - 模板参数化 + 样例验收 ✅
+
+**完成时间**：2026-06-14
+
+### 目标
+把 `local_frame_compose` 从固定模板能力升级为可配置、可复验、可验收的 AI 资讯分享视频模板。
+
+### 新增功能
+- **参数化模型** (`render_params.py`): `LocalFrameRenderParams` dataclass + `parse_local_frame_params()`
+- **keyPointCount 支持**: 截断或补齐关键点列表
+- **highlightMode 支持**: `auto` / `numbers` / `none` 三种模式
+- **transition 参数支持**: `transitionEnabled` + `transitionFrames`
+- **前端参数面板**: 实验创建页新增「生成参数」区域
+- **详情页参数展示**: 展示所有生成参数
+- **模板验收建议**: `TemplateReviewPanel` + `buildTemplateReview()`
+- **样例脚本**: `scripts/generate_ai_frontier_sample.py`
+
+### 推荐参数
+```json
+{
+  "targetDuration": 45,
+  "aspectRatio": "9:16",
+  "keyPointCount": 6,
+  "highlightMode": "auto",
+  "transitionEnabled": true,
+  "transitionFrames": 4,
+  "stylePreset": "ai_frontier_dark"
+}
+```
+
+### V0.2.5 下一阶段优化 (V0.2.6)
+- 运行真实样例
+- 人工给分
+- 根据评分调整参数
+- 固化推荐参数
+- 决定是否进入 V0.3 Remotion 方案评估
+
+---
+
 ## V0.3 - Remotion 模板渲染真实 MP4
 
 **目标**

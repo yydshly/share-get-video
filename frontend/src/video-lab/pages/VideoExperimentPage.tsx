@@ -29,6 +29,16 @@ export default function VideoExperimentPage() {
     error?: string;
   } | null>(null);
 
+  // V0.2.5: Generation parameters for local_frame_compose
+  const [genParams, setGenParams] = useState({
+    targetDuration: 45,
+    keyPointCount: 6,
+    highlightMode: "auto",
+    transitionEnabled: true,
+    transitionFrames: 4,
+    stylePreset: "ai_frontier_dark",
+  });
+
   const navigate = useNavigate();
   const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -59,7 +69,17 @@ export default function VideoExperimentPage() {
           methodId: selectedMethod,
           title: title.trim(),
           inputPayload: payload,
-          params: {},
+          params: selectedMethod === "method_local_frame_compose"
+            ? {
+                targetDuration: genParams.targetDuration,
+                aspectRatio: "9:16",
+                keyPointCount: genParams.keyPointCount,
+                highlightMode: genParams.highlightMode,
+                transitionEnabled: genParams.transitionEnabled,
+                transitionFrames: genParams.transitionFrames,
+                stylePreset: genParams.stylePreset,
+              }
+            : {},
         }),
       });
 
@@ -205,6 +225,141 @@ export default function VideoExperimentPage() {
             }}
           />
         </div>
+
+        {/* V0.2.5: Generation parameters panel - only for local_frame_compose */}
+        {selectedMethod === "method_local_frame_compose" && (
+          <div style={{
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: "8px",
+            padding: "1rem",
+            marginBottom: "1.25rem",
+          }}>
+            <div style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem", color: "#1e293b" }}>
+              生成参数
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              {/* targetDuration */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "0.2rem" }}>
+                  目标时长 (秒)
+                </label>
+                <input
+                  type="number"
+                  min={15}
+                  max={90}
+                  value={genParams.targetDuration}
+                  onChange={(e) => setGenParams(p => ({ ...p, targetDuration: parseInt(e.target.value) || 45 }))}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              {/* keyPointCount */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "0.2rem" }}>
+                  关键点数
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={genParams.keyPointCount}
+                  onChange={(e) => setGenParams(p => ({ ...p, keyPointCount: parseInt(e.target.value) || 6 }))}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              {/* highlightMode */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "0.2rem" }}>
+                  高亮模式
+                </label>
+                <select
+                  value={genParams.highlightMode}
+                  onChange={(e) => setGenParams(p => ({ ...p, highlightMode: e.target.value }))}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="auto">自动</option>
+                  <option value="numbers">仅数字</option>
+                  <option value="none">无</option>
+                </select>
+              </div>
+              {/* transitionFrames */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "0.2rem" }}>
+                  转场帧数
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={8}
+                  value={genParams.transitionFrames}
+                  onChange={(e) => setGenParams(p => ({ ...p, transitionFrames: parseInt(e.target.value) || 0 }))}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              {/* transitionEnabled */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  id="transitionEnabled"
+                  checked={genParams.transitionEnabled}
+                  onChange={(e) => setGenParams(p => ({ ...p, transitionEnabled: e.target.checked }))}
+                  style={{ width: "16px", height: "16px" }}
+                />
+                <label htmlFor="transitionEnabled" style={{ fontSize: "0.85rem", color: "#475569", cursor: "pointer" }}>
+                  启用转场
+                </label>
+              </div>
+              {/* stylePreset */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "0.2rem" }}>
+                  视觉风格
+                </label>
+                <select
+                  value={genParams.stylePreset}
+                  onChange={(e) => setGenParams(p => ({ ...p, stylePreset: e.target.value }))}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="ai_frontier_dark">AI Frontier Dark</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
 
         <button
           onClick={handleRun}

@@ -15,7 +15,7 @@ from app.video_lab.renderers.text_layout import (
     truncate_text,
     split_title_and_body,
     get_text_size,
-    extract_highlights,
+    extract_highlights_by_mode,
 )
 from app.video_lab.renderers.visual_theme import (
     TEMPLATE_VERSION,
@@ -110,6 +110,7 @@ def generate_frames(
     resolution: Tuple[int, int] = (1080, 1920),
     enable_transitions: bool = True,
     transition_frames: int = TRANSITION_FRAMES_DEFAULT,
+    highlight_mode: str = "auto",
 ) -> dict:
     """
     Generate all frames using AI Frontier Dark templates.
@@ -123,6 +124,7 @@ def generate_frames(
         resolution: Video resolution (width, height)
         enable_transitions: Whether to generate fade transitions
         transition_frames: Number of intermediate frames per transition
+        highlight_mode: Highlight extraction mode ('auto', 'numbers', 'none')
 
     Returns:
         Dict with frames, durations, transitions, and metadata
@@ -215,8 +217,8 @@ def generate_frames(
         body = kp.get("source", "")
         category = kp.get("category", "默认")
 
-        # Extract highlights for tracking
-        highlights = extract_highlights(title + " " + body)
+        # V0.2.5: Extract highlights based on highlight_mode
+        highlights = extract_highlights_by_mode(title + " " + body, highlight_mode)
         all_highlights.extend(highlights)
 
         frame_result = render_keypoint_template(
@@ -340,6 +342,8 @@ def generate_frames(
         "frameSequence": transition_info["transition_sequence"],
         "durationByPath": duration_by_path,
         "frameSequenceCount": len(transition_info["transition_sequence"]),
+        # V0.2.5 new fields
+        "highlightMode": highlight_mode,
     }
 
 

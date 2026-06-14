@@ -1,6 +1,6 @@
 # Known Limitations
 
-## 当前 V0.2.4 已知限制
+## 当前 V0.2.5 已知限制
 
 ### 1. 部分 Adapter 已升级为真实渲染
 
@@ -55,11 +55,18 @@
 - 实验执行页依赖后端 API
 - 但如果后端未启动，UI 仍可展示（静态数据）
 
+### 10. runtime 产物不提交 Git
+
+- `runtime/experiments/` 下的视频、图片、manifest 等为运行时产物
+- 不应提交到 Git 仓库（已通过 `.gitignore` 排除）
+- 每次实验生成独立的 experiment_id 子目录
+
 ## 后续解除计划
 
 | 限制 | 解除版本 | 解除方式 |
 |------|---------|---------|
 | local_frame_compose | V0.2 ✅ | Pillow + FFmpeg |
+| 模板参数化 | V0.2.5 ✅ | render_params.py |
 | Remotion 渲染 | V0.3 | 接入 Node.js + Remotion CLI |
 | AI 视频接入 | V0.4 | 接入 Runway/Kling 等 API |
 | LLM/TTS/图像 | V0.5 | 接入 OpenAI/ElevenLabs/DALL-E |
