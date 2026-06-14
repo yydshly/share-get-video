@@ -127,6 +127,72 @@ def test_remotion_props_builder_generates_duration_sec():
     assert props["durationSec"] > 0
 
 
+def test_remotion_props_builder_carries_emphasis_terms():
+    """Props builder should carry emphasisTerms from key_points to keyPoints in props."""
+    from app.video_lab.renderers.remotion.props_builder import build_remotion_props
+
+    structured = {"lead": "测试", "totalItems": 2}
+    key_points = {
+        "keyPoints": [
+            {
+                "headline": "ProReviewer评审突破",
+                "display": "错误拒绝率从88.9%降至16%",
+                "source": "研究",
+                "emphasisTerms": ["ProReviewer", "88.9%", "16%"],
+            },
+            {
+                "headline": "BBVA大规模部署",
+                "display": "10万名员工使用ChatGPT",
+                "source": "企业",
+                "emphasisTerms": ["BBVA", "10万名"],
+            },
+        ]
+    }
+    params = {"targetDuration": 30}
+
+    with patch("app.video_lab.renderers.remotion.props_builder.get_experiment_dir") as mock_dir:
+        mock_dir.return_value = MagicMock()
+        mock_path = MagicMock()
+        mock_path.__truediv__ = MagicMock(return_value=mock_path)
+        mock_path.open = MagicMock()
+
+        with patch("builtins.open", mock_path.open):
+            props = build_remotion_props("test_exp", structured, key_points, params)
+
+    assert "keyPoints" in props
+    assert len(props["keyPoints"]) == 2
+    # Check emphasisTerms are carried through
+    assert props["keyPoints"][0].get("emphasisTerms") == ["ProReviewer", "88.9%", "16%"]
+    assert props["keyPoints"][1].get("emphasisTerms") == ["BBVA", "10万名"]
+
+
+def test_remotion_props_builder_emphasis_terms_optional():
+    """Props builder should handle key_points without emphasisTerms gracefully."""
+    from app.video_lab.renderers.remotion.props_builder import build_remotion_props
+
+    structured = {"lead": "测试", "totalItems": 1}
+    key_points = {
+        "keyPoints": [
+            {"headline": "Simple", "display": "Body", "source": "Src"},
+            # no emphasisTerms field
+        ]
+    }
+    params = {"targetDuration": 30}
+
+    with patch("app.video_lab.renderers.remotion.props_builder.get_experiment_dir") as mock_dir:
+        mock_dir.return_value = MagicMock()
+        mock_path = MagicMock()
+        mock_path.__truediv__ = MagicMock(return_value=mock_path)
+        mock_path.open = MagicMock()
+
+        with patch("builtins.open", mock_path.open):
+            props = build_remotion_props("test_exp", structured, key_points, params)
+
+    assert "keyPoints" in props
+    # Should not crash, should default to empty list
+    assert props["keyPoints"][0].get("emphasisTerms") == []
+
+
 # ─────────────────────────────────────────
 # 3. Adapter: missing content returns failed
 # ─────────────────────────────────────────

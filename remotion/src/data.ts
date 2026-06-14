@@ -1,10 +1,12 @@
 // data.ts - Shared types for Remotion template
-// V0.3.1 minimum verification
+// V0.3.6-b1: Added emphasisTerms to KeyPoint
 
 export type KeyPoint = {
   title: string;
   body: string;
   source?: string;
+  // V0.3.6-b1: explicit emphasis terms for highlight; falls back to auto-extract
+  emphasisTerms?: string[];
 };
 
 export type SegmentDurations = {
@@ -31,11 +33,13 @@ export const defaultProps: AiNewsVideoProps = {
       title: "GPT-5 发布",
       body: "OpenAI 发布 GPT-5，性能显著提升",
       source: "OpenAI",
+      emphasisTerms: ["GPT-5", "OpenAI"],
     },
     {
       title: "Claude 4 发布",
       body: "Anthropic 发布 Claude 4，强化推理能力",
       source: "Anthropic",
+      emphasisTerms: ["Claude 4", "Anthropic"],
     },
   ],
   durationSec: 45,

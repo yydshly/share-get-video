@@ -35,6 +35,7 @@ def build_remotion_props(
     subtitle = structured.get("subtitle", "今日 AI 前沿速览")
 
     # Build keyPoints array (prefer LLM-planned headline/display)
+    # V0.3.6-b1: also carry emphasisTerms for Remotion highlighting
     kps_list = key_points.get("keyPoints", key_points.get("key_points", []))
     key_points_list = []
     for kp in kps_list:
@@ -43,12 +44,15 @@ def build_remotion_props(
                 "title": kp.get("headline") or kp.get("title", ""),
                 "body": kp.get("display") or kp.get("body", ""),
                 "source": kp.get("source", ""),
+                # V0.3.6-b1: carry through emphasisTerms if present
+                "emphasisTerms": kp.get("emphasisTerms", []),
             })
         else:
             key_points_list.append({
                 "title": str(kp),
                 "body": "",
                 "source": "",
+                "emphasisTerms": [],
             })
 
     num_kps = len(key_points_list)

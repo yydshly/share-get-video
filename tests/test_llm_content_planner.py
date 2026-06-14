@@ -12,6 +12,8 @@ from app.video_lab.planners.llm_content_planner import (
     plan_shots,
     _normalize_plan,
     _find_shot_list,
+    _extract_emphasis_terms,
+    _shot_from_item,
 )
 
 REPORT = (
@@ -84,6 +86,110 @@ def test_normalize_plan_fills_missing_from_source():
 def test_normalize_plan_empty_items():
     plan = _normalize_plan({"coverTitle": "x"}, [], "")
     assert plan["shots"] == []
+
+
+# ─── V0.3.6-b1: emphasisTerms tests ────────────────────────────────────────
+
+def test_extract_emphasis_terms_percentages():
+    text = "错误拒绝率飙升至88.9%，从72%降至16%"
+    terms = _extract_emphasis_terms(text)
+    assert "88.9%" in terms
+    assert "72%" in terms
+    assert "16%" in terms
+
+
+def test_extract_emphasis_terms_number_units():
+    # Use ASCII-safe patterns: numbers with units
+    text = "BBVA deploys ChatGPT to 10万 employees, Med-PaLM has 5620亿 params"
+    terms = _extract_emphasis_terms(text)
+    # Check our regex captures the Chinese-unit numbers
+    unit_terms = [t for t in terms if "万" in t or "亿" in t]
+    assert len(unit_terms) >= 2  # 10万 and 5620亿
+
+
+def test_extract_emphasis_terms_model_names():
+    text = "ProReviewer超越方法39%，OpenMedQ表现优异"
+    terms = _extract_emphasis_terms(text)
+    assert "ProReviewer" in terms
+    assert "39%" in terms
+
+
+def test_extract_emphasis_terms_deduplication():
+    text = "88.9% 72% 88.9% 39%"
+    terms = _extract_emphasis_terms(text)
+    assert terms.count("88.9%") == 1
+    assert len(terms) == 3
+
+
+def test_extract_emphasis_terms_max_4():
+    text = "1% 2% 3% 4% 5% 6%"
+    terms = _extract_emphasis_terms(text)
+    assert len(terms) <= 4
+
+
+def test_extract_emphasis_terms_empty():
+    assert _extract_emphasis_terms("") == []
+    assert _extract_emphasis_terms("无数字无模型普通正文") == []
+
+
+def test_fallback_shot_has_emphasis_terms():
+    item = {"title": "ProReviewer评审系统突破39%"}  # no detail
+    shot = _shot_from_item(item)
+    assert "emphasisTerms" in shot
+    assert isinstance(shot["emphasisTerms"], list)
+    assert "ProReviewer" in shot["emphasisTerms"]
+    assert "39%" in shot["emphasisTerms"]
+
+
+def test_normalize_plan_retains_llm_emphasis_terms():
+    items = [{"title": "ProReviewer评审系统突破39%"}]
+    raw = {
+        "coverTitle": "T",
+        "opening": "开篇",
+        "shots": [{
+            "headline": "h",
+            "display": "d",
+            "narration": "n",
+            "emphasisTerms": ["ProReviewer", "39%"],
+        }],
+        "closing": "收尾",
+    }
+    plan = _normalize_plan(raw, items, "")
+    emp = plan["shots"][0]["emphasisTerms"]
+    assert "ProReviewer" in emp
+    assert "39%" in emp
+
+
+def test_normalize_plan_auto_extracts_missing_emphasis_terms():
+    items = [{"title": "BBVA宣布将ChatGPT部署至10万名员工"}]
+    raw = {
+        "shots": [{"headline": "h", "display": "d", "narration": "n"}],
+        # no emphasisTerms
+    }
+    plan = _normalize_plan(raw, items, "")
+    emp = plan["shots"][0]["emphasisTerms"]
+    assert isinstance(emp, list)
+    assert len(emp) <= 4
+
+
+def test_normalize_plan_emphasis_terms_deduped():
+    items = [{"title": "X"}]
+    raw = {
+        "shots": [{"headline": "h", "display": "d", "narration": "n",
+                   "emphasisTerms": ["39%", "39%", "", "  "]}],
+    }
+    plan = _normalize_plan(raw, items, "")
+    emp = plan["shots"][0]["emphasisTerms"]
+    assert "" not in emp
+    assert "  " not in emp
+    assert emp.count("39%") == 1
+
+
+def test_fallback_plan_has_emphasis_terms():
+    plan = plan_shots(REPORT, max_items=6, use_llm=False)
+    for s in plan["shots"]:
+        assert "emphasisTerms" in s
+        assert isinstance(s["emphasisTerms"], list)
 
 
 if __name__ == "__main__":

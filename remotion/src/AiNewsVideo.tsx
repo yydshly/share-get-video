@@ -14,9 +14,9 @@ import {
 } from "remotion";
 import type { AiNewsVideoProps, KeyPoint } from "./data";
 
-// ─── Highlight Helper (V0.3.6-a2) ────────────────────────────────────────────
-/** Extract numbers, percentages, and key terms for highlighting */
-function extractHighlights(text: string): string[] {
+// ─── Highlight Helper (V0.3.6-b1) ────────────────────────────────────────────
+/** Auto-extract numbers, percentages, and key terms from text (fallback). */
+function autoExtractHighlights(text: string): string[] {
   const highlights: string[] = [];
   // Match percentages: 88.9%, 72%, 39% etc.
   const pctRegex = /\d+\.?\d*%/g;
@@ -34,9 +34,19 @@ function extractHighlights(text: string): string[] {
   return highlights;
 }
 
-/** Split text into segments with highlight markers */
-function getHighlightedSegments(text: string): { text: string; highlight: boolean }[] {
-  const highlights = extractHighlights(text);
+/**
+ * Split text into segments with highlight markers.
+ * V0.3.6-b1: priority — explicit emphasisTerms > auto-extract > none.
+ */
+function getHighlightedSegments(
+  text: string,
+  emphasisTerms?: string[],
+): { text: string; highlight: boolean }[] {
+  // Priority: explicit emphasisTerms > auto-extract
+  const highlights = (emphasisTerms && emphasisTerms.length > 0)
+    ? emphasisTerms
+    : autoExtractHighlights(text);
+
   if (highlights.length === 0) return [{ text, highlight: false }];
 
   const pattern = new RegExp(`(${highlights.map(h => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
@@ -46,13 +56,16 @@ function getHighlightedSegments(text: string): { text: string; highlight: boolea
     .map(p => ({ text: p, highlight: highlights.includes(p) }));
 }
 
-/** Text segment with inline highlights (V0.3.6-a2) */
+/** Text segment with inline highlights.
+ * V0.3.6-b1: emphasisTerms from KeyPoint take priority over auto-extract.
+ */
 const HighlightedText: React.FC<{
   text: string;
   style: React.CSSProperties;
   highlightColor?: string;
-}> = ({ text, style, highlightColor = C.highlight }) => {
-  const segments = getHighlightedSegments(text);
+  emphasisTerms?: string[];
+}> = ({ text, style, highlightColor = C.highlight, emphasisTerms }) => {
+  const segments = getHighlightedSegments(text, emphasisTerms);
   return (
     <span style={style}>
       {segments.map((seg, i) =>
@@ -356,7 +369,7 @@ const KeyPointCard: React.FC<{
         </div>
 
         {/* Title - V0.3.6-a: increased to 44px for mobile readability */}
-        {/* V0.3.6-a2: Added keyword/number highlighting */}
+        {/* V0.3.6-b1: priority emphasisTerms > auto-extract */}
         <h2
           style={{
             fontSize: 44,
@@ -369,7 +382,7 @@ const KeyPointCard: React.FC<{
             textShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
           }}
         >
-          <HighlightedText text={kp.title} style={{}} />
+          <HighlightedText text={kp.title} style={{}} emphasisTerms={kp.emphasisTerms} />
         </h2>
 
         {/* Decorative separator */}
@@ -385,7 +398,7 @@ const KeyPointCard: React.FC<{
         />
 
         {/* Body - V0.3.6-a: increased to 32px for mobile readability */}
-        {/* V0.3.6-a2: Added keyword/number highlighting */}
+        {/* V0.3.6-b1: priority emphasisTerms > auto-extract */}
         <p
           style={{
             fontSize: 32,
@@ -396,7 +409,7 @@ const KeyPointCard: React.FC<{
             opacity: bodyOpacity,
           }}
         >
-          <HighlightedText text={kp.body} style={{}} highlightColor={C.highlight} />
+          <HighlightedText text={kp.body} style={{}} highlightColor={C.highlight} emphasisTerms={kp.emphasisTerms} />
         </p>
 
         {/* Source footer */}
