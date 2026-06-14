@@ -238,7 +238,9 @@ def run_remotion_tts_video(
 
     # ── Step 4: Generate SRT subtitles ───────────────────────────────────
     logs.append("[Step 4] Generating SRT subtitles...")
-    srt_path = exp_dir / "subtitles.srt"
+    srt_dir = exp_dir / "subtitles"
+    srt_dir.mkdir(parents=True, exist_ok=True)
+    srt_path = srt_dir / "subtitles.srt"
     try:
         srt_result = generate_srt_from_segments(segments, output_path=srt_path)
         srt_url = srt_result.get("srtUrl", "")
