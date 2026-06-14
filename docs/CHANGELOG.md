@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.4] - 2026-06-14
+
+### Added
+- **RoutePlaygroundPage**: New `/video-lab/route-playground` page
+  - Default AI news sample content (editable)
+  - Route cards with checkbox selection and status badges
+  - Run selected / run all default buttons
+  - TTS cost warning when selected
+  - Result cards showing video/audio/subtitle/HyperFrames artifact links
+  - 8-dimension scoring per route (frontend state, not persisted)
+  - Markdown export of comparison report
+  - "恢复默认选择" to reset route selection
+- **VideoLabHome**: New navigation card "链路测试台 🎬" linking to `/video-lab/route-playground`
+- **docs/ROUTE_PLAYGROUND_V0.3.4.md**: New documentation
+
+### Changed
+- **VideoLabHome**: Route count updated from "6 类" to "8 类"
+
 ## [0.3.3.1] - 2026-06-14
 
 ### Fixed

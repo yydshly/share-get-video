@@ -32,6 +32,13 @@ const NAV_CARDS = [
     color: "#06b6d4",
   },
   {
+    to: "/video-lab/route-playground",
+    title: "链路测试台",
+    desc: "用同一份样例测试各视频生成路线",
+    icon: "🎬",
+    color: "#ec4899",
+  },
+  {
     to: "/video-lab/compare",
     title: "结果对比",
     desc: "对比不同方案的实验结果",
@@ -169,7 +176,7 @@ export default function VideoLabHome() {
       {/* Technology Routes Summary */}
       <div style={{ marginTop: "3rem" }}>
         <h2 style={{ fontSize: "1.2rem", fontWeight: 600, marginBottom: "1rem" }}>
-          当前验证的 6 类技术路线
+          当前验证的 8 类技术路线
         </h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
           {[
