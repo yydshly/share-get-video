@@ -175,6 +175,9 @@ def test_route_benchmark_runs_hyperframes_route():
         for a in result.get("artifacts", [])
     )
     assert has_html, "Should have HTML artifact with htmlUrl"
+    # Should NOT have misleading warning for manual_completed
+    assert result.get("warnings", []) == [], \
+        f"manual_completed should have no warnings, got: {result.get('warnings', [])}"
 
 
 # ─────────────────────────────────────────
@@ -261,6 +264,34 @@ def test_benchmark_status_with_manual_route():
     # Status should be "completed" (manual is treated as non-running terminal state)
     assert data["status"] in ("completed", "partial"), \
         f"Expected completed/partial, got '{data['status']}'"
+
+
+# ─────────────────────────────────────────
+# 11. _build_warnings returns empty for manual_completed
+# ─────────────────────────────────────────
+def test_build_warnings_empty_for_manual_completed():
+    """_build_warnings should return [] for manual_completed status."""
+    from app.video_lab.routes_benchmark.runner import _build_warnings
+    from dataclasses import dataclass
+
+    @dataclass
+    class MockResult:
+        rawOutput: dict
+
+    # manual_completed should have no warnings
+    result_manual = MockResult(rawOutput={"status": "manual_completed", "routeMode": "manual"})
+    assert _build_warnings(result_manual, video_url="") == [], \
+        "manual_completed should produce no warnings"
+
+    # failed status should still produce warning
+    result_failed = MockResult(rawOutput={"status": "failed"})
+    assert len(_build_warnings(result_failed, video_url="")) > 0, \
+        "failed status should produce a warning"
+
+    # empty status with no video_url should still produce warning
+    result_empty = MockResult(rawOutput={"status": "unknown"})
+    assert len(_build_warnings(result_empty, video_url="")) > 0, \
+        "unknown status should produce a warning"
 
 
 if __name__ == "__main__":

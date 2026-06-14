@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.2.1] - 2026-06-14
+
+### Fixed
+- **RouteScorePanel manual route scoring**: `scoreableStatuses = ["succeeded", "manual"]` — manual routes now show scoring UI
+- **_build_warnings for manual_completed**: Returns `[]` for `status == "manual_completed"`, no misleading warning shown
+- **RouteResultCard manual route explanation**: Shows purple explanation text "该路线已生成 HTML → 手动用 HyperFrames 渲染后再评分"
+- **manual route non-scoreable message**: Shows appropriate message per status (failed/mock/reserved)
+
+### Added
+- **test_route_benchmark_runs_hyperframes_route**: Verifies no warnings for manual route
+- **test_build_warnings_empty_for_manual_completed**: Verifies `_build_warnings` returns [] for manual_completed
+
+### Docs
+- **HYPERFRAMES_ROUTE_V0.3.2.md**: Added V0.3.2.1 section documenting manual route scoring and verification status
+
 ## [0.3.2] - 2026-06-14
 
 ### Added

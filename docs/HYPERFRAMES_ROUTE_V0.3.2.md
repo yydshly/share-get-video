@@ -50,7 +50,7 @@ app/video_lab/
       html_builder.py             # HTML 生成器
 
 tests/
-  test_hyperframes_route.py      # 10 个测试
+  test_hyperframes_route.py      # 12 个测试（V0.3.2.1 新增 2 个）
 
 docs/
   HYPERFRAMES_ROUTE_V0.3.2.md    # 本文档
@@ -163,6 +163,44 @@ VideoExperimentResult(
 2. **real**：完整 API 集成，全自动流水线
 
 关键依赖：HeyGen HyperFrames API 开放程度。
+
+---
+
+## V0.3.2.1 — 收口
+
+### 修复内容
+
+1. **RouteScorePanel 支持 manual route 评分**
+   - `scoreableStatuses = ["succeeded", "manual"]`
+   - manual route 现在可以像 real route 一样被评分
+
+2. **消除 manual route 误导性 warning**
+   - `_build_warnings()` 对 `status == "manual_completed"` 返回 `[]`
+   - 不再显示 "render status: manual_completed" 误导性提示
+
+3. **RouteResultCard 说明更清晰**
+   - 显示紫色说明文字："该路线已生成 HTML → 手动用 HyperFrames 渲染后再评分"
+   - 操作步骤：打开 HTML → 复制源码 → 粘贴到插件 → 渲染视频
+
+4. **测试覆盖**
+   - `test_route_benchmark_runs_hyperframes_route`: 验证无 warnings
+   - `test_build_warnings_empty_for_manual_completed`: 验证 `_build_warnings` 逻辑
+
+### 人工验收状态
+
+> **注意**：HeyGen HyperFrames 是 HeyGen 官方浏览器插件，需要在 HeyGen 应用内使用。本地开发环境无法直接调用 HyperFrames API 进行真实渲染。
+
+route 代码已验证：
+- ✅ HTML 生成正确（单文件、无外部依赖）
+- ✅ Benchmark 可运行，不报错
+- ✅ status 正确返回 `manual`
+- ✅ 无误导性 warning
+- ✅ 评分面板可见 manual route
+
+人工验收待完成：
+- ⬜ 在 HeyGen 中粘贴 HTML 并渲染视频
+- ⬜ 记录视觉质量评分
+- ⬜ 和 Remotion/local_frame 对比结论
 
 ---
 

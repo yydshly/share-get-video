@@ -58,9 +58,13 @@ export default function RouteScorePanel({ results, onScoresChange }: RouteScoreP
         const routeScore = scores.find((s) => s.routeId === result.routeId);
         const statusColor =
           result.status === "succeeded" ? "#10b981"
+          : result.status === "manual" ? "#8b5cf6"
           : result.status === "mock" ? "#f59e0b"
           : result.status === "reserved" ? "#94a3b8"
           : "#ef4444";
+
+        const scoreableStatuses = ["succeeded", "manual"];
+        const isScoreable = scoreableStatuses.includes(result.status);
 
         return (
           <div
@@ -91,7 +95,7 @@ export default function RouteScorePanel({ results, onScoresChange }: RouteScoreP
               <span style={{ fontSize: "0.8rem", color: "#64748b" }}>{result.summary}</span>
             </div>
 
-            {result.status === "succeeded" ? (
+            {isScoreable ? (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.5rem" }}>
                 {DIMENSIONS.map((dim) => (
                   <div key={dim.key} style={{ fontSize: "0.75rem" }}>
@@ -123,7 +127,9 @@ export default function RouteScorePanel({ results, onScoresChange }: RouteScoreP
               </div>
             ) : (
               <div style={{ fontSize: "0.8rem", color: "#94a3b8", fontStyle: "italic" }}>
-                {result.warnings?.[0] || "非真实路线，无需评分"}
+                {result.status === "failed" && (result.warnings?.[0] || "渲染失败")}
+                {result.status === "mock" && "占位路线，无需评分"}
+                {result.status === "reserved" && "预留路线，无需评分"}
               </div>
             )}
           </div>

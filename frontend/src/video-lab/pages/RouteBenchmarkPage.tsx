@@ -402,7 +402,10 @@ function RouteResultCard({ result }: { result: RouteResult }) {
           >
             打开生成的 HTML
           </a>
-          <div style={{ marginTop: "0.4rem", fontSize: "0.7rem", color: "#64748b", lineHeight: 1.5 }}>
+          <div style={{ marginTop: "0.4rem", fontSize: "0.7rem", color: "#8b5cf6", lineHeight: 1.5, fontWeight: 500 }}>
+            该路线已生成 HTML → 手动用 HyperFrames 渲染后再评分
+          </div>
+          <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "#64748b", lineHeight: 1.5 }}>
             ① 打开 HTML ② 复制源码 ③ 粘贴到 HeyGen HyperFrames 插件 ④ 渲染视频
           </div>
         </div>
