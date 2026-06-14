@@ -77,3 +77,35 @@ class CreateBenchmarkRequest(BaseModel):
             }
         }
     }
+
+
+class CreateChainBenchmarkRequest(BaseModel):
+    """JSON body for POST /video-lab/chain-benchmarks"""
+
+    testCaseId: str = Field(..., min_length=1, description="ID of the test case")
+    title: str = Field(..., min_length=1, description="Human-readable title for this benchmark")
+    inputPayload: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Input payload passed to all chains",
+    )
+    commonParams: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Common parameters for all chains (e.g. targetDuration, aspectRatio)",
+    )
+    chainIds: list[str] = Field(
+        ...,
+        min_length=1,
+        description="List of chain IDs to benchmark",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "testCaseId": "case_ai_frontier_daily_001",
+                "title": "AI 前沿资讯完整链路对比",
+                "inputPayload": {"content": "今日 AI 前沿测试内容"},
+                "commonParams": {"targetDuration": 45, "aspectRatio": "9:16"},
+                "chainIds": ["local_frame_tts_video", "remotion_tts_video", "hyperframes_tts_video"],
+            }
+        }
+    }

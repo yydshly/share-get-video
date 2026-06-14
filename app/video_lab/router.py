@@ -9,7 +9,7 @@ from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResu
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
-from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest
+from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -252,6 +252,72 @@ def get_benchmark(benchmark_id: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=404,
             detail=f"Benchmark not found: {benchmark_id}",
+        )
+
+    return benchmark.to_dict()
+
+
+# ─────────────────────────────────────────────
+# Chain Benchmarks
+# ─────────────────────────────────────────────
+@router.get("/chains")
+def list_chains() -> list[dict[str, Any]]:
+    """List all available complete video generation chains."""
+    from app.video_lab.chains.registry import list_chains as _list_chains
+    return [c.to_dict() for c in _list_chains()]
+
+
+@router.post("/chain-benchmarks")
+def create_chain_benchmark(request: CreateChainBenchmarkRequest) -> dict[str, Any]:
+    """
+    Create and run a multi-chain benchmark.
+
+    Returns benchmark results for all specified chains.
+    Each chain produces a finalVideoUrl or manual_required status.
+    """
+    from app.video_lab.chains.registry import get_chain
+
+    # Validate all chain IDs
+    invalid_chains = []
+    for cid in request.chainIds:
+        if get_chain(cid) is None:
+            invalid_chains.append(cid)
+
+    if invalid_chains:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown chain IDs: {invalid_chains}",
+        )
+
+    from app.video_lab.routes_benchmark.chain_runner import get_chain_runner as _get_chain_runner
+    runner = _get_chain_runner()
+
+    # Create and run benchmark
+    benchmark = runner.create_benchmark(
+        test_case_id=request.testCaseId,
+        title=request.title,
+        input_payload=request.inputPayload,
+        common_params=request.commonParams,
+        chain_ids=request.chainIds,
+    )
+
+    # Execute
+    result = runner.run_benchmark(benchmark.benchmark_id)
+
+    return result.to_dict()
+
+
+@router.get("/chain-benchmarks/{benchmark_id}")
+def get_chain_benchmark(benchmark_id: str) -> dict[str, Any]:
+    """Get a chain benchmark result by ID."""
+    from app.video_lab.routes_benchmark.chain_runner import get_chain_runner as _get_chain_runner
+    runner = _get_chain_runner()
+    benchmark = runner.get_benchmark(benchmark_id)
+
+    if not benchmark:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Chain benchmark not found: {benchmark_id}",
         )
 
     return benchmark.to_dict()

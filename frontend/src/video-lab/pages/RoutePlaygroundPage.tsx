@@ -1,4 +1,4 @@
-// RoutePlaygroundPage - V0.3.4: Direct route testing interface
+// RoutePlaygroundPage - V0.3.4.1: Complete video generation chain testing interface
 // Path: /video-lab/route-playground
 
 import { useState, useEffect } from "react";
@@ -16,107 +16,152 @@ const DEFAULT_CONTENT = `今天有三条 AI 动态值得关注。
 
 这三条信息共同说明，AI 视频和 AI Agent 正在从单点能力走向可组合的工作流。`;
 
-const ROUTE_INFO: Record<string, {
+const CHAIN_INFO: Record<string, {
   name: string;
-  status: "real" | "manual" | "mock" | "reserved";
+  generationMode: "auto" | "manual";
   description: string;
-  condition: string;
-  outputs: string;
+  visualSource: string;
+  audioSource: string;
+  subtitleMode: string;
+  requiresTts: boolean;
   defaultSelected: boolean;
 }> = {
-  local_frame_compose: {
-    name: "本地帧合成",
-    status: "real",
-    description: "Pillow 生成静态卡片帧，FFmpeg 合成视频",
-    condition: "本地 FFmpeg",
-    outputs: "MP4",
+  local_frame_tts_video: {
+    name: "本地帧 TTS 视频",
+    generationMode: "auto",
+    description: "Pillow 画面 + MiniMax TTS + SRT 字幕 + FFmpeg 合成",
+    visualSource: "Pillow 静态卡片帧",
+    audioSource: "MiniMax TTS",
+    subtitleMode: "SRT",
+    requiresTts: true,
     defaultSelected: true,
   },
-  template_programmatic_render: {
-    name: "Remotion 模板",
-    status: "real",
-    description: "Remotion / React 动态模板渲染",
-    condition: "Node.js + Remotion",
-    outputs: "MP4",
+  remotion_tts_video: {
+    name: "Remotion TTS 视频",
+    generationMode: "auto",
+    description: "Remotion 动态模板 + MiniMax TTS + SRT 字幕 + FFmpeg 合成",
+    visualSource: "Remotion React 模板",
+    audioSource: "MiniMax TTS",
+    subtitleMode: "SRT",
+    requiresTts: true,
     defaultSelected: true,
   },
-  hyperframes_html_render: {
-    name: "HyperFrames HTML",
-    status: "manual",
-    description: "生成 HTML，人工复制到 HeyGen HyperFrames 渲染",
-    condition: "HeyGen HyperFrames 插件",
-    outputs: "HTML → MP4（人工）",
+  hyperframes_tts_video: {
+    name: "HyperFrames HTML 视频",
+    generationMode: "manual",
+    description: "生成 HTML 页面，人工复制到 HeyGen HyperFrames 渲染",
+    visualSource: "HyperFrames HTML",
+    audioSource: "需人工指定",
+    subtitleMode: "需人工指定",
+    requiresTts: false,
     defaultSelected: true,
-  },
-  tts_subtitle_compose: {
-    name: "TTS 旁白合成",
-    status: "real",
-    description: "MiniMax TTS 生成旁白，SRT 字幕，FFmpeg 合成有声视频",
-    condition: "MINIMAX_API_KEY + FFmpeg",
-    outputs: "MP4 + MP3 + SRT",
-    defaultSelected: false,
   },
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  real: "#10b981",
-  manual: "#8b5cf6",
-  mock: "#f59e0b",
-  reserved: "#94a3b8",
+  succeeded: "#10b981",
+  failed: "#ef4444",
+  manual_required: "#8b5cf6",
+  incomplete: "#f59e0b",
+  skipped: "#94a3b8",
 };
 
 const SCORE_DIMENSIONS = [
   { key: "informationAccuracy", label: "信息准确性" },
-  { key: "readability", label: "文字可读性" },
-  { key: "visualQuality", label: "视觉质量" },
-  { key: "dynamicPerformance", label: "动态表现" },
-  { key: "generationStability", label: "生成稳定性" },
-  { key: "automationLevel", label: "自动化程度" },
-  { key: "costControl", label: "成本可控性" },
+  { key: "visualQuality", label: "画面质量" },
+  { key: "audioNaturalness", label: "声音自然度" },
+  { key: "readability", label: "字幕可读性" },
+  { key: "pacing", label: "节奏感" },
+  { key: "completeness", label: "完整度" },
+  { key: "automationStability", label: "自动化稳定性" },
+  { key: "costControllability", label: "成本可控性" },
   { key: "productizationPotential", label: "产品化潜力" },
 ];
 
-interface RouteScore {
-  routeId: string;
+interface ChainScore {
+  chainId: string;
   scores: Record<string, number | null>;
   notes: string;
   conclusion: string;
 }
 
-interface BenchmarkResult {
-  routeId: string;
+interface ChainResult {
+  chainId: string;
+  chainName: string;
   status: string;
-  videoUrl: string;
-  coverUrl: string;
+  finalVideoUrl: string;
+  htmlUrl: string;
+  hasVisual: boolean;
+  hasAudio: boolean;
+  hasReadableText: boolean;
+  audioUrl: string;
+  srtUrl: string;
   manifestUrl: string;
-  summary: string;
-  artifacts: unknown[];
-  metrics: Record<string, unknown>;
+  failedStep: string;
+  failedReason: string;
+  visualSource: string;
+  audioSource: string;
+  subtitleMode: string;
+  logs: string[];
   warnings: string[];
+  elapsedMs: number;
+  createdAt: string;
+}
+
+interface BenchmarkResult {
+  chainId: string;
+  status: string;
+  finalVideoUrl: string;
+  htmlUrl: string;
+  hasVisual: boolean;
+  hasAudio: boolean;
+  hasReadableText: boolean;
+  audioUrl: string;
+  srtUrl: string;
+  manifestUrl: string;
+  failedStep: string;
+  failedReason: string;
+  visualSource: string;
+  audioSource: string;
+  subtitleMode: string;
+  logs: string[];
+  warnings: string[];
+  elapsedMs: number;
 }
 
 export default function RoutePlaygroundPage() {
   const [content, setContent] = useState(DEFAULT_CONTENT);
-  const [selectedRoutes, setSelectedRoutes] = useState<string[]>(
-    Object.entries(ROUTE_INFO)
+  const [selectedChains, setSelectedChains] = useState<string[]>(
+    Object.entries(CHAIN_INFO)
       .filter(([, info]) => info.defaultSelected)
       .map(([id]) => id)
   );
+  const [ttsConfirmed, setTtsConfirmed] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<BenchmarkResult[] | null>(null);
   const [benchmarkId, setBenchmarkId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [scores, setScores] = useState<Record<string, RouteScore>>({});
+  const [scores, setScores] = useState<Record<string, ChainScore>>({});
 
-  const toggleRoute = (id: string) => {
-    setSelectedRoutes((prev) =>
-      prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]
+  const toggleChain = (id: string) => {
+    setSelectedChains((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
     );
   };
 
+  const canRun = selectedChains.length > 0 && (!hasTtsChainSelected || ttsConfirmed);
+
+  const hasTtsChainSelected = selectedChains.some(
+    (id) => CHAIN_INFO[id]?.requiresTts
+  );
+
   const runSelected = async () => {
-    if (selectedRoutes.length === 0) {
-      setError("请至少选择一条路线");
+    if (!canRun) {
+      if (!ttsConfirmed && hasTtsChainSelected) {
+        setError("请先确认 TTS 成本提示，才能运行带 TTS 的链路");
+      } else {
+        setError("请至少选择一条链路");
+      }
       return;
     }
     setIsRunning(true);
@@ -126,17 +171,17 @@ export default function RoutePlaygroundPage() {
     try {
       const payload = {
         testCaseId: "case_ai_frontier_daily_001",
-        title: "链路测试台 - " + new Date().toLocaleDateString("zh-CN"),
+        title: "完整链路测试台 - " + new Date().toLocaleDateString("zh-CN"),
         inputPayload: { content },
         commonParams: {
           targetDuration: 45,
           aspectRatio: "9:16",
           keyPointCount: 3,
         },
-        routeIds: selectedRoutes,
+        chainIds: selectedChains,
       };
 
-      const resp = await fetch(`${API_BASE}/route-benchmarks`, {
+      const resp = await fetch(`${API_BASE}/chain-benchmarks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -152,10 +197,10 @@ export default function RoutePlaygroundPage() {
       setBenchmarkId(data.benchmarkId ?? null);
 
       // Initialize scores
-      const newScores: Record<string, RouteScore> = {};
+      const newScores: Record<string, ChainScore> = {};
       for (const r of data.results ?? []) {
-        newScores[r.routeId] = {
-          routeId: r.routeId,
+        newScores[r.chainId] = {
+          chainId: r.chainId,
           scores: Object.fromEntries(SCORE_DIMENSIONS.map((d) => [d.key, null])),
           notes: "",
           conclusion: "",
@@ -169,87 +214,79 @@ export default function RoutePlaygroundPage() {
     }
   };
 
-  const updateScore = (routeId: string, dim: string, val: number | null) => {
+  const updateScore = (chainId: string, dim: string, val: number | null) => {
     setScores((prev) => ({
       ...prev,
-      [routeId]: {
-        ...prev[routeId],
-        scores: { ...prev[routeId].scores, [dim]: val },
+      [chainId]: {
+        ...prev[chainId],
+        scores: { ...prev[chainId].scores, [dim]: val },
       },
     }));
   };
 
-  const getArtifactUrl = (artifacts: unknown[], type: "htmlUrl" | "audioUrl" | "srtUrl" | "videoUrl") => {
-    for (const art of artifacts as Array<{type?: string; payload?: Record<string, unknown>}>) {
-      if (art?.type === "manifest" && art?.payload) {
-        if (type === "htmlUrl") {
-          const url = (art.payload as Record<string, unknown>).htmlUrl as string | undefined;
-          if (url) return url;
-        }
-        if (type === "audioUrl") {
-          const url = (art.payload as Record<string, unknown>).audioUrl as string | undefined;
-          if (url) return url;
-        }
-        if (type === "srtUrl") {
-          const url = (art.payload as Record<string, unknown>).srtUrl as string | undefined;
-          if (url) return url;
-        }
-      }
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case "succeeded": return "✅ 成功";
+      case "failed": return "❌ 失败";
+      case "manual_required": return "⚠️ 需人工";
+      case "incomplete": return "⏳ 不完整";
+      case "skipped": return "⊘ 跳过";
+      default: return status;
     }
-    return null;
   };
 
   const exportMarkdown = (): string => {
     if (!results) return "";
     const lines = [
-      "# V0.3 视频生成链路对比报告",
+      "# V0.3 完整视频生成链路对比报告",
       "",
-      `## 1. 测试输入`,
+      "## 测试输入",
       "",
       "```",
       content.slice(0, 200) + (content.length > 200 ? "..." : ""),
       "```",
       "",
-      "## 2. 参与路线",
+      "## 参与链路",
       "",
-      ...selectedRoutes.map((id) => `- ${ROUTE_INFO[id]?.name ?? id} (${id})`),
-      "",
-      "## 3. 样片结果",
+      ...selectedChains.map((id) => `- ${CHAIN_INFO[id]?.name ?? id} (${id})`),
       "",
     ];
 
     for (const r of results) {
-      const info = ROUTE_INFO[r.routeId];
-      const score = scores[r.routeId];
+      const info = CHAIN_INFO[r.chainId];
+      const score = scores[r.chainId];
       const ratedDims = score ? Object.entries(score.scores).filter(([, v]) => v !== null) : [];
       const avgScore = ratedDims.length > 0
         ? (ratedDims.reduce((a, [, v]) => a + (v as number), 0) / ratedDims.length).toFixed(1)
         : "待评分";
 
-      lines.push(`### ${info?.name ?? r.routeId}`);
-      lines.push(`- **是否生成**：${r.status === "succeeded" ? "✅ 是" : r.status === "failed" ? "❌ 否" : r.status === "manual" ? "⚠️ 人工" : "⏳ 待验证"}`);
-      lines.push(`- **status**：${r.status}`);
-      if (r.videoUrl) lines.push(`- **videoUrl**：${r.videoUrl}`);
-      const htmlUrl = getArtifactUrl(r.artifacts, "htmlUrl");
-      if (htmlUrl) lines.push(`- **htmlUrl**：${htmlUrl}`);
-      const audioUrl = getArtifactUrl(r.artifacts, "audioUrl");
-      if (audioUrl) lines.push(`- **audioUrl**：${audioUrl}`);
-      const srtUrl = getArtifactUrl(r.artifacts, "srtUrl");
-      if (srtUrl) lines.push(`- **srtUrl**：${srtUrl}`);
-      if (r.warnings?.length) lines.push(`- **warnings**：${r.warnings.join("; ")}`);
-      lines.push(`- **综合评分**：${avgScore}`);
-      if (score?.conclusion) lines.push(`- **结论**：${score.conclusion}`);
+      lines.push(`## ${info?.name ?? r.chainId}`);
+      lines.push(`- **chainId**: ${r.chainId}`);
+      lines.push(`- **画面来源**: ${r.visualSource || info?.visualSource || "-"}`);
+      lines.push(`- **音频来源**: ${r.audioSource || info?.audioSource || "-"}`);
+      lines.push(`- **字幕方式**: ${r.subtitleMode || info?.subtitleMode || "-"}`);
+      lines.push(`- **状态**: ${statusLabel(r.status)}`);
+      lines.push(`- **是否生成最终视频**: ${r.status === "succeeded" ? "✅ 是" : r.status === "manual_required" ? "⚠️ 需人工" : r.status === "failed" ? "❌ 否" : "⏳ 待验证"}`);
+      lines.push(`- **finalVideoUrl**: ${r.finalVideoUrl || "(无)"}`);
+      if (r.status === "manual_required") lines.push(`- **htmlUrl**: ${r.htmlUrl || "-"}`);
+      if (r.audioUrl) lines.push(`- **audioUrl**: ${r.audioUrl}`);
+      if (r.srtUrl) lines.push(`- **srtUrl**: ${r.srtUrl}`);
+      if (r.failedStep) lines.push(`- **failedStep**: ${r.failedStep}`);
+      if (r.failedReason) lines.push(`- **失败原因**: ${r.failedReason}`);
+      if (r.warnings?.length) lines.push(`- **warnings**: ${r.warnings.join("; ")}`);
+      lines.push(`- **综合评分**: ${avgScore}`);
+      if (score?.conclusion) lines.push(`- **结论**: ${score.conclusion}`);
       lines.push("");
     }
 
-    lines.push("## 4. 横向评分表");
+    lines.push("## 横向评分表");
     lines.push("");
-    lines.push("| 路线 | " + SCORE_DIMENSIONS.map((d) => d.label).join(" | ") + " |");
+    lines.push("| 链路 | " + SCORE_DIMENSIONS.map((d) => d.label).join(" | ") + " |");
     lines.push("|" + "---|".repeat(SCORE_DIMENSIONS.length + 1));
     for (const r of results) {
-      const score = scores[r.routeId];
-      const routeInfo = ROUTE_INFO[r.routeId];
-      const row = [routeInfo?.name ?? r.routeId];
+      const score = scores[r.chainId];
+      const chainInfo = CHAIN_INFO[r.chainId];
+      const row = [chainInfo?.name ?? r.chainId];
       for (const dim of SCORE_DIMENSIONS) {
         const val = score?.scores[dim.key];
         row.push(val != null ? String(val) : "-");
@@ -257,13 +294,12 @@ export default function RoutePlaygroundPage() {
       lines.push("| " + row.join(" | ") + " |");
     }
     lines.push("");
-    lines.push("## 5. 当前判断");
+    lines.push("## 当前判断");
     lines.push("");
-    lines.push("- 当前最佳画面路线：（待评分）");
-    lines.push("- 当前最佳完整视频路线：（待评分）");
-    lines.push("- 当前暂缓路线：hyperframes_html_render（需人工）");
+    lines.push("- 当前最佳完整链路：（待评分）");
+    lines.push("- hyperframes_tts_video 需人工操作，暂不参与自动评分");
     lines.push("");
-    lines.push("## 6. 下一步建议");
+    lines.push("## 下一步建议");
     lines.push("");
     lines.push("（请根据评分填写）");
 
@@ -278,9 +314,9 @@ export default function RoutePlaygroundPage() {
       {/* Header */}
       <div style={{ marginBottom: "2rem" }}>
         <Link to="/video-lab" style={{ color: "#64748b", fontSize: "0.85rem", textDecoration: "none" }}>← 返回首页</Link>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginTop: "0.5rem" }}>视频生成链路测试台</h1>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginTop: "0.5rem" }}>完整视频链路测试台</h1>
         <p style={{ color: "#64748b", fontSize: "0.9rem", marginTop: "0.25rem" }}>
-          用同一份样例测试各视频生成路线，查看结果并对比评分
+          对比完整视频生成链路，每条链路必须以最终 MP4 成片为准
         </p>
       </div>
 
@@ -312,17 +348,17 @@ export default function RoutePlaygroundPage() {
         />
       </div>
 
-      {/* Route selection */}
+      {/* Chain selection */}
       <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "1.5rem", marginBottom: "1.5rem" }}>
-        <div style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "1rem" }}>选择要测试的路线</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
-          {Object.entries(ROUTE_INFO).map(([id, info]) => {
-            const checked = selectedRoutes.includes(id);
-            const color = STATUS_COLOR[info.status] ?? "#94a3b8";
+        <div style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "1rem" }}>选择要测试的完整链路</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem", marginBottom: "1rem" }}>
+          {Object.entries(CHAIN_INFO).map(([id, info]) => {
+            const checked = selectedChains.includes(id);
+            const color = info.generationMode === "manual" ? "#8b5cf6" : "#10b981";
             return (
               <div
                 key={id}
-                onClick={() => toggleRoute(id)}
+                onClick={() => toggleChain(id)}
                 style={{
                   border: `2px solid ${checked ? color : "#e2e8f0"}`,
                   borderRadius: "10px",
@@ -353,24 +389,33 @@ export default function RoutePlaygroundPage() {
                     fontWeight: 600,
                     textTransform: "uppercase",
                   }}>
-                    {info.status}
+                    {info.generationMode}
                   </span>
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "#64748b", lineHeight: 1.5 }}>
+                <div style={{ fontSize: "0.75rem", color: "#64748b", lineHeight: 1.6 }}>
                   <div>{info.description}</div>
                   <div style={{ marginTop: "0.25rem" }}>
-                    <span style={{ color: "#94a3b8" }}>条件：</span>{info.condition}
+                    <span style={{ color: "#94a3b8" }}>画面：</span>{info.visualSource}
                   </div>
                   <div>
-                    <span style={{ color: "#94a3b8" }}>产物：</span>{info.outputs}
+                    <span style={{ color: "#94a3b8" }}>音频：</span>{info.audioSource}
                   </div>
+                  <div>
+                    <span style={{ color: "#94a3b8" }}>字幕：</span>{info.subtitleMode}
+                  </div>
+                  {info.requiresTts && (
+                    <div style={{ color: "#f59e0b", marginTop: "0.25rem" }}>
+                      🔊 调用 TTS
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {selectedRoutes.includes("tts_subtitle_compose") && (
+        {/* TTS Cost Confirmation */}
+        {hasTtsChainSelected && (
           <div style={{
             background: "#fef3c7",
             border: "1px solid #fcd34d",
@@ -380,30 +425,38 @@ export default function RoutePlaygroundPage() {
             color: "#92400e",
             marginBottom: "1rem",
           }}>
-            ⚠️ TTS 路线会调用 MiniMax API，可能产生费用。已确认配置了 <code>MINIMAX_API_KEY</code>。
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={ttsConfirmed}
+                onChange={(e) => setTtsConfirmed(e.target.checked)}
+                style={{ width: 16, height: 16 }}
+              />
+              本次会调用 MiniMax TTS，可能产生 API 成本。确认运行带 TTS 的完整成片链路。
+            </label>
           </div>
         )}
 
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
           <button
             onClick={runSelected}
-            disabled={isRunning || selectedRoutes.length === 0}
+            disabled={isRunning || !canRun}
             style={{
-              background: isRunning ? "#93c5fd" : "#3b82f6",
+              background: isRunning ? "#93c5fd" : (!canRun ? "#cbd5e1" : "#3b82f6"),
               color: "white",
               border: "none",
               borderRadius: "8px",
               padding: "0.6rem 1.5rem",
               fontSize: "0.9rem",
-              cursor: isRunning || selectedRoutes.length === 0 ? "not-allowed" : "pointer",
+              cursor: isRunning || !canRun ? "not-allowed" : "pointer",
             }}
           >
-            {isRunning ? "运行中..." : `运行已选路线 (${selectedRoutes.length} 条)`}
+            {isRunning ? "运行中..." : `运行已选链路 (${selectedChains.length} 条)`}
           </button>
           <button
             onClick={() => {
-              setSelectedRoutes(
-                Object.entries(ROUTE_INFO)
+              setSelectedChains(
+                Object.entries(CHAIN_INFO)
                   .filter(([, i]) => i.defaultSelected)
                   .map(([id]) => id)
               );
@@ -437,23 +490,20 @@ export default function RoutePlaygroundPage() {
             </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
             {results.map((r) => {
-              const info = ROUTE_INFO[r.routeId];
-              const color = STATUS_COLOR[info?.status ?? "mock"];
-              const score = scores[r.routeId];
-              const htmlUrl = getArtifactUrl(r.artifacts, "htmlUrl");
-              const audioUrl = getArtifactUrl(r.artifacts, "audioUrl");
-              const srtUrl = getArtifactUrl(r.artifacts, "srtUrl");
+              const info = CHAIN_INFO[r.chainId];
+              const color = STATUS_COLOR[r.status] ?? "#94a3b8";
+              const score = scores[r.chainId];
               const ratedDims = score ? Object.entries(score.scores).filter(([, v]) => v !== null) : [];
               const avgScore = ratedDims.length > 0
                 ? (ratedDims.reduce((a, [, v]) => a + (v as number), 0) / ratedDims.length).toFixed(1)
                 : null;
 
               return (
-                <div key={r.routeId} style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "1rem" }}>
+                <div key={r.chainId} style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "1rem" }}>
                   {/* Header */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
                     <span style={{
                       background: `${color}15`,
                       color,
@@ -461,11 +511,10 @@ export default function RoutePlaygroundPage() {
                       padding: "0.1rem 0.4rem",
                       fontSize: "0.7rem",
                       fontWeight: 600,
-                      textTransform: "uppercase",
                     }}>
-                      {r.status}
+                      {statusLabel(r.status)}
                     </span>
-                    <strong style={{ fontSize: "0.9rem" }}>{info?.name ?? r.routeId}</strong>
+                    <strong style={{ fontSize: "0.9rem" }}>{info?.name ?? r.chainId}</strong>
                     {avgScore && (
                       <span style={{ marginLeft: "auto", fontSize: "0.8rem", fontWeight: 600, color }}>
                         ⭐ {avgScore}
@@ -473,38 +522,49 @@ export default function RoutePlaygroundPage() {
                     )}
                   </div>
 
-                  <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.75rem", lineHeight: 1.5 }}>
-                    {info?.description}
+                  {/* Chain metadata */}
+                  <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.75rem", lineHeight: 1.6 }}>
+                    <div><span style={{ color: "#94a3b8" }}>画面：</span>{r.visualSource || info?.visualSource}</div>
+                    <div><span style={{ color: "#94a3b8" }}>音频：</span>{r.audioSource || info?.audioSource}</div>
+                    <div><span style={{ color: "#94a3b8" }}>字幕：</span>{r.subtitleMode || info?.subtitleMode}</div>
+                    {r.failedStep && <div style={{ color: "#ef4444" }}>失败步骤：{r.failedStep}</div>}
+                    {r.failedReason && <div style={{ color: "#ef4444", fontSize: "0.7rem" }}>{r.failedReason}</div>}
                   </div>
 
-                  {/* Video player */}
-                  {r.status === "succeeded" && r.videoUrl && (
+                  {/* Final video player */}
+                  {r.status === "succeeded" && r.finalVideoUrl && (
                     <div style={{ marginBottom: "0.75rem" }}>
+                      <div style={{ fontSize: "0.7rem", color: "#10b981", marginBottom: "0.25rem", fontWeight: 600 }}>最终成片</div>
                       <video
                         controls
-                        src={r.videoUrl}
+                        src={r.finalVideoUrl}
                         style={{ width: "100%", maxHeight: "160px", borderRadius: "6px", background: "#0f172a", objectFit: "contain" }}
                       />
                     </div>
                   )}
 
-                  {/* Artifact links */}
-                  {(r.status === "manual" || r.status === "succeeded") && (
+                  {/* Manual required instructions */}
+                  {r.status === "manual_required" && r.htmlUrl && (
+                    <div style={{ background: "#f3e8ff", borderRadius: "6px", padding: "0.5rem 0.75rem", fontSize: "0.75rem", color: "#7c3aed", marginBottom: "0.75rem" }}>
+                      ① 打开 HTML → ② 复制源码 → ③ 粘贴到 HeyGen HyperFrames → ④ 渲染视频
+                      <br />
+                      <a href={r.htmlUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#8b5cf6" }}>
+                        🔗 打开生成的 HTML
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Intermediate artifact links */}
+                  {(r.status === "succeeded" || r.status === "manual_required") && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.75rem" }}>
-                      {htmlUrl && (
-                        <a href={htmlUrl} target="_blank" rel="noopener noreferrer"
-                          style={{ fontSize: "0.75rem", color: "#8b5cf6", textDecoration: "none", display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                          🎬 打开 HTML
-                        </a>
-                      )}
-                      {audioUrl && (
-                        <a href={audioUrl} target="_blank" rel="noopener noreferrer"
+                      {r.audioUrl && (
+                        <a href={r.audioUrl} target="_blank" rel="noopener noreferrer"
                           style={{ fontSize: "0.75rem", color: "#10b981", textDecoration: "none", display: "flex", alignItems: "center", gap: "0.25rem" }}>
                           🔊 播放音频
                         </a>
                       )}
-                      {srtUrl && (
-                        <a href={srtUrl} target="_blank" rel="noopener noreferrer"
+                      {r.srtUrl && (
+                        <a href={r.srtUrl} target="_blank" rel="noopener noreferrer"
                           style={{ fontSize: "0.75rem", color: "#f59e0b", textDecoration: "none", display: "flex", alignItems: "center", gap: "0.25rem" }}>
                           📝 打开字幕
                         </a>
@@ -518,14 +578,20 @@ export default function RoutePlaygroundPage() {
                     </div>
                   )}
 
-                  {/* Manual instructions */}
-                  {r.status === "manual" && htmlUrl && (
-                    <div style={{ background: "#f3e8ff", borderRadius: "6px", padding: "0.5rem 0.75rem", fontSize: "0.75rem", color: "#7c3aed", marginBottom: "0.75rem" }}>
-                      ① 打开 HTML → ② 复制源码 → ③ 粘贴到 HeyGen HyperFrames → ④ 渲染视频
-                    </div>
-                  )}
+                  {/* Flags: hasVisual, hasAudio, hasReadableText */}
+                  <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", fontSize: "0.75rem" }}>
+                    <span style={{ color: r.hasVisual ? "#10b981" : "#ef4444" }}>
+                      {r.hasVisual ? "✅ 有画面" : "❌ 无画面"}
+                    </span>
+                    <span style={{ color: r.hasAudio ? "#10b981" : "#ef4444" }}>
+                      {r.hasAudio ? "✅ 有音频" : "❌ 无音频"}
+                    </span>
+                    <span style={{ color: r.hasReadableText ? "#10b981" : "#ef4444" }}>
+                      {r.hasReadableText ? "✅ 有字幕" : "❌ 无字幕"}
+                    </span>
+                  </div>
 
-                  {/* Warnings / failures */}
+                  {/* Warnings */}
                   {r.warnings?.length > 0 && (
                     <div style={{ fontSize: "0.75rem", color: "#ef4444", marginBottom: "0.75rem" }}>
                       {r.warnings.map((w, i) => <div key={i}>⚠️ {w}</div>)}
@@ -533,16 +599,16 @@ export default function RoutePlaygroundPage() {
                   )}
 
                   {/* Scoring */}
-                  {(r.status === "succeeded" || r.status === "manual") && (
+                  {(r.status === "succeeded" || r.status === "manual_required") && (
                     <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "0.75rem" }}>
                       <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem", color: "#475569" }}>评分</div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>
                         {SCORE_DIMENSIONS.map((dim) => (
                           <div key={dim.key} style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                            <span style={{ fontSize: "0.7rem", color: "#94a3b8", width: "4rem", flexShrink: 0 }}>{dim.label}</span>
+                            <span style={{ fontSize: "0.7rem", color: "#94a3b8", width: "4.5rem", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{dim.label}</span>
                             <select
                               value={score?.scores[dim.key] ?? ""}
-                              onChange={(e) => updateScore(r.routeId, dim.key, e.target.value ? Number(e.target.value) : null)}
+                              onChange={(e) => updateScore(r.chainId, dim.key, e.target.value ? Number(e.target.value) : null)}
                               style={{ fontSize: "0.75rem", border: "1px solid #e2e8f0", borderRadius: "4px", padding: "0.1rem 0.25rem" }}
                             >
                               <option value="">-</option>
@@ -556,7 +622,7 @@ export default function RoutePlaygroundPage() {
                         value={score?.conclusion ?? ""}
                         onChange={(e) => setScores((prev) => ({
                           ...prev,
-                          [r.routeId]: { ...prev[r.routeId], conclusion: e.target.value },
+                          [r.chainId]: { ...prev[r.chainId], conclusion: e.target.value },
                         }))}
                         rows={2}
                         style={{ width: "100%", marginTop: "0.5rem", fontSize: "0.75rem", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "0.4rem", resize: "none" }}
@@ -587,7 +653,7 @@ export default function RoutePlaygroundPage() {
             borderRadius: "12px",
             padding: "1.5rem",
             width: "90%",
-            maxWidth: "800px",
+            maxWidth: "900px",
             maxHeight: "80vh",
             display: "flex",
             flexDirection: "column",
@@ -595,8 +661,8 @@ export default function RoutePlaygroundPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
-              <h3 style={{ fontSize: "1rem", fontWeight: 600 }}>Markdown 对比报告</h3>
-              <button onClick={() => {
+              <h3 style={{ fontSize: "1rem", fontWeight: 600 }}>Markdown 完整链路对比报告</h3>
+              <button on={() => {
                 navigator.clipboard.writeText(exportText).then(() => alert("已复制到剪贴板"));
               }}
                 style={{ background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", padding: "0.4rem 1rem", fontSize: "0.85rem", cursor: "pointer" }}>
