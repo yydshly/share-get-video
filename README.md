@@ -22,14 +22,14 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 
 | 路线 | 说明 | 状态 |
 |------|------|------|
-| `local_frame_compose` | 本地图像帧合成 + FFmpeg | **Real (V0.2.5)** |
+| `local_frame_compose` | 本地图像帧合成 + FFmpeg | **Real (V0.2.5.1)** |
 | `local_media_compose` | 本地素材合成（MoviePy/FFmpeg） | Mock |
 | `template_programmatic_render` | Remotion 程序化模板渲染 | Mock |
 | `ai_video_direct` | 大模型直接生成视频 | Reserved |
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | Mock |
 | `hybrid_pipeline` | 混合编排流水线 | Mock |
 
-> **V0.2.5 进展**：`local_frame_compose` 支持模板参数化（targetDuration/keyPointCount/highlightMode/transitionEnabled/transitionFrames），新增样例验收工作流和模板调参建议。
+> **V0.2.5.1 进展**：`local_frame_compose` 修复参数真实接入问题（keyPointCount 截断/不禁用、includeOverview/includeSummary 接入、1:1 分辨率映射、warning 消息显示原始值），样例脚本改用 urllib 标准库。
 
 ## 测试用例
 

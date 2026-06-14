@@ -337,6 +337,57 @@ def test_parse_include_summary():
     assert result.params.include_summary is False
 
 
+# ─────────────────────────────────────────────
+# V0.2.5.1: resolve_resolution
+# ─────────────────────────────────────────
+def test_resolve_resolution_9_16():
+    """9:16 should resolve to 1080x1920."""
+    from app.video_lab.renderers.render_params import resolve_resolution
+    assert resolve_resolution("9:16") == (1080, 1920)
+
+
+def test_resolve_resolution_16_9():
+    """16:9 should resolve to 1920x1080."""
+    from app.video_lab.renderers.render_params import resolve_resolution
+    assert resolve_resolution("16:9") == (1920, 1080)
+
+
+def test_resolve_resolution_1_1():
+    """1:1 should resolve to 1080x1080."""
+    from app.video_lab.renderers.render_params import resolve_resolution
+    assert resolve_resolution("1:1") == (1080, 1080)
+
+
+def test_resolve_resolution_invalid_fallback():
+    """Invalid aspect ratio should fallback to 1080x1920."""
+    from app.video_lab.renderers.render_params import resolve_resolution
+    assert resolve_resolution("invalid") == (1080, 1920)
+    assert resolve_resolution("4:3") == (1080, 1920)
+
+
+# ─────────────────────────────────────────────
+# V0.2.5.1: Warning messages show original illegal values
+# ─────────────────────────────────────────
+def test_warning_highlight_mode_shows_raw_value():
+    """Warning for invalid highlightMode should show original illegal value."""
+    result = parse_local_frame_params({"highlightMode": "bad_mode"})
+    assert result.is_valid is True
+    assert result.params.highlight_mode == "auto"
+    # Warning should contain the original illegal value, not the fallback
+    raw_value_warnings = [w for w in result.warnings if "bad_mode" in w]
+    assert len(raw_value_warnings) > 0, f"Expected warning with 'bad_mode', got: {result.warnings}"
+
+
+def test_warning_style_preset_shows_raw_value():
+    """Warning for invalid stylePreset should show original illegal value."""
+    result = parse_local_frame_params({"stylePreset": "fake_preset"})
+    assert result.is_valid is True
+    assert result.params.style_preset == "ai_frontier_dark"
+    # Warning should contain the original illegal value, not the fallback
+    raw_value_warnings = [w for w in result.warnings if "fake_preset" in w]
+    assert len(raw_value_warnings) > 0, f"Expected warning with 'fake_preset', got: {result.warnings}"
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

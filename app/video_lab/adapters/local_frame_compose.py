@@ -26,7 +26,7 @@ from app.video_lab.renderers.file_store import (
     write_manifest,
 )
 from app.video_lab.renderers.local_frame_renderer import generate_frames
-from app.video_lab.renderers.render_params import parse_local_frame_params
+from app.video_lab.renderers.render_params import parse_local_frame_params, resolve_resolution
 from app.video_lab.renderers.ffmpeg_composer import check_ffmpeg_available, compose_video_from_frames, compose_video_from_frame_sequence
 
 
@@ -87,7 +87,7 @@ def run_local_frame_compose(
     render_params = parse_result.params
     target_duration = render_params.target_duration
     aspect_ratio = render_params.aspect_ratio
-    resolution = (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
+    resolution = resolve_resolution(aspect_ratio)
 
     steps = []
     all_logs = []
@@ -156,18 +156,13 @@ def run_local_frame_compose(
     requested_kpc = render_params.key_point_count
     kps_list = key_points.get("keyPoints", [])
 
-    # Truncate or extend to match requested keyPointCount
+    # Truncate to match requested keyPointCount (do NOT pad/duplicate)
     if len(kps_list) > requested_kpc:
         kps_list = kps_list[:requested_kpc]
-    elif len(kps_list) < requested_kpc:
-        # Pad with last item if we need more
-        if kps_list:
-            last_kp = kps_list[-1]
-            while len(kps_list) < requested_kpc:
-                kps_list.append(last_kp.copy())
-                kps_list[-1]["index"] = len(kps_list)
 
+    # V0.2.5.1: Add key_points for backward compatibility with renderer
     key_points["keyPoints"] = kps_list
+    key_points["key_points"] = kps_list  # backward compat for renderer
     key_points["totalPoints"] = len(kps_list)
     key_points["requestedKeyPointCount"] = requested_kpc
     key_points["actualKeyPointCount"] = len(kps_list)
@@ -339,6 +334,8 @@ def run_local_frame_compose(
         enable_transitions=render_params.transition_enabled,
         transition_frames=render_params.transition_frames,
         highlight_mode=render_params.highlight_mode,
+        include_overview=render_params.include_overview,
+        include_summary=render_params.include_summary,
     )
 
     frame_artifacts = []
@@ -529,6 +526,9 @@ def run_local_frame_compose(
         "transitionOrderApplied": transition_order_applied,
         # V0.2.5 render params
         "renderParams": render_params.to_dict(),
+        # V0.2.5.1 structural fields
+        "includeOverview": render_params.include_overview,
+        "includeSummary": render_params.include_summary,
     }
     write_manifest(experiment_id, manifest)
 
@@ -560,6 +560,9 @@ def run_local_frame_compose(
         "transitionOrderApplied": transition_order_applied,
         # V0.2.5 new fields
         "highlightMode": frame_result.get("highlightMode", "auto"),
+        # V0.2.5.1 new fields
+        "includeOverview": frame_result.get("includeOverview", True),
+        "includeSummary": frame_result.get("includeSummary", True),
         "renderParams": render_params.to_dict(),
     }
 
@@ -622,6 +625,9 @@ def run_local_frame_compose(
             "transitionOrderApplied": transition_order_applied,
             # V0.2.5 render params
             "renderParams": render_params.to_dict(),
+            # V0.2.5.1 structural fields
+            "includeOverview": frame_result.get("includeOverview", render_params.include_overview),
+            "includeSummary": frame_result.get("includeSummary", render_params.include_summary),
         },
         logs=all_logs,
         provider="Pillow + FFmpeg",

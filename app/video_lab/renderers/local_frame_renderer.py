@@ -111,10 +111,24 @@ def generate_frames(
     enable_transitions: bool = True,
     transition_frames: int = TRANSITION_FRAMES_DEFAULT,
     highlight_mode: str = "auto",
+    include_overview: bool = True,
+    include_summary: bool = True,
 ) -> dict:
     """
     Generate all frames using AI Frontier Dark templates.
     Includes cover, overview, keypoints, and summary frames with optional fade transitions.
+
+    Args:
+        experiment_id: Experiment ID for directory naming
+        structured: Structured content from content_structurer
+        key_points: Key points from extractor
+        target_duration_sec: Target video duration in seconds
+        resolution: Video resolution (width, height)
+        enable_transitions: Whether to generate fade transitions
+        transition_frames: Number of intermediate frames per transition
+        highlight_mode: Highlight extraction mode ('auto', 'numbers', 'none')
+        include_overview: Whether to generate overview frame (V0.2.5.1)
+        include_summary: Whether to generate summary frame (V0.2.5.1)
 
     Args:
         experiment_id: Experiment ID for directory naming
@@ -184,29 +198,31 @@ def generate_frames(
     all_warnings.extend(cover_result.get("warnings", []))
 
     # ─────────────────────────────────────────
-    # Overview Frame (new in V0.2.4)
+    # Overview Frame (V0.2.4, conditional V0.2.5.1)
     # ─────────────────────────────────────────
-    overview_items = []
-    for kp in kps[:4]:
-        overview_items.append({
-            "title": truncate_text(kp.get("title", "未知"), 25),
-            "category": kp.get("category", "默认"),
-        })
+    overview_result = None
+    if include_overview:
+        overview_items = []
+        for kp in kps[:4]:
+            overview_items.append({
+                "title": truncate_text(kp.get("title", "未知"), 25),
+                "category": kp.get("category", "默认"),
+            })
 
-    overview_result = render_overview_template(
-        items=overview_items,
-        frames_dir=frames_dir,
-        resolution=resolution,
-    )
-    frame_outputs.append({
-        "type": "overview",
-        "path": overview_result["path"],
-        "template": "overview",
-        "templateVersion": TEMPLATE_VERSION,
-        "visualPreset": VISUAL_PRESET,
-    })
-    duration_per_frame["overview.png"] = overview_duration
-    all_warnings.extend(overview_result.get("warnings", []))
+        overview_result = render_overview_template(
+            items=overview_items,
+            frames_dir=frames_dir,
+            resolution=resolution,
+        )
+        frame_outputs.append({
+            "type": "overview",
+            "path": overview_result["path"],
+            "template": "overview",
+            "templateVersion": TEMPLATE_VERSION,
+            "visualPreset": VISUAL_PRESET,
+        })
+        duration_per_frame["overview.png"] = overview_duration
+        all_warnings.extend(overview_result.get("warnings", []))
 
     # ─────────────────────────────────────────
     # Keypoint Frames
@@ -247,29 +263,31 @@ def generate_frames(
         all_warnings.extend(frame_result.get("warnings", []))
 
     # ─────────────────────────────────────────
-    # Summary Frame
+    # Summary Frame (conditional V0.2.5.1)
     # ─────────────────────────────────────────
-    # Generate default conclusions from keypoints
-    conclusions = []
-    for i, kp in enumerate(kps[:5], 1):
-        title = truncate_text(kp.get("title", "未知发现"), 30)
-        conclusions.append(f"{title}")
+    summary_result = None
+    if include_summary:
+        # Generate default conclusions from keypoints
+        conclusions = []
+        for i, kp in enumerate(kps[:5], 1):
+            title = truncate_text(kp.get("title", "未知发现"), 30)
+            conclusions.append(f"{title}")
 
-    summary_result = render_summary_template(
-        conclusions=conclusions if conclusions else ["AI Agent 的能力边界正在被重新评估", "安全与可控性成为产品化关键"],
-        cta="适合作为「今日 AI 前沿」视频化分享模板",
-        frames_dir=frames_dir,
-        resolution=resolution,
-    )
-    frame_outputs.append({
-        "type": "summary",
-        "path": summary_result["path"],
-        "template": "summary",
-        "templateVersion": TEMPLATE_VERSION,
-        "visualPreset": VISUAL_PRESET,
-    })
-    duration_per_frame["summary.png"] = summary_duration
-    all_warnings.extend(summary_result.get("warnings", []))
+        summary_result = render_summary_template(
+            conclusions=conclusions if conclusions else ["AI Agent 的能力边界正在被重新评估", "安全与可控性成为产品化关键"],
+            cta="适合作为「今日 AI 前沿」视频化分享模板",
+            frames_dir=frames_dir,
+            resolution=resolution,
+        )
+        frame_outputs.append({
+            "type": "summary",
+            "path": summary_result["path"],
+            "template": "summary",
+            "templateVersion": TEMPLATE_VERSION,
+            "visualPreset": VISUAL_PRESET,
+        })
+        duration_per_frame["summary.png"] = summary_duration
+        all_warnings.extend(summary_result.get("warnings", []))
 
     # ─────────────────────────────────────────
     # Generate Transitions (V0.2.4 enhancement)
@@ -320,7 +338,19 @@ def generate_frames(
     # Deduplicate highlights
     unique_highlights = list(set(all_highlights))
 
-    total_duration = cover_duration + overview_duration + num_keypoints * keypoint_duration + summary_duration
+    # V0.2.5.1: Conditionally calculate duration based on included sections
+    overview_dur = overview_duration if include_overview else 0.0
+    summary_dur = summary_duration if include_summary else 0.0
+    total_duration = cover_duration + overview_dur + num_keypoints * keypoint_duration + summary_dur
+
+    # V0.2.5.1: Find overview and summary frame paths
+    overview_frame_path = None
+    summary_frame_path = None
+    for f in frame_outputs:
+        if f["type"] == "overview":
+            overview_frame_path = f["path"]
+        elif f["type"] == "summary":
+            summary_frame_path = f["path"]
 
     return {
         "frames": frame_outputs,
@@ -336,14 +366,17 @@ def generate_frames(
         "transitionType": transition_info["transitionType"],
         "transitionFrames": transition_info["transitionFrames"],
         "highlightTerms": unique_highlights,
-        "overview_frame": frame_outputs[1]["path"] if len(frame_outputs) > 1 else None,
-        "summary_frame": frame_outputs[-1]["path"] if frame_outputs else None,
+        "overview_frame": overview_frame_path,
+        "summary_frame": summary_frame_path,
         # V0.2.4.1 new fields
         "frameSequence": transition_info["transition_sequence"],
         "durationByPath": duration_by_path,
         "frameSequenceCount": len(transition_info["transition_sequence"]),
         # V0.2.5 new fields
         "highlightMode": highlight_mode,
+        # V0.2.5.1 new fields
+        "includeOverview": include_overview,
+        "includeSummary": include_summary,
     }
 
 

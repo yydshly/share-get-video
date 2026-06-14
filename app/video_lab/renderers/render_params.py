@@ -1,10 +1,11 @@
 """
 Render Parameters - Parameterized template configuration for local_frame_compose
 V0.2.5: Template parameterization support
+V0.2.5.1: Fix aspectRatio resolution mapping and warning messages
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Tuple
 
 
 # Valid style presets
@@ -68,6 +69,26 @@ class ParseResult:
     @property
     def is_valid(self) -> bool:
         return self.params is not None and self.error is None
+
+
+def resolve_resolution(aspect_ratio: str) -> Tuple[int, int]:
+    """
+    Resolve aspect ratio string to (width, height) resolution tuple.
+
+    Args:
+        aspect_ratio: Aspect ratio string like "9:16", "16:9", "1:1"
+
+    Returns:
+        Tuple of (width, height) in pixels
+    """
+    if aspect_ratio == "9:16":
+        return (1080, 1920)
+    if aspect_ratio == "16:9":
+        return (1920, 1080)
+    if aspect_ratio == "1:1":
+        return (1080, 1080)
+    # Fallback to default
+    return (1080, 1920)
 
 
 def parse_local_frame_params(params: dict) -> ParseResult:
@@ -146,16 +167,18 @@ def parse_local_frame_params(params: dict) -> ParseResult:
         warnings.append("transitionFrames above maximum 8, clamping to 8")
 
     # --- highlightMode ---
-    highlight_mode = params.get("highlightMode", "auto")
+    raw_highlight_mode = params.get("highlightMode", "auto")
+    highlight_mode = raw_highlight_mode
     if highlight_mode not in VALID_HIGHLIGHT_MODES:
+        warnings.append(f"Invalid highlightMode '{raw_highlight_mode}', using 'auto'")
         highlight_mode = "auto"
-        warnings.append(f"Invalid highlightMode '{highlight_mode}', using 'auto'")
 
     # --- stylePreset ---
-    style_preset = params.get("stylePreset", "ai_frontier_dark")
+    raw_style_preset = params.get("stylePreset", "ai_frontier_dark")
+    style_preset = raw_style_preset
     if style_preset not in VALID_STYLE_PRESETS:
+        warnings.append(f"Invalid stylePreset '{raw_style_preset}', using 'ai_frontier_dark'")
         style_preset = "ai_frontier_dark"
-        warnings.append(f"Invalid stylePreset '{style_preset}', using 'ai_frontier_dark'")
 
     # --- aspectRatio ---
     aspect_ratio = params.get("aspectRatio", "9:16")

@@ -1,8 +1,10 @@
-# V0.2.5 样例验收文档
+# V0.2.5 / V0.2.5.1 样例验收文档
 
 ## 概述
 
 V0.2.5 将 `local_frame_compose` 从固定模板能力升级为可配置、可复验、可验收的 AI 资讯分享视频模板。
+
+> V0.2.5.1 修复了参数真实接入问题：keyPointCount 截断不再伪造数量、includeOverview/includeSummary 正确接入、1:1 分辨率正确映射、warning 消息显示原始非法值。
 
 ---
 

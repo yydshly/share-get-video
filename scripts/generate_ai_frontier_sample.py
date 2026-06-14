@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-generate_ai_frontier_sample.py - V0.2.5
+generate_ai_frontier_sample.py - V0.2.5.1
 Generate a real sample using case_ai_frontier_daily_001 with recommended parameters.
 
 Usage:
@@ -17,9 +17,11 @@ Output:
     - Does NOT commit runtime artifacts to git
 """
 
-import requests
 import sys
 import os
+import json
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
 
 # ─────────────────────────────────────────
 # Configuration
@@ -74,11 +76,11 @@ def check_ffmpeg():
         )
         if result.returncode == 0:
             version_line = result.stdout.split("\n")[0]
-            print(f"  ✓ FFmpeg found: {version_line}")
+            print(f"  FFmpeg found: {version_line}")
             return True
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
-    print("  ✗ FFmpeg not found in PATH")
+    print("  FFmpeg not found in PATH")
     print("    Please install FFmpeg: https://ffmpeg.org/download.html")
     print("    On Windows: winget install ffmpeg or choco install ffmpeg")
     print("    On macOS: brew install ffmpeg")
@@ -89,15 +91,14 @@ def check_ffmpeg():
 def check_server():
     """Check if the API server is running."""
     try:
-        resp = requests.get(f"{API_BASE}/test-cases", timeout=5)
-        if resp.status_code == 200:
-            print(f"  ✓ API server reachable: {API_BASE}")
+        req = Request(f"{API_BASE}/test-cases")
+        resp = urlopen(req, timeout=5)
+        if resp.status == 200:
+            print(f"  API server reachable: {API_BASE}")
             return True
-    except requests.exceptions.ConnectionError:
+    except (URLError, HTTPError, TimeoutError):
         pass
-    except requests.exceptions.Timeout:
-        pass
-    print(f"  ✗ Cannot connect to API server: {API_BASE}")
+    print(f"  Cannot connect to API server: {API_BASE}")
     print("    Please start the server first:")
     print("    uvicorn app.main:app --reload --port 8000")
     return False
@@ -116,7 +117,7 @@ def build_sample_request():
 
 def main():
     print("=" * 60)
-    print("AI Frontier Sample Generator - V0.2.5")
+    print("AI Frontier Sample Generator - V0.2.5.1")
     print("=" * 60)
     print()
 
@@ -153,14 +154,18 @@ def main():
     print()
 
     try:
-        resp = requests.post(
+        # Use urllib instead of requests (no external dependency)
+        data_bytes = json.dumps(request).encode("utf-8")
+        req = Request(
             f"{API_BASE}/experiments",
-            json=request,
-            timeout=120,  # Allow up to 2 min for video generation
+            data=data_bytes,
+            headers={"Content-Type": "application/json"},
+            method="POST",
         )
+        resp = urlopen(req, timeout=120)
 
-        if resp.status_code == 200:
-            data = resp.json()
+        if resp.status == 200:
+            data = json.loads(resp.read().decode("utf-8"))
             experiment = data.get("experiment", {})
             result = data.get("result", {})
 
@@ -170,7 +175,7 @@ def main():
             print()
             print(f"Experiment ID:  {experiment.get('id', 'N/A')}")
             print(f"Status:        {experiment.get('status', 'N/A')}")
-            print(f"Elapsed:       {experiment.get('elapsedMs', 'N/A')}ms")
+            print(f"Elapsed:        {experiment.get('elapsedMs', 'N/A')}ms")
             print()
 
             assets = result.get("assets", {})
@@ -196,7 +201,6 @@ def main():
             # Show runtime path
             exp_id = experiment.get("id", "")
             if exp_id:
-                # Reconstruct runtime path
                 print("Runtime Directory:")
                 print(f"  (Check server logs for exact path)")
                 print(f"  Experiment: {exp_id}")
@@ -205,7 +209,7 @@ def main():
             print("Next Steps:")
             print("  1. View experiment detail page")
             print("  2. Review generated video")
-            print("  3. Complete human evaluation (评分)")
+            print("  3. Complete human evaluation")
             print("  4. Check template review suggestions")
             print()
 
@@ -220,22 +224,31 @@ def main():
             return 0
 
         else:
-            print(f"ERROR: HTTP {resp.status_code}")
+            print(f"ERROR: HTTP {resp.status}")
+            body = resp.read().decode("utf-8")
             try:
-                error_detail = resp.json().get("detail", resp.text)
+                error_detail = json.loads(body).get("detail", body)
                 print(f"  {error_detail}")
             except Exception:
-                print(f"  {resp.text[:200]}")
+                print(f"  {body[:200]}")
             return 1
 
-    except requests.exceptions.Timeout:
+    except HTTPError as e:
+        print(f"ERROR: HTTP {e.code}")
+        try:
+            body = e.read().decode("utf-8")
+            error_detail = json.loads(body).get("detail", body)
+            print(f"  {error_detail}")
+        except Exception:
+            print(f"  {e.reason}")
+        return 1
+    except URLError as e:
+        print(f"ERROR: {e.reason}")
+        return 1
+    except TimeoutError:
         print("ERROR: Request timed out.")
         print("  The server may be overloaded or FFmpeg took too long.")
         print("  Check server logs for progress.")
-        return 1
-    except requests.exceptions.ConnectionError:
-        print("ERROR: Connection to server lost.")
-        print("  Please check if the server is still running.")
         return 1
     except Exception as e:
         print(f"ERROR: {type(e).__name__}: {e}")

@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.2.5.1] - 2026-06-14
+
+### Fixed
+- **P0 keyPoints field mismatch**: Renderer now reads `key_points` from adapter (backward compat key added), and no longer pads/truncates to fake the count
+- **P1 includeOverview/includeSummary**: Now wired from render_params to `generate_frames()` - conditional frame generation works correctly
+- **P1 aspectRatio=1:1**: Added `resolve_resolution()` helper, 1:1 now correctly maps to 1080x1080 (was falling through to 1920x1080)
+- **P1 sample script dependency**: Replaced `requests` with standard library `urllib` - no external dependency needed
+- **Warning messages**: Invalid highlightMode/stylePreset warnings now show original illegal value instead of fallback value
+
+### Changed
+- **generate_frames()**: Signature updated to accept `include_overview` and `include_summary` parameters
+- **local_frame_compose.py**: Now passes `include_overview`/`include_summary` to renderer and records them in manifest/assets/step10 keyData
+- **render_params.py**: Added `resolve_resolution()` function and fixed warning message templates
+
+## [0.2.5] - 2026-06-14
+
+### Added
+- **render_params.py**: New module with `LocalFrameRenderParams` dataclass and `parse_local_frame_params()` for parameter validation
+- **Frontend parameter panel**: New "生成参数" section in VideoExperimentPage for `method_local_frame_compose`
+- **TemplateReviewPanel**: New component showing template acceptance suggestions based on evaluation scores
+- **templateReview.ts**: Domain logic for template review based on result and evaluation
+- **generate_ai_frontier_sample.py**: Sample generation script using recommended parameters
+- **SAMPLE_ACCEPTANCE_V0.2.5.md**: Sample acceptance documentation
+- **LOCAL_FRAME_VISUAL_PRESET_V0.2.4.md**: Visual preset documentation
+
+### Changed
+- **local_frame_compose.py**: Now parses and uses render_params, records renderParams in manifest/assets/rawOutput
+- **Step 3**: Now respects keyPointCount and records requestedKeyPointCount/actualKeyPointCount
+- **highlightMode support**: Added `extract_highlights_by_mode()` with auto/numbers/none modes
+- **VideoExperimentDetailPage**: Now displays render params and TemplateReviewPanel
+
 ## [0.2.4.1] - 2026-06-14
 
 ### Fixed
