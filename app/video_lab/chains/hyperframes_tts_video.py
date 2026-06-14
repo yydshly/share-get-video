@@ -68,7 +68,7 @@ def run_hyperframes_tts_video(
     html_url = ""
     manifest_url = ""
 
-    for step in getattr(adapter_result, "production_steps", []):
+    for step in getattr(adapter_result, "productionSteps", []):
         for art in getattr(step, "artifacts", []):
             art_dict = art.to_dict() if hasattr(art, "to_dict") else art
             payload = art_dict.get("payload", {})

@@ -94,7 +94,7 @@ def run_remotion_tts_video(
     silent_video_path_str = ""
 
     # Find the actual file path from manifest artifact
-    for step in getattr(remotion_result, "production_steps", []):
+    for step in getattr(remotion_result, "productionSteps", []):
         for art in getattr(step, "artifacts", []):
             art_dict = art.to_dict() if hasattr(art, "to_dict") else art
             if art_dict.get("type") == "manifest":

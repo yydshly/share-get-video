@@ -149,11 +149,11 @@ export default function RoutePlaygroundPage() {
     );
   };
 
-  const canRun = selectedChains.length > 0 && (!hasTtsChainSelected || ttsConfirmed);
-
   const hasTtsChainSelected = selectedChains.some(
     (id) => CHAIN_INFO[id]?.requiresTts
   );
+
+  const canRun = selectedChains.length > 0 && (!hasTtsChainSelected || ttsConfirmed);
 
   const runSelected = async () => {
     if (!canRun) {
@@ -662,7 +662,7 @@ export default function RoutePlaygroundPage() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
               <h3 style={{ fontSize: "1rem", fontWeight: 600 }}>Markdown 完整链路对比报告</h3>
-              <button on={() => {
+              <button onClick={() => {
                 navigator.clipboard.writeText(exportText).then(() => alert("已复制到剪贴板"));
               }}
                 style={{ background: "#3b82f6", color: "white", border: "none", borderRadius: "6px", padding: "0.4rem 1rem", fontSize: "0.85rem", cursor: "pointer" }}>

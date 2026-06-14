@@ -74,7 +74,7 @@ def run_local_frame_tts_video(
     manifest_url = ""
     final_video_url = ""
 
-    for step in getattr(adapter_result, "production_steps", []):
+    for step in getattr(adapter_result, "productionSteps", []):
         for art in getattr(step, "artifacts", []):
             art_dict = art.to_dict() if hasattr(art, "to_dict") else art
             payload = art_dict.get("payload", {})

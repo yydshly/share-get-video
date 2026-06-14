@@ -228,6 +228,220 @@ def test_chain_definition_to_dict():
     assert d["requiresTts"] is True
 
 
+# ─────────────────────────────────────────
+# 8. local_frame_tts_video: success path artifact extraction
+# ─────────────────────────────────────────
+def test_local_frame_tts_video_success_extracts_artifacts():
+    """Mock success: local_frame_tts_video should extract finalVideoUrl, audioUrl, srtUrl from adapter result."""
+    from app.video_lab.chains.local_frame_tts_video import run_local_frame_tts_video
+    from app.video_lab.models import (
+        VideoExperimentResult,
+        VideoProductionStep,
+        VideoProductionArtifact,
+        ProductionStepStatus,
+        ArtifactType,
+    )
+    from datetime import datetime
+
+    # Build a mock successful adapter result
+    manifest_artifact = VideoProductionArtifact(
+        artifact_id="test_art_manifest",
+        type=ArtifactType.MANIFEST,
+        title="Manifest",
+        summary="Test manifest",
+        payload={
+            "manifestUrl": "/runtime/test_exp/manifest.json",
+            "audioUrl": "/runtime/test_exp/audio/voiceover.mp3",
+            "srtUrl": "/runtime/test_exp/subtitles/subtitles.srt",
+            "outputVideoUrl": "/runtime/test_exp/final_with_audio.mp4",
+        },
+    )
+    step = VideoProductionStep(
+        step_id="test_step_01",
+        name="Test Step",
+        description="Test",
+        status=ProductionStepStatus.SUCCEEDED,
+        started_at=datetime.utcnow(),
+        finished_at=datetime.utcnow(),
+        input_summary="input",
+        output_summary="output",
+        artifacts=[manifest_artifact],
+    )
+    mock_result = VideoExperimentResult(
+        experimentId="test_exp",
+        videoUrl="/runtime/test_exp/silent_video.mp4",
+        productionSteps=[step],
+    )
+
+    with patch("app.video_lab.chains.local_frame_tts_video.run_tts_subtitle_compose", return_value=mock_result):
+        with patch("app.video_lab.chains.local_frame_tts_video.MiniMaxTTSClient") as mock_tts_cls:
+            mock_tts = MagicMock()
+            mock_tts.is_configured.return_value = True
+            mock_tts_cls.return_value = mock_tts
+
+            result = run_local_frame_tts_video(
+                experiment_id="test_exp_success",
+                test_case_id="case_ai_frontier_daily_001",
+                input_payload={"content": "测试内容"},
+                params={},
+            )
+
+    assert result.status == ChainStatus.SUCCEEDED, f"Expected SUCCEEDED, got {result.status}"
+    assert result.final_video_url.endswith("final_with_audio.mp4"), \
+        f"Expected final_with_audio.mp4, got {result.final_video_url}"
+    assert result.audio_url.endswith("voiceover.mp3"), \
+        f"Expected voiceover.mp3, got {result.audio_url}"
+    assert result.srt_url.endswith("subtitles.srt"), \
+        f"Expected subtitles.srt, got {result.srt_url}"
+    assert result.has_visual is True, "hasVisual should be True"
+    assert result.has_audio is True, "hasAudio should be True"
+    assert result.has_readable_text is True, "hasReadableText should be True"
+
+
+# ─────────────────────────────────────────
+# 9. hyperframes_tts_video: success extracts htmlUrl
+# ─────────────────────────────────────────
+def test_hyperframes_tts_video_success_extracts_html_url():
+    """Mock success: hyperframes_tts_video should extract htmlUrl from adapter result."""
+    from app.video_lab.chains.hyperframes_tts_video import run_hyperframes_tts_video
+    from app.video_lab.models import (
+        VideoExperimentResult,
+        VideoProductionStep,
+        VideoProductionArtifact,
+        ProductionStepStatus,
+        ArtifactType,
+    )
+    from datetime import datetime
+
+    manifest_artifact = VideoProductionArtifact(
+        artifact_id="test_art_html",
+        type=ArtifactType.MANIFEST,
+        title="Manifest",
+        summary="HyperFrames HTML manifest",
+        payload={
+            "htmlUrl": "/runtime/test_hf/hyperframes/index.html",
+            "manifestUrl": "/runtime/test_hf/manifest.json",
+        },
+    )
+    step = VideoProductionStep(
+        step_id="test_step_hf",
+        name="Build HTML",
+        description="Test",
+        status=ProductionStepStatus.SUCCEEDED,
+        started_at=datetime.utcnow(),
+        finished_at=datetime.utcnow(),
+        input_summary="input",
+        output_summary="output",
+        artifacts=[manifest_artifact],
+    )
+    mock_result = VideoExperimentResult(
+        experimentId="test_hf",
+        videoUrl="",
+        productionSteps=[step],
+    )
+
+    with patch("app.video_lab.chains.hyperframes_tts_video.run_hyperframes_html_render", return_value=mock_result):
+        result = run_hyperframes_tts_video(
+            experiment_id="test_hf_success",
+            test_case_id="case_ai_frontier_daily_001",
+            input_payload={"content": "测试内容"},
+            params={},
+        )
+
+    assert result.status == ChainStatus.MANUAL_REQUIRED, \
+        f"Expected MANUAL_REQUIRED, got {result.status}"
+    assert result.html_url.endswith("index.html"), \
+        f"Expected index.html, got {result.html_url}"
+    assert result.final_video_url == "", "finalVideoUrl should be empty for manual chain"
+    assert result.has_visual is False, "hasVisual should be False for HTML chain"
+    assert result.has_audio is False, "hasAudio should be False for HTML chain"
+
+
+# ─────────────────────────────────────────
+# 10. remotion_tts_video: mock full chain verifies finalVideoUrl is final, not silent
+# ─────────────────────────────────────────
+def test_remotion_tts_video_final_url_is_composed_not_silent():
+    """Mock success: remotion_tts_video should return final_with_audio.mp4, not silent video."""
+    from app.video_lab.chains.remotion_tts_video import run_remotion_tts_video
+    from app.video_lab.models import (
+        VideoExperimentResult,
+        VideoProductionStep,
+        VideoProductionArtifact,
+        ProductionStepStatus,
+        ArtifactType,
+    )
+    from datetime import datetime
+
+    # Remotion render result with SILENT video URL
+    silent_manifest_artifact = VideoProductionArtifact(
+        artifact_id="remotion_manifest",
+        type=ArtifactType.MANIFEST,
+        title="Remotion Manifest",
+        summary="Silent video",
+        payload={
+            "outputVideo": "runtime/video_lab/experiments/remotion_exp/remotion_out.mp4",
+            "manifestUrl": "/runtime/remotion_exp/manifest.json",
+        },
+    )
+    silent_step = VideoProductionStep(
+        step_id="remotion_step",
+        name="Remotion Render",
+        description="Rendered silent video",
+        status=ProductionStepStatus.SUCCEEDED,
+        started_at=datetime.utcnow(),
+        finished_at=datetime.utcnow(),
+        input_summary="input",
+        output_summary="silent video",
+        artifacts=[silent_manifest_artifact],
+    )
+    mock_remotion_result = VideoExperimentResult(
+        experimentId="remotion_exp",
+        videoUrl="/runtime/remotion_exp/remotion_out.mp4",  # This is SILENT
+        productionSteps=[silent_step],
+    )
+
+    # FFmpeg compose result
+    mock_av_result = MagicMock()
+    mock_av_result.get.return_value = {"success": True}
+
+    with patch("app.video_lab.chains.remotion_tts_video.run_remotion_template", return_value=mock_remotion_result):
+        with patch("app.video_lab.chains.remotion_tts_video.MiniMaxTTSClient") as mock_tts_cls:
+            mock_tts = MagicMock()
+            mock_tts.is_configured.return_value = True
+            mock_tts.generate.return_value = {
+                "success": True,
+                "audioPath": "runtime/video_lab/experiments/remotion_exp/audio.mp3",
+                "audioUrl": "/runtime/remotion_exp/audio.mp3",
+                "durationSec": 45,
+            }
+            mock_tts_cls.return_value = mock_tts
+
+            with patch("app.video_lab.chains.remotion_tts_video.compose_av_with_subtitles", return_value={"success": True}):
+                with patch("app.video_lab.chains.remotion_tts_video.compose_video_with_audio", return_value={"success": True}):
+                    with patch("app.video_lab.chains.remotion_tts_video.generate_voiceover", return_value={
+                        "voiceoverText": "测试旁白",
+                        "segments": [{"index": 1, "text": "测试旁白", "startSec": 0, "durationSec": 5}],
+                    }):
+                        with patch("app.video_lab.chains.remotion_tts_video.generate_srt_from_segments", return_value={
+                            "subtitles": [], "srtUrl": "/runtime/remotion_exp/srt.srt",
+                        }):
+                            with patch("app.video_lab.chains.remotion_tts_video.check_ffmpeg_available", return_value=True):
+                                with patch("app.video_lab.chains.remotion_tts_video.path_to_url", side_effect=lambda p: f"/runtime/{str(p).replace('runtime/', '')}"):
+                                    result = run_remotion_tts_video(
+                                        experiment_id="remotion_exp_final",
+                                        test_case_id="case_ai_frontier_daily_001",
+                                        input_payload={"content": "测试内容"},
+                                        params={},
+                                    )
+
+    assert result.status == ChainStatus.SUCCEEDED, f"Expected SUCCEEDED, got {result.status}"
+    # The final URL must NOT be the silent remotion video
+    assert "final_with_audio.mp4" in result.final_video_url, \
+        f"Expected final_with_audio.mp4 in URL, got {result.final_video_url}"
+    assert "remotion_out.mp4" not in result.final_video_url, \
+        "finalVideoUrl should NOT be the raw Remotion silent video"
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])
