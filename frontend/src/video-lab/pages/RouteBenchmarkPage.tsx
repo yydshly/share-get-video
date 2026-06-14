@@ -310,6 +310,15 @@ export default function RouteBenchmarkPage() {
 function RouteResultCard({ result }: { result: RouteResult }) {
   const statusColor = STATUS_COLORS[result.status] ?? "#94a3b8";
 
+  // Artifact type helpers - artifacts are unknown[] from backend
+  type ArtifactEntry = { type?: string; pipeline?: string[]; note?: string };
+
+  // Find route_info artifact for mock/reserved routes
+  const routeInfoArtifact = (result.artifacts as ArtifactEntry[] | undefined)?.find(
+    (a) => a?.type === "route_info"
+  );
+  const expectedPipeline = routeInfoArtifact?.pipeline ?? [];
+
   return (
     <div
       style={{
@@ -353,6 +362,52 @@ function RouteResultCard({ result }: { result: RouteResult }) {
               background: "#0f172a",
             }}
           />
+        </div>
+      )}
+
+      {/* Show manifest link for real routes */}
+      {result.manifestUrl && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <a
+            href={result.manifestUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: "0.75rem", color: "#3b82f6", textDecoration: "none" }}
+          >
+            打开 manifest
+          </a>
+        </div>
+      )}
+
+      {/* Show expected pipeline for mock/reserved routes */}
+      {expectedPipeline.length > 0 && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <details style={{ fontSize: "0.75rem" }}>
+            <summary
+              style={{
+                cursor: "pointer",
+                color: "#64748b",
+                fontWeight: 500,
+                marginBottom: "0.25rem",
+              }}
+            >
+              预期流水线 ({expectedPipeline.length} 步)
+            </summary>
+            <ol style={{ margin: "0.25rem 0 0 1rem", padding: 0, color: "#64748b" }}>
+              {expectedPipeline.map((step: string, i: number) => (
+                <li key={i} style={{ marginBottom: "0.1rem" }}>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          </details>
+        </div>
+      )}
+
+      {/* Show route_info note for mock/reserved */}
+      {routeInfoArtifact?.note && (
+        <div style={{ marginTop: "0.25rem", fontSize: "0.7rem", color: "#94a3b8", fontStyle: "italic" }}>
+          {routeInfoArtifact.note}
         </div>
       )}
 

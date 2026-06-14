@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.1] - 2026-06-14
+
+### Added
+- **Remotion workspace** (`remotion/`): New Node.js workspace for Remotion/React video rendering
+  - `package.json`: @remotion/cli, @remotion/renderer, react
+  - `src/AiNewsVideo.tsx`: Portrait 9:16 template with cover, keypoint cards, summary pages
+  - `src/Root.tsx`: Remotion entry point
+  - `src/data.ts`: Props types + defaults
+- **Remotion backend renderers** (`app/video_lab/renderers/remotion/`):
+  - `props_builder.py`: Builds Remotion props JSON from structured content
+  - `remotion_renderer.py`: Executes `npx remotion render` via subprocess
+- **remotion_template adapter** (`adapters/remotion_template.py`): Real implementation with 7-step pipeline
+- **Route benchmark**: `template_programmatic_render` is now `real` (was `mock`)
+- **Frontend RouteResultCard**: Now shows `expectedPipeline` artifact for mock/reserved routes, manifest link for real routes
+
+### Changed
+- **template_programmatic_render route**: Status changed from `mock` to `real`
+- **BenchmarkRunner**: `template_programmatic_render` now executes real adapter; metrics updated to `estimated_cost=low-medium`, `stability=medium`, `quality_ceiling=high`
+- **test_video_lab.py**: `test_experiment_with_ai_frontier_and_template_renders_12_steps` → `test_experiment_with_ai_frontier_and_template_renders_7_steps` (adapter now has 7 steps, not 12)
+
+### Fixed
+- **RouteResultCard**: TypeScript errors on `pipeline`/`note` properties resolved with proper `ArtifactEntry` type alias
+
 ## [0.3.0] - 2026-06-14
 
 ### Added

@@ -237,23 +237,38 @@ def test_experiment_runs_different_adapters():
     assert categories_results["method_template_programmatic_render"] == "template_programmatic_render"
 
 
-def test_experiment_with_ai_frontier_and_template_renders_12_steps():
-    """验证 AI 前沿 + template_programmatic_render 渲染出 12 步骤"""
-    runner = get_runner()
-    tc = get_test_case_by_id("case_ai_frontier_daily_001")
-    method = get_method_by_id("method_template_programmatic_render")
+def test_experiment_with_ai_frontier_and_template_renders_7_steps():
+    """验证 AI 前沿 + template_programmatic_render 渲染出 7 步骤 (V0.3.1)"""
+    from unittest.mock import patch, MagicMock
 
-    exp = runner.create_experiment(
-        test_case_id=tc.id,
-        method_id=method.id,
-        title="AI前沿-Remotion方案",
-        input_payload={"content": AI_INSIGHT_SUMMARY_DEFAULT},
-        params={"targetDuration": 45, "aspectRatio": "9:16"},
-    )
+    # Mock Remotion environment to avoid real Node/Chrome dependency in tests
+    with patch("app.video_lab.adapters.remotion_template.check_remotion_available") as mock_check, \
+         patch("app.video_lab.adapters.remotion_template.render_remotion_video") as mock_render:
+        mock_check.return_value = (True, "OK")
+        mock_render.return_value = {
+            "success": True,
+            "videoUrl": "/runtime/video_lab/experiments/test/output.mp4",
+            "manifestUrl": "/runtime/video_lab/experiments/test/manifest.json",
+            "message": "Success",
+            "logs": ["[Remotion] OK"],
+            "warnings": [],
+        }
 
-    result = runner.run_experiment(exp.id)
+        runner = get_runner()
+        tc = get_test_case_by_id("case_ai_frontier_daily_001")
+        method = get_method_by_id("method_template_programmatic_render")
 
-    assert len(result.productionSteps) == 12, f"Expected 12 steps, got {len(result.productionSteps)}"
+        exp = runner.create_experiment(
+            test_case_id=tc.id,
+            method_id=method.id,
+            title="AI前沿-Remotion方案",
+            input_payload={"content": AI_INSIGHT_SUMMARY_DEFAULT},
+            params={"targetDuration": 45, "aspectRatio": "9:16"},
+        )
+
+        result = runner.run_experiment(exp.id)
+
+    assert len(result.productionSteps) == 7, f"Expected 7 steps (V0.3.1), got {len(result.productionSteps)}"
 
     # 验证有 artifacts
     all_artifacts = []
@@ -289,20 +304,35 @@ def test_ai_video_direct_returns_4_steps():
 
 def test_different_methods_produce_different_steps():
     """验证不同 method 返回不同的步骤和日志"""
-    runner = get_runner()
-    tc = get_test_case_by_id("case_ai_frontier_daily_001")
+    from unittest.mock import patch, MagicMock
 
-    results = {}
-    for method_id in ["method_template_programmatic_render", "method_local_media_compose", "method_ai_video_direct"]:
-        method = get_method_by_id(method_id)
-        exp = runner.create_experiment(
-            test_case_id=tc.id,
-            method_id=method.id,
-            title=f"对比 {method_id}",
-            input_payload={"content": AI_INSIGHT_SUMMARY_DEFAULT},
-            params={"targetDuration": 45},
-        )
-        results[method_id] = runner.run_experiment(exp.id)
+    # Mock Remotion environment for template_programmatic_render
+    with patch("app.video_lab.adapters.remotion_template.check_remotion_available") as mock_check, \
+         patch("app.video_lab.adapters.remotion_template.render_remotion_video") as mock_render:
+        mock_check.return_value = (True, "OK")
+        mock_render.return_value = {
+            "success": True,
+            "videoUrl": "/runtime/video_lab/experiments/test/output.mp4",
+            "manifestUrl": "/runtime/video_lab/experiments/test/manifest.json",
+            "message": "Success",
+            "logs": ["[Remotion] OK"],
+            "warnings": [],
+        }
+
+        runner = get_runner()
+        tc = get_test_case_by_id("case_ai_frontier_daily_001")
+
+        results = {}
+        for method_id in ["method_template_programmatic_render", "method_local_media_compose", "method_ai_video_direct"]:
+            method = get_method_by_id(method_id)
+            exp = runner.create_experiment(
+                test_case_id=tc.id,
+                method_id=method.id,
+                title=f"对比 {method_id}",
+                input_payload={"content": AI_INSIGHT_SUMMARY_DEFAULT},
+                params={"targetDuration": 45},
+            )
+            results[method_id] = runner.run_experiment(exp.id)
 
     # 步骤数量不同
     step_counts = [len(r.productionSteps) for r in results.values()]

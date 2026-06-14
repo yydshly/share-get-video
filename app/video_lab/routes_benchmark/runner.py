@@ -147,9 +147,9 @@ class BenchmarkRunner:
                     artifacts=artifacts,
                     metrics=RouteMetrics(
                         generation_time_ms=getattr(result, "elapsedMs", 0) or 0,
-                        estimated_cost="low" if route_id == "local_frame_compose" else "unknown",
-                        stability="high" if route_id == "local_frame_compose" else "unknown",
-                        quality_ceiling="medium",
+                        estimated_cost="low-medium" if route_id == "local_frame_compose" else ("low-medium" if route_id == "template_programmatic_render" else "unknown"),
+                        stability="high" if route_id == "local_frame_compose" else ("medium" if route_id == "template_programmatic_render" else "unknown"),
+                        quality_ceiling="high" if route_id == "template_programmatic_render" else "medium",
                     ).__dict__,
                     warnings=[],
                     raw_output=getattr(result, "rawOutput", {}) or {},

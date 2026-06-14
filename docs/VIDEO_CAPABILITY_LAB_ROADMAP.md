@@ -162,19 +162,28 @@
 - 同一份 case_ai_frontier_daily_001 → Remotion 模板 → MP4 → 回填 Route Benchmark
 - 和 local_frame_compose 横向对比
 
-### V0.3.0 已完成
+### V0.3.0 已完成 ✅
 - **多路线横向验证框架**（Route Benchmark）
   - `routes_benchmark/` 模块（models, registry, runner）
   - GET /routes, POST /route-benchmarks, GET /route-benchmarks/{id} API
   - RouteBenchmarkPage 前端页面 + RouteScorePanel 评分组件
-  - local_frame_compose 是当前唯一 real 路线
+  - local_frame_compose 是当时唯一 real 路线
 
-### V0.3.1 待完成
-- [ ] 验证 Node.js 环境
-- [ ] 创建第一个 Remotion 模板组件
-- [ ] 实现 `run_remotion_template()` 调用 `npx remotion render`
-- [ ] Remotion 作为 real route 接入 Route Benchmark
-- [ ] 对比 FFmpeg 输出 vs Remotion 输出
+### V0.3.1 已完成 ✅
+- **Remotion 真实路线接入**
+  - `remotion/` workspace: `package.json`, `tsconfig.json`, `src/AiNewsVideo.tsx`, `src/Root.tsx`, `src/data.ts`
+  - `app/video_lab/renderers/remotion/`: `props_builder.py`, `remotion_renderer.py`
+  - `adapters/remotion_template.py`: 真实 7 步流程 (接收输入 → 结构化 → 提关键点 → 构建Props → 环境检查 → Remotion渲染 → 生成结论)
+  - `template_programmatic_render` registry status: `mock` → `real`
+  - `BenchmarkRunner`: proper metrics for Remotion route
+  - `RouteResultCard`: 展示 `expectedPipeline` artifacts for mock/reserved routes, manifest link for real routes
+  - 优雅降级: Remotion 环境缺失时返回 `failed` 不抛异常
+  - 详见 `docs/REMOTION_ROUTE_V0.3.1.md`
+
+### V0.3.2 待完成
+- [ ] MiniMax TTS + 字幕合成路线验证
+- [ ] 同一份内容 + TTS voiceover + subtitle burn-in
+- [ ] 对比 local_frame_compose / Remotion / TTS 组合体验
 
 ---
 
