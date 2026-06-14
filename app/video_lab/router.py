@@ -9,7 +9,7 @@ from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResu
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
-from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest
+from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -189,3 +189,69 @@ def get_advice(test_case_id: str) -> dict[str, Any]:
 @router.get("/advice")
 def list_all_advice() -> list[dict[str, Any]]:
     return [a.to_dict() for a in get_all_advice()]
+
+
+# ─────────────────────────────────────────────
+# Route Benchmark
+# ─────────────────────────────────────────────
+@router.get("/routes")
+def list_routes() -> list[dict[str, Any]]:
+    """List all available benchmark routes."""
+    from app.video_lab.routes_benchmark.registry import list_routes as _list_routes
+    return _list_routes()
+
+
+@router.post("/route-benchmarks")
+def create_benchmark(request: CreateBenchmarkRequest) -> dict[str, Any]:
+    """
+    Create and run a multi-route benchmark.
+
+    Returns benchmark results for all specified routes.
+    """
+    from app.video_lab.routes_benchmark.registry import get_route_by_id
+    from app.video_lab.routes_benchmark.runner import get_runner
+
+    # Validate all route IDs
+    invalid_routes = []
+    for rid in request.routeIds:
+        if get_route_by_id(rid) is None:
+            invalid_routes.append(rid)
+
+    if invalid_routes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown route IDs: {invalid_routes}",
+        )
+
+    runner = get_runner()
+
+    # Create and run benchmark
+    benchmark = runner.create_benchmark(
+        test_case_id=request.testCaseId,
+        title=request.title,
+        input_payload=request.inputPayload,
+        common_params=request.commonParams,
+        route_ids=request.routeIds,
+    )
+
+    # Execute
+    result = runner.run_benchmark(benchmark.benchmark_id)
+
+    return result.to_dict()
+
+
+@router.get("/route-benchmarks/{benchmark_id}")
+def get_benchmark(benchmark_id: str) -> dict[str, Any]:
+    """Get a benchmark result by ID."""
+    from app.video_lab.routes_benchmark.runner import get_runner
+
+    runner = get_runner()
+    benchmark = runner.get_benchmark(benchmark_id)
+
+    if not benchmark:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Benchmark not found: {benchmark_id}",
+        )
+
+    return benchmark.to_dict()

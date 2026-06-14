@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0] - 2026-06-14
+
+### Added
+- **routes_benchmark module**: New module for multi-route horizontal verification (`app/video_lab/routes_benchmark/`)
+  - `models.py`: `RouteBenchmark`, `RouteResult`, `RouteMetrics` dataclasses
+  - `registry.py`: Route registry with 6 registered routes
+  - `runner.py`: `BenchmarkRunner` to execute benchmarks across routes
+- **GET /video-lab/routes**: New API endpoint to list all registered routes
+- **POST /video-lab/route-benchmarks**: New API to create and run multi-route benchmarks
+- **GET /video-lab/route-benchmarks/{id}**: New API to retrieve benchmark results
+- **RouteBenchmarkPage.tsx**: New frontend page for route benchmarking (`/video-lab/route-benchmark`)
+- **RouteScorePanel.tsx**: New component for scoring routes across 8 dimensions
+- **Homepage navigation**: Added "多路线验证" card linking to `/video-lab/route-benchmark`
+- **types/index.ts**: Added `RouteDefinition`, `RouteResult`, `RouteBenchmark`, `RouteMetrics` types
+- **schemas.py**: Added `CreateBenchmarkRequest` for POST /route-benchmarks
+
+### Changed
+- **renderer keyPoints fallback**: `generate_frames()` now reads `keyPoints` first, falls back to `key_points`, then empty list
+- **local_frame_compose**: Remains the only `real` route in the benchmark framework
+
 ## [0.2.5.1] - 2026-06-14
 
 ### Fixed

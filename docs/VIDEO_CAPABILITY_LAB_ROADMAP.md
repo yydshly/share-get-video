@@ -154,17 +154,26 @@
 
 ---
 
-## V0.3 - Remotion 模板渲染真实 MP4
+## V0.3 - Remotion 最小真实路线验证
 
 **目标**
 - 接入 Node.js + Remotion CLI
 - 实现 `run_remotion_template()` 调用真实渲染
-- 验证 Remotion 渲染质量
+- 同一份 case_ai_frontier_daily_001 → Remotion 模板 → MP4 → 回填 Route Benchmark
+- 和 local_frame_compose 横向对比
 
-### 里程碑
+### V0.3.0 已完成
+- **多路线横向验证框架**（Route Benchmark）
+  - `routes_benchmark/` 模块（models, registry, runner）
+  - GET /routes, POST /route-benchmarks, GET /route-benchmarks/{id} API
+  - RouteBenchmarkPage 前端页面 + RouteScorePanel 评分组件
+  - local_frame_compose 是当前唯一 real 路线
+
+### V0.3.1 待完成
 - [ ] 验证 Node.js 环境
 - [ ] 创建第一个 Remotion 模板组件
 - [ ] 实现 `run_remotion_template()` 调用 `npx remotion render`
+- [ ] Remotion 作为 real route 接入 Route Benchmark
 - [ ] 对比 FFmpeg 输出 vs Remotion 输出
 
 ---

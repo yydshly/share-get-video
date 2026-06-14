@@ -25,6 +25,13 @@ const NAV_CARDS = [
     color: "#10b981",
   },
   {
+    to: "/video-lab/route-benchmark",
+    title: "多路线验证",
+    desc: "多技术路线横向对比",
+    icon: "🔀",
+    color: "#06b6d4",
+  },
+  {
     to: "/video-lab/compare",
     title: "结果对比",
     desc: "对比不同方案的实验结果",

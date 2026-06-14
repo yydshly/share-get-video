@@ -217,3 +217,47 @@ export interface ExperimentsByTestCaseResponse {
   testCase: VideoTestCase | null;
   experiments: ExperimentWithResult[];
 }
+
+// ─────────────────────────────────────────────
+// Route Benchmark types (V0.3.0)
+// ─────────────────────────────────────────────
+export interface RouteDefinition {
+  routeId: string;
+  name: string;
+  status: "real" | "mock" | "reserved";
+  description: string;
+  expectedPipeline: string[];
+}
+
+export interface RouteMetrics {
+  generationTimeMs: number;
+  estimatedCost: string;
+  stability: string;
+  qualityCeiling: string;
+}
+
+export interface RouteResult {
+  routeId: string;
+  status: "succeeded" | "failed" | "mock" | "reserved";
+  videoUrl: string;
+  coverUrl: string;
+  manifestUrl: string;
+  summary: string;
+  artifacts: unknown[];
+  metrics: RouteMetrics;
+  warnings: string[];
+}
+
+export interface RouteBenchmark {
+  benchmarkId: string;
+  title: string;
+  testCaseId: string;
+  inputPayload: Record<string, unknown>;
+  commonParams: Record<string, unknown>;
+  routeIds: string[];
+  status: "pending" | "running" | "completed" | "partial";
+  results: RouteResult[];
+  createdAt: string | null;
+  completedAt: string | null;
+  elapsedMs: number | null;
+}

@@ -152,7 +152,7 @@ def generate_frames(
     frame_outputs = []
     duration_per_frame = {}
 
-    kps = key_points.get("key_points", [])
+    kps = key_points.get("keyPoints") or key_points.get("key_points") or []
     num_keypoints = len(kps)
     if num_keypoints == 0:
         num_keypoints = 1
