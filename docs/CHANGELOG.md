@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.3.1] - 2026-06-14
+
+### Fixed
+- **requirements.txt**: Added `requests>=2.31.0` — MiniMax TTS client uses `requests` for HTTP API calls
+- **tts_subtitle_compose fallback**: Subtitle burn-in failure now gracefully falls back to audio-only composition
+  - `compose_av_with_subtitles` fails → `compose_video_with_audio` succeeds
+  - `subtitleBurned: false`, `subtitleFallback: true` recorded in result/manifest
+  - `warnings` contains "Subtitle burn-in failed... fallback to audio-only"
+- **compose_video_with_audio import**: Moved to module-level import for testability
+
+### Added
+- **test_requirements_has_requests**: Verifies requirements.txt contains `requests`
+- **test_tts_adapter_subtitle_fallback_still_succeeds**: Verifies fallback produces videoUrl + correct flags
+- **test_tts_manifest_has_subtitle_fields**: Verifies manifest has subtitleBurned/subtitleFallback
+
 ## [0.3.3] - 2026-06-14
 
 ### Added

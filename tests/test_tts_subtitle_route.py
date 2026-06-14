@@ -135,6 +135,120 @@ def test_tts_client_generate_success_monkeypatch():
         assert out_path.exists()
 
 
+# ─────────────────────────────────────────
+# 6. requirements.txt contains requests
+# ─────────────────────────────────────────
+def test_requirements_has_requests():
+    """requirements.txt should declare requests dependency."""
+    req_path = Path(__file__).resolve().parents[1] / "requirements.txt"
+    assert req_path.exists(), "requirements.txt should exist"
+    content = req_path.read_text()
+    assert "requests" in content, "requirements.txt should contain 'requests'"
+
+
+# ─────────────────────────────────────────
+# 7. Subtitle burn-in fallback produces succeeded result
+# ─────────────────────────────────────────
+def test_tts_adapter_subtitle_fallback_still_succeeds():
+    """When subtitle burn-in fails, fallback to audio-only should still succeed."""
+    from app.video_lab.adapters.tts_subtitle_compose import run_tts_subtitle_compose
+    from app.video_lab.providers.minimax import MiniMaxTTSClient
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fake_audio = Path(tmpdir) / "voiceover.mp3"
+        fake_audio.write_bytes(b"fake audio")
+
+        # Mock TTS success
+        with patch.object(MiniMaxTTSClient, "generate", return_value={
+            "success": True,
+            "audioPath": str(fake_audio),
+            "audioUrl": "",
+            "durationSec": 5.0,
+            "providerMessage": "Success",
+        }):
+            with patch.object(MiniMaxTTSClient, "is_configured", return_value=True):
+                # compose_av_with_subtitles is imported at module level
+                with patch("app.video_lab.adapters.tts_subtitle_compose.compose_av_with_subtitles", return_value={
+                    "success": False,
+                    "message": "Subtitle filter error on Windows",
+                    "ffmpeg_command": "",
+                    "version": "ffmpeg 6.0",
+                }):
+                    # compose_video_with_audio is imported inside the function - patch at source
+                    with patch("app.video_lab.adapters.tts_subtitle_compose.compose_video_with_audio", return_value={
+                        "success": True,
+                        "message": "Audio-only composition succeeded",
+                        "ffmpeg_command": "ffmpeg ...",
+                        "version": "ffmpeg 6.0",
+                    }):
+                        result = run_tts_subtitle_compose(
+                            experiment_id="test_fallback",
+                            test_case_id="case_ai_frontier_daily_001",
+                            input_payload={"content": "测试内容"},
+                            params={},
+                        )
+
+    # Should succeed despite subtitle burn-in failure
+    assert result.videoUrl != "", "Fallback should still produce videoUrl"
+    # Check subtitleFallback in result
+    raw = result.rawOutput
+    assert raw.get("subtitleFallback") is True, "Should record subtitleFallback=True"
+    assert raw.get("subtitleBurned") is False, "Should record subtitleBurned=False"
+
+
+# ─────────────────────────────────────────
+# 8. Manifest records subtitleBurned/subtitleFallback
+# ─────────────────────────────────────────
+def test_tts_manifest_has_subtitle_fields():
+    """Manifest should include subtitleBurned and subtitleFallback fields."""
+    from app.video_lab.adapters.tts_subtitle_compose import run_tts_subtitle_compose
+    from app.video_lab.providers.minimax import MiniMaxTTSClient
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fake_audio = Path(tmpdir) / "voiceover.mp3"
+        fake_audio.write_bytes(b"fake audio")
+
+        with patch.object(MiniMaxTTSClient, "generate", return_value={
+            "success": True,
+            "audioPath": str(fake_audio),
+            "audioUrl": "",
+            "durationSec": 5.0,
+            "providerMessage": "Success",
+        }):
+            with patch.object(MiniMaxTTSClient, "is_configured", return_value=True):
+                with patch("app.video_lab.adapters.tts_subtitle_compose.compose_av_with_subtitles", return_value={
+                    "success": False,
+                    "message": "Subtitle filter error",
+                    "ffmpeg_command": "",
+                    "version": "ffmpeg 6.0",
+                }):
+                    with patch("app.video_lab.adapters.tts_subtitle_compose.compose_video_with_audio", return_value={
+                        "success": True,
+                        "message": "Succeeded",
+                        "ffmpeg_command": "ffmpeg ...",
+                        "version": "ffmpeg 6.0",
+                    }):
+                        result = run_tts_subtitle_compose(
+                            experiment_id="test_manifest_fields",
+                            test_case_id="case_ai_frontier_daily_001",
+                            input_payload={"content": "测试内容"},
+                            params={},
+                        )
+
+    # Check manifest artifact has subtitleBurned/subtitleFallback
+    manifest_art = None
+    for step in result.productionSteps:
+        for art in step.artifacts:
+            if art.type == "manifest":
+                manifest_art = art
+                break
+
+    assert manifest_art is not None, "Should have manifest artifact"
+    payload = manifest_art.payload
+    assert "subtitleBurned" in payload, "Manifest should have subtitleBurned"
+    assert "subtitleFallback" in payload, "Manifest should have subtitleFallback"
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

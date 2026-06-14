@@ -37,7 +37,7 @@ from app.video_lab.renderers.file_store import (
     write_manifest,
 )
 from app.video_lab.renderers.local_frame_renderer import generate_frames
-from app.video_lab.renderers.ffmpeg_av_composer import compose_av_with_subtitles, check_ffmpeg_available
+from app.video_lab.renderers.ffmpeg_av_composer import compose_av_with_subtitles, compose_video_with_audio, check_ffmpeg_available
 from app.video_lab.renderers.render_params import parse_local_frame_params, resolve_resolution
 
 
@@ -407,6 +407,10 @@ def run_tts_subtitle_compose(
     all_logs.extend(step7.logs)
 
     # Step 8: FFmpeg compose final with audio + subtitles
+    # First try with subtitles, fallback to audio-only if subtitle burn-in fails
+    subtitle_burned = False
+    subtitle_fallback = False
+
     if not check_ffmpeg_available():
         step8 = make_step(
             step_id=f"{experiment_id}_step_08_av_compose",
@@ -423,6 +427,8 @@ def run_tts_subtitle_compose(
         return _build_failed_result(experiment_id, method_category, steps, "FFmpeg not available")
 
     final_output = exp_dir / "final_with_audio.mp4"
+
+    # Try with subtitles first
     av_result = compose_av_with_subtitles(
         video_path=silent_video_path,
         audio_path=audio_path,
@@ -431,6 +437,20 @@ def run_tts_subtitle_compose(
         resolution=resolution,
         timeout=300,
     )
+
+    if not av_result.get("success"):
+        # Fallback: try audio-only (subtitle burn-in failed on Windows FFmpeg)
+        all_warnings.append(f"Subtitle burn-in failed: {av_result.get('message', '')}, fallback to audio-only")
+        av_result = compose_video_with_audio(
+            video_path=silent_video_path,
+            audio_path=audio_path,
+            output_path=final_output,
+            resolution=resolution,
+            timeout=300,
+        )
+        subtitle_fallback = True
+        if av_result.get("success"):
+            all_logs.append("  Fallback: audio-only composition (subtitle burn-in skipped)")
 
     if not av_result.get("success"):
         step8 = make_step(
@@ -447,12 +467,20 @@ def run_tts_subtitle_compose(
         all_logs.extend(step8.logs)
         return _build_failed_result(experiment_id, method_category, steps, av_result.get("message", "FFmpeg AV failed"))
 
+    # Success
+    subtitle_burned = not subtitle_fallback
+
     artifact_final = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_final",
         type=ArtifactType.VIDEO_OUTPUT,
         title="Final Video with Audio",
         summary=f"Path: {final_output}",
-        payload={"path": str(final_output), "url": path_to_url(final_output)},
+        payload={
+            "path": str(final_output),
+            "url": path_to_url(final_output),
+            "subtitleBurned": subtitle_burned,
+            "subtitleFallback": subtitle_fallback,
+        },
     )
     step8 = make_step(
         step_id=f"{experiment_id}_step_08_av_compose",
@@ -460,9 +488,18 @@ def run_tts_subtitle_compose(
         description="Combine silent video + audio + subtitles",
         status=ProductionStepStatus.SUCCEEDED,
         input_summary="silent video + audio + srt",
-        output_summary=f"Success: {final_output.name}",
-        key_data={"success": True, "outputPath": str(final_output)},
-        logs=["[8/9] FFmpeg AV composition", f"  Success: {final_output.name}"],
+        output_summary=f"Success: {final_output.name} (subtitleBurned={subtitle_burned})",
+        key_data={
+            "success": True,
+            "outputPath": str(final_output),
+            "subtitleBurned": subtitle_burned,
+            "subtitleFallback": subtitle_fallback,
+        },
+        logs=[
+            f"[8/9] FFmpeg AV composition",
+            f"  Success: {final_output.name}",
+            f"  subtitleBurned={subtitle_burned}, subtitleFallback={subtitle_fallback}",
+        ],
         artifacts=[artifact_final],
     )
     steps.append(step8)
@@ -479,6 +516,8 @@ def run_tts_subtitle_compose(
         "fps": 30,
         "audioDurationSec": tts_result.get("durationSec", 0),
         "subtitleCount": len(srt_result.get("subtitles", [])),
+        "subtitleBurned": subtitle_burned,
+        "subtitleFallback": subtitle_fallback,
         "outputVideo": str(final_output),
         "outputVideoUrl": path_to_url(final_output),
         "audioPath": str(audio_path),
@@ -507,6 +546,8 @@ def run_tts_subtitle_compose(
         "recommendation": "recommended",
         "audioDurationSec": tts_result.get("durationSec", 0),
         "subtitleCount": len(srt_result.get("subtitles", [])),
+        "subtitleBurned": subtitle_burned,
+        "subtitleFallback": subtitle_fallback,
         "warnings": all_warnings,
     }
 
@@ -550,6 +591,8 @@ def run_tts_subtitle_compose(
             "resolution": f"{resolution[0]}x{resolution[1]}",
             "audioDurationSec": tts_result.get("durationSec", 0),
             "subtitleCount": len(srt_result.get("subtitles", [])),
+            "subtitleBurned": subtitle_burned,
+            "subtitleFallback": subtitle_fallback,
             "format": "mp4",
         },
         logs=all_logs,
@@ -561,6 +604,8 @@ def run_tts_subtitle_compose(
             "status": "succeeded",
             "audioDurationSec": tts_result.get("durationSec", 0),
             "subtitleCount": len(srt_result.get("subtitles", [])),
+            "subtitleBurned": subtitle_burned,
+            "subtitleFallback": subtitle_fallback,
             "ttsSuccess": True,
             "warnings": all_warnings,
             "riskAssessment": {

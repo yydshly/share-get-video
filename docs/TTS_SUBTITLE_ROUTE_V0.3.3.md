@@ -33,6 +33,23 @@ V0.3.3 新增第四条真实技术路线：**tts_subtitle_compose**。
 | `resolution` | `1080x1920` (9:16 竖屏) |
 | `API Required` | MiniMax TTS API Key |
 
+### 依赖
+
+**必须安装 `requests` 库**（V0.3.3.1 修复）：
+```bash
+pip install requests>=2.31.0
+```
+MiniMax TTS client 使用 `requests` 库调用 HTTP API。
+
+### 字幕烧录 graceful fallback
+
+如果 FFmpeg subtitles filter 在当前环境失败（例如 Windows 路径转义问题），路线会自动 fallback：
+
+1. 尝试 `compose_av_with_subtitles`（视频 + 音频 + SRT 烧录）
+2. 失败 → 尝试 `compose_video_with_audio`（视频 + 音频，仅音频合成）
+3. 最终视频仍成功生成，SRT artifact 保留
+4. manifest 记录 `subtitleBurned: false`, `subtitleFallback: true`
+
 ---
 
 ## 环境变量
