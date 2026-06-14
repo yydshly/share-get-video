@@ -4,6 +4,13 @@ import { Link } from "react-router-dom";
 
 const NAV_CARDS = [
   {
+    to: "/video-lab/visual-compose",
+    title: "视频生成对比",
+    desc: "投报告 → 多技术各出片 → 质量分对比",
+    icon: "🎥",
+    color: "#2563eb",
+  },
+  {
     to: "/video-lab/test-cases",
     title: "测试用例",
     desc: "查看内置标准测试场景",
@@ -23,6 +30,20 @@ const NAV_CARDS = [
     desc: "选择测试用例和生成方案运行实验",
     icon: "🧪",
     color: "#10b981",
+  },
+  {
+    to: "/video-lab/route-benchmark",
+    title: "多路线验证",
+    desc: "多技术路线横向对比",
+    icon: "🔀",
+    color: "#06b6d4",
+  },
+  {
+    to: "/video-lab/route-playground",
+    title: "链路测试台",
+    desc: "用同一份样例测试各视频生成路线",
+    icon: "🎬",
+    color: "#ec4899",
   },
   {
     to: "/video-lab/compare",
@@ -162,7 +183,7 @@ export default function VideoLabHome() {
       {/* Technology Routes Summary */}
       <div style={{ marginTop: "3rem" }}>
         <h2 style={{ fontSize: "1.2rem", fontWeight: 600, marginBottom: "1rem" }}>
-          当前验证的 6 类技术路线
+          当前验证的 8 类技术路线
         </h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
           {[

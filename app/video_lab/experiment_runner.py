@@ -11,8 +11,10 @@ from typing import Any
 from app.video_lab.models import (
     VideoExperiment,
     VideoExperimentResult,
+    VideoExperimentEvaluation,
     ExperimentStatus,
     MethodCategory,
+    ProductionStepStatus,
 )
 from app.video_lab.method_registry import get_adapter_for_category
 from app.video_lab.seed_data import get_method_by_id, get_test_case_by_id
@@ -27,6 +29,7 @@ class ExperimentRunner:
     def __init__(self):
         self._experiments: dict[str, VideoExperiment] = {}
         self._results: dict[str, VideoExperimentResult] = {}
+        self._evaluations: dict[str, VideoExperimentEvaluation] = {}
 
     def create_experiment(
         self,
@@ -75,18 +78,35 @@ class ExperimentRunner:
             experiment.finishedAt = datetime.utcnow()
             raise ValueError(experiment.errorMessage)
 
-        # 调用 adapter 执行
+        # 调用 adapter 执行（捕获异常，防止 experiment 卡在 running 状态）
         start = time.time()
-        result = adapter_fn(
-            experiment_id=experiment_id,
-            test_case_id=experiment.testCaseId,
-            input_payload=experiment.inputPayload,
-            params=experiment.params,
-        )
+        try:
+            result = adapter_fn(
+                experiment_id=experiment_id,
+                test_case_id=experiment.testCaseId,
+                input_payload=experiment.inputPayload,
+                params=experiment.params,
+            )
+        except Exception as e:
+            elapsed_ms = int((time.time() - start) * 1000)
+            experiment.status = ExperimentStatus.FAILED
+            experiment.errorMessage = f"Adapter exception: {str(e)[:200]}"
+            experiment.finishedAt = datetime.utcnow()
+            experiment.elapsedMs = elapsed_ms
+            # Re-raise so API layer can return proper error response
+            raise
+
         elapsed_ms = int((time.time() - start) * 1000)
 
-        # 更新实验状态
-        experiment.status = ExperimentStatus.SUCCEEDED
+        # 检查结果是否包含失败的 step 或声明的失败
+        has_failed_steps = _result_has_failed_steps(result)
+        declares_failure = _result_declares_failure(result)
+
+        if has_failed_steps or declares_failure:
+            experiment.status = ExperimentStatus.FAILED
+            experiment.errorMessage = result.rawOutput.get("status") or "Experiment completed with failed production steps"
+        else:
+            experiment.status = ExperimentStatus.SUCCEEDED
         experiment.finishedAt = datetime.utcnow()
         experiment.elapsedMs = elapsed_ms
 
@@ -119,6 +139,14 @@ class ExperimentRunner:
         """获取指定实验的结果"""
         return self._results.get(experiment_id)
 
+    def save_evaluation(self, evaluation: VideoExperimentEvaluation) -> None:
+        """保存实验评分"""
+        self._evaluations[evaluation.experimentId] = evaluation
+
+    def get_evaluation(self, experiment_id: str) -> VideoExperimentEvaluation | None:
+        """获取实验评分"""
+        return self._evaluations.get(experiment_id)
+
 
 # 全局单例
 _runner = ExperimentRunner()
@@ -126,3 +154,18 @@ _runner = ExperimentRunner()
 
 def get_runner() -> ExperimentRunner:
     return _runner
+
+
+def _result_has_failed_steps(result: VideoExperimentResult) -> bool:
+    return any(step.status == ProductionStepStatus.FAILED for step in result.productionSteps)
+
+
+def _result_declares_failure(result: VideoExperimentResult) -> bool:
+    raw_status = result.rawOutput.get("status")
+    productization = result.rawOutput.get("productizationRecommendation")
+    ffmpeg_success = result.rawOutput.get("ffmpegSuccess")
+    return (
+        raw_status in {"failed", "ffmpeg_failed"}
+        or productization == "failed"
+        or ffmpeg_success is False
+    )

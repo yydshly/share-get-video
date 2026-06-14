@@ -5,5 +5,18 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .env
+*.env.local
 *.egg-info/
 .venv/
+runtime/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.wav
+*.mp3
+# Remotion workspace
+remotion/node_modules/
+remotion/out/
+remotion/src/props.json

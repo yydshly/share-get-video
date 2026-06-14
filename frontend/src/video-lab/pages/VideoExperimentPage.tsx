@@ -1,189 +1,21 @@
 // Video Experiment Page - 创建并运行实验
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { SEED_TEST_CASES, SEED_VIDEO_METHODS, METHOD_CATEGORY_LABELS } from "../seedData";
 import type {
   VideoExperiment,
   VideoExperimentResult,
   CreateExperimentResponse,
-  VideoProductionStep,
 } from "../types";
+import ProductionStepsTimeline from "../components/ProductionStepsTimeline";
 
-const STEP_STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, string> = {
   succeeded: "#10b981",
   failed: "#ef4444",
   running: "#3b82f6",
   pending: "#94a3b8",
-  skipped: "#f59e0b",
 };
-
-function StepsTimeline({ steps }: { steps: VideoProductionStep[] }) {
-  const [expandedStep, setExpandedStep] = useState<string | null>(null);
-
-  return (
-    <div style={{ marginTop: "1.5rem" }}>
-      <div style={{ fontSize: "0.95rem", fontWeight: 600, marginBottom: "1rem", color: "#1e293b" }}>
-        Production Steps Timeline
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {steps.map((step, idx) => {
-          const isExpanded = expandedStep === step.id;
-          return (
-            <div
-              key={step.id}
-              style={{
-                background: isExpanded ? "#f8fafc" : "white",
-                border: `1px solid ${STEP_STATUS_COLORS[step.status] ?? "#e2e8f0"}30`,
-                borderRadius: "8px",
-                overflow: "hidden",
-              }}
-            >
-              {/* Step header */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "0.6rem 0.75rem",
-                  cursor: "pointer",
-                  gap: "0.75rem",
-                }}
-                onClick={() => setExpandedStep(isExpanded ? null : step.id)}
-              >
-                <span
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
-                    background: STEP_STATUS_COLORS[step.status] ?? "#94a3b8",
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.7rem",
-                    flexShrink: 0,
-                  }}
-                >
-                  {idx + 1}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 500, color: "#1e293b" }}>
-                    {step.name}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                    {step.outputSummary ?? step.status}
-                  </div>
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.75rem",
-                    background: `${STEP_STATUS_COLORS[step.status] ?? "#94a3b8"}15`,
-                    color: STEP_STATUS_COLORS[step.status] ?? "#94a3b8",
-                    padding: "0.1rem 0.4rem",
-                    borderRadius: "4px",
-                  }}
-                >
-                  {step.status}
-                </span>
-                <span style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
-                  {isExpanded ? "▲" : "▼"}
-                </span>
-              </div>
-
-              {/* Expanded details */}
-              {isExpanded && (
-                <div
-                  style={{
-                    padding: "0.75rem",
-                    borderTop: "1px solid #e2e8f0",
-                    background: "#f8fafc",
-                  }}
-                >
-                  {step.inputSummary && (
-                    <div style={{ marginBottom: "0.5rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>输入：</span>
-                      <span style={{ fontSize: "0.8rem", color: "#475569" }}>{step.inputSummary}</span>
-                    </div>
-                  )}
-                  {step.outputSummary && (
-                    <div style={{ marginBottom: "0.5rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>输出：</span>
-                      <span style={{ fontSize: "0.8rem", color: "#475569" }}>{step.outputSummary}</span>
-                    </div>
-                  )}
-                  {step.keyData && Object.keys(step.keyData).length > 0 && (
-                    <div style={{ marginBottom: "0.5rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>关键数据：</span>
-                      <div
-                        style={{
-                          background: "#1e293b",
-                          color: "#e2e8f0",
-                          borderRadius: "4px",
-                          padding: "0.4rem",
-                          fontSize: "0.75rem",
-                          fontFamily: "monospace",
-                          marginTop: "0.25rem",
-                          overflow: "auto",
-                          maxHeight: "120px",
-                        }}
-                      >
-                        {JSON.stringify(step.keyData, null, 2)}
-                      </div>
-                    </div>
-                  )}
-                  {step.artifacts && step.artifacts.length > 0 && (
-                    <div style={{ marginBottom: "0.5rem" }}>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>产物（{step.artifacts.length}）：</span>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.3rem" }}>
-                        {step.artifacts.map((art) => (
-                          <span
-                            key={art.id}
-                            style={{
-                              background: "#eff6ff",
-                              color: "#3b82f6",
-                              border: "1px solid #bfdbfe",
-                              borderRadius: "4px",
-                              padding: "0.15rem 0.5rem",
-                              fontSize: "0.75rem",
-                            }}
-                          >
-                            {art.type}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {step.logs && step.logs.length > 0 && (
-                    <div>
-                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>日志：</span>
-                      <div
-                        style={{
-                          background: "#1e293b",
-                          color: "#e2e8f0",
-                          borderRadius: "4px",
-                          padding: "0.4rem",
-                          fontSize: "0.75rem",
-                          fontFamily: "monospace",
-                          marginTop: "0.25rem",
-                          maxHeight: "100px",
-                          overflow: "auto",
-                        }}
-                      >
-                        {step.logs.map((log, i) => (
-                          <div key={i}>{log}</div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 export default function VideoExperimentPage() {
   const [selectedTestCase, setSelectedTestCase] = useState("");
@@ -197,7 +29,26 @@ export default function VideoExperimentPage() {
     error?: string;
   } | null>(null);
 
-  const API_BASE = "http://localhost:8000/video-lab";
+  // V0.2.5: Generation parameters for local_frame_compose
+  const [genParams, setGenParams] = useState({
+    targetDuration: 45,
+    keyPointCount: 6,
+    highlightMode: "auto",
+    transitionEnabled: true,
+    transitionFrames: 4,
+    stylePreset: "ai_frontier_dark",
+  });
+
+  const navigate = useNavigate();
+  const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
+
+  const handleTestCaseChange = (testCaseId: string) => {
+    setSelectedTestCase(testCaseId);
+    const tc = SEED_TEST_CASES.find((t) => t.id === testCaseId);
+    if (tc?.defaultInput) {
+      setInputPayload(tc.defaultInput);
+    }
+  };
 
   const handleRun = async () => {
     if (!selectedTestCase || !selectedMethod || !title.trim()) {
@@ -218,10 +69,26 @@ export default function VideoExperimentPage() {
           methodId: selectedMethod,
           title: title.trim(),
           inputPayload: payload,
-          params: {},
+          params: selectedMethod === "method_local_frame_compose"
+            ? {
+                targetDuration: genParams.targetDuration,
+                aspectRatio: "9:16",
+                keyPointCount: genParams.keyPointCount,
+                highlightMode: genParams.highlightMode,
+                transitionEnabled: genParams.transitionEnabled,
+                transitionFrames: genParams.transitionFrames,
+                stylePreset: genParams.stylePreset,
+              }
+            : {},
         }),
       });
-      const data: CreateExperimentResponse = await resp.json();
+
+      let data: CreateExperimentResponse;
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(`${resp.status} ${resp.statusText}: ${errBody.detail ?? ""}`);
+      }
+      data = await resp.json();
       setLastResult(data);
 
       const stored = JSON.parse(localStorage.getItem("vl_experiments") ?? "[]");
@@ -279,7 +146,7 @@ export default function VideoExperimentPage() {
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="例如: AI资讯视频-Remotion方案测试"
+            placeholder="例如: AI资讯视频-LocalFrame方案测试"
             style={{
               width: "100%",
               padding: "0.5rem 0.75rem",
@@ -297,7 +164,7 @@ export default function VideoExperimentPage() {
           </label>
           <select
             value={selectedTestCase}
-            onChange={(e) => setSelectedTestCase(e.target.value)}
+            onChange={(e) => handleTestCaseChange(e.target.value)}
             style={{
               width: "100%",
               padding: "0.5rem 0.75rem",
@@ -346,7 +213,7 @@ export default function VideoExperimentPage() {
           <textarea
             value={inputPayload}
             onChange={(e) => setInputPayload(e.target.value)}
-            rows={4}
+            rows={6}
             style={{
               width: "100%",
               padding: "0.5rem 0.75rem",
@@ -358,6 +225,141 @@ export default function VideoExperimentPage() {
             }}
           />
         </div>
+
+        {/* V0.2.5: Generation parameters panel - only for local_frame_compose */}
+        {selectedMethod === "method_local_frame_compose" && (
+          <div style={{
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: "8px",
+            padding: "1rem",
+            marginBottom: "1.25rem",
+          }}>
+            <div style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem", color: "#1e293b" }}>
+              生成参数
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              {/* targetDuration */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "0.2rem" }}>
+                  目标时长 (秒)
+                </label>
+                <input
+                  type="number"
+                  min={15}
+                  max={90}
+                  value={genParams.targetDuration}
+                  onChange={(e) => setGenParams(p => ({ ...p, targetDuration: parseInt(e.target.value) || 45 }))}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              {/* keyPointCount */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "0.2rem" }}>
+                  关键点数
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={genParams.keyPointCount}
+                  onChange={(e) => setGenParams(p => ({ ...p, keyPointCount: parseInt(e.target.value) || 6 }))}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              {/* highlightMode */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "0.2rem" }}>
+                  高亮模式
+                </label>
+                <select
+                  value={genParams.highlightMode}
+                  onChange={(e) => setGenParams(p => ({ ...p, highlightMode: e.target.value }))}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="auto">自动</option>
+                  <option value="numbers">仅数字</option>
+                  <option value="none">无</option>
+                </select>
+              </div>
+              {/* transitionFrames */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "0.2rem" }}>
+                  转场帧数
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={8}
+                  value={genParams.transitionFrames}
+                  onChange={(e) => setGenParams(p => ({ ...p, transitionFrames: parseInt(e.target.value) || 0 }))}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              {/* transitionEnabled */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  id="transitionEnabled"
+                  checked={genParams.transitionEnabled}
+                  onChange={(e) => setGenParams(p => ({ ...p, transitionEnabled: e.target.checked }))}
+                  style={{ width: "16px", height: "16px" }}
+                />
+                <label htmlFor="transitionEnabled" style={{ fontSize: "0.85rem", color: "#475569", cursor: "pointer" }}>
+                  启用转场
+                </label>
+              </div>
+              {/* stylePreset */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "#64748b", marginBottom: "0.2rem" }}>
+                  视觉风格
+                </label>
+                <select
+                  value={genParams.stylePreset}
+                  onChange={(e) => setGenParams(p => ({ ...p, stylePreset: e.target.value }))}
+                  style={{
+                    width: "100%",
+                    padding: "0.35rem 0.5rem",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                    fontSize: "0.85rem",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="ai_frontier_dark">AI Frontier Dark</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
 
         <button
           onClick={handleRun}
@@ -395,12 +397,7 @@ export default function VideoExperimentPage() {
             <strong>状态：</strong>{" "}
             <span
               style={{
-                color:
-                  lastResult.experiment.status === "succeeded"
-                    ? "#10b981"
-                    : lastResult.experiment.status === "failed"
-                    ? "#ef4444"
-                    : "#64748b",
+                color: STATUS_COLORS[lastResult.experiment.status] ?? "#64748b",
               }}
             >
               {lastResult.experiment.status}
@@ -426,19 +423,107 @@ export default function VideoExperimentPage() {
                 <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "0.5rem" }}>
                   <strong>Adapter:</strong> {lastResult.result.adapter}
                 </div>
-                <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
-                  <strong>Video URL:</strong> {lastResult.result.videoUrl || "(空)"}
-                </div>
               </div>
 
+              {/* Video Preview */}
+              {lastResult.result.videoUrl && (
+                <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 500, color: "#1e293b", marginBottom: "0.5rem" }}>
+                    视频预览
+                  </div>
+                  <div
+                    style={{
+                      background: "#1e293b",
+                      borderRadius: "8px",
+                      maxHeight: "400px",
+                      overflow: "hidden",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <video
+                      controls
+                      src={lastResult.result.videoUrl}
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "400px",
+                        objectFit: "contain",
+                      }}
+                    />
+                  </div>
+                  <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <a
+                      href={lastResult.result.videoUrl}
+                      download
+                      style={{
+                        background: "#3b82f6",
+                        color: "white",
+                        textDecoration: "none",
+                        borderRadius: "6px",
+                        padding: "0.3rem 0.8rem",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      下载视频
+                    </a>
+                    {lastResult.result.coverUrl && (
+                      <a
+                        href={lastResult.result.coverUrl}
+                        download
+                        style={{
+                          background: "#8b5cf6",
+                          color: "white",
+                          textDecoration: "none",
+                          borderRadius: "6px",
+                          padding: "0.3rem 0.8rem",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        下载封面
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Cover Preview (no video) */}
+              {lastResult.result.coverUrl && !lastResult.result.videoUrl && (
+                <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 500, color: "#1e293b", marginBottom: "0.5rem" }}>
+                    封面预览
+                  </div>
+                  <img
+                    src={lastResult.result.coverUrl}
+                    alt="cover"
+                    style={{ maxWidth: "200px", maxHeight: "350px", borderRadius: "8px", objectFit: "contain" }}
+                  />
+                </div>
+              )}
+
               {/* Production Steps Timeline */}
-              {lastResult.result.productionSteps && lastResult.result.productionSteps.length > 0 && (
-                <StepsTimeline steps={lastResult.result.productionSteps} />
+              {lastResult.result.productionSteps.length > 0 && (
+                <ProductionStepsTimeline steps={lastResult.result.productionSteps} />
               )}
             </>
           )}
 
-          <div style={{ marginTop: "1rem" }}>
+          {/* Navigation buttons */}
+          <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <button
+              onClick={() => navigate(`/video-lab/experiments/${lastResult.experiment.id}`)}
+              style={{
+                background: "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                padding: "0.4rem 0.9rem",
+                fontSize: "0.85rem",
+                cursor: "pointer",
+              }}
+            >
+              查看详情
+            </button>
             <Link
               to="/video-lab/compare"
               style={{
@@ -446,7 +531,7 @@ export default function VideoExperimentPage() {
                 color: "white",
                 textDecoration: "none",
                 borderRadius: "8px",
-                padding: "0.4rem 0.8rem",
+                padding: "0.4rem 0.9rem",
                 fontSize: "0.85rem",
               }}
             >

@@ -1,0 +1,26 @@
+{
+  "name": "share-get-video-remotion",
+  "version": "0.3.5-dev",
+  "description": "Remotion workspace for AI news video rendering - V0.3.5 minimum verification",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "private": true,
+  "scripts": {
+    "render": "remotion render src/Root.tsx AiNewsVideo out/video.mp4 --props=src/props.json --codec=h264",
+    "render:props": "remotion render src/Root.tsx AiNewsVideo --props={{propsPath}} --out-dir={{outDir}} --codec=h264",
+    "preview": "remotion preview src/Root.tsx AiNewsVideo",
+    "bootstrap": "npm install"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.200",
+    "@remotion/renderer": "^4.0.200",
+    "remotion": "^4.0.200",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "typescript": "^5.3.0"
+  }
+}

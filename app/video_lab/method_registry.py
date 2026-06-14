@@ -12,6 +12,8 @@ from app.video_lab.adapters import (
     ai_video_direct,
     ai_asset_then_compose,
     hybrid_pipeline,
+    tts_subtitle_compose,
+    hyperframes_html_render,
 )
 
 
@@ -20,6 +22,8 @@ _METHOD_ADAPTERS: dict[str, Callable] = {
     MethodCategory.LOCAL_FRAME_COMPOSE.value: local_frame_compose.run_local_frame_compose,
     MethodCategory.LOCAL_MEDIA_COMPOSE.value: local_media_compose.run_local_media_compose,
     MethodCategory.TEMPLATE_PROGRAMMATIC_RENDER.value: remotion_template.run_remotion_template,
+    MethodCategory.TTS_SUBTITLE_COMPOSE.value: tts_subtitle_compose.run_tts_subtitle_compose,
+    MethodCategory.HYPERFRAMES_HTML_RENDER.value: hyperframes_html_render.run_hyperframes_html_render,
     MethodCategory.AI_VIDEO_DIRECT.value: ai_video_direct.run_ai_video_direct,
     MethodCategory.AI_ASSET_THEN_COMPOSE.value: ai_asset_then_compose.run_ai_asset_then_compose,
     MethodCategory.HYBRID_PIPELINE.value: hybrid_pipeline.run_hybrid_pipeline,

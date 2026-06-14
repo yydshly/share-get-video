@@ -4,11 +4,13 @@ export type MethodCategory =
   | "local_frame_compose"
   | "local_media_compose"
   | "template_programmatic_render"
+  | "tts_subtitle_compose"
+  | "hyperframes_html_render"
   | "ai_video_direct"
   | "ai_asset_then_compose"
   | "hybrid_pipeline";
 
-export type ImplementationStatus = "available" | "mock" | "reserved" | "not_configured";
+export type ImplementationStatus = "available" | "mock" | "manual" | "reserved" | "not_configured";
 
 export type ExperimentStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled";
 
@@ -47,8 +49,15 @@ export type ArtifactType =
   | "voiceover_plan"
   | "asset_plan"
   | "render_plan"
+  | "video_output"
+  | "cover_image"
+  | "frame_image"
+  | "manifest"
   | "mock_video"
-  | "evaluation";
+  | "evaluation"
+  | "audio_output"
+  | "subtitle_file"
+  | "html_output";
 
 // ─────────────────────────────────────────────
 // VideoProductionArtifact
@@ -91,6 +100,7 @@ export interface VideoTestCase {
   aspectRatio: string;
   evaluationFocus: string[];
   recommendedPriority: number;
+  defaultInput?: string;  // JSON string for input payload
 }
 
 // ─────────────────────────────────────────────
@@ -146,7 +156,24 @@ export interface VideoExperimentResult {
 }
 
 // ─────────────────────────────────────────────
-// VideoEvaluation
+// VideoExperimentEvaluation  (V0.2.3)
+// ─────────────────────────────────────────────
+export interface VideoExperimentEvaluation {
+  experimentId: string;
+  informationAccuracy: number;
+  readability: number;
+  visualQuality: number;
+  pacing: number;
+  shareability: number;
+  stability: number;
+  productizationValue: number;
+  averageScore: number | null;
+  notes: string;
+  [key: string]: unknown;
+}
+
+// ─────────────────────────────────────────────
+// VideoEvaluation (legacy)
 // ─────────────────────────────────────────────
 export interface VideoEvaluation {
   experimentId: string;
@@ -194,4 +221,48 @@ export interface ExperimentWithResult {
 export interface ExperimentsByTestCaseResponse {
   testCase: VideoTestCase | null;
   experiments: ExperimentWithResult[];
+}
+
+// ─────────────────────────────────────────────
+// Route Benchmark types (V0.3.0)
+// ─────────────────────────────────────────────
+export interface RouteDefinition {
+  routeId: string;
+  name: string;
+  status: "real" | "mock" | "manual" | "reserved";
+  description: string;
+  expectedPipeline: string[];
+}
+
+export interface RouteMetrics {
+  generationTimeMs: number;
+  estimatedCost: string;
+  stability: string;
+  qualityCeiling: string;
+}
+
+export interface RouteResult {
+  routeId: string;
+  status: "succeeded" | "failed" | "mock" | "manual" | "reserved";
+  videoUrl: string;
+  coverUrl: string;
+  manifestUrl: string;
+  summary: string;
+  artifacts: unknown[];
+  metrics: RouteMetrics;
+  warnings: string[];
+}
+
+export interface RouteBenchmark {
+  benchmarkId: string;
+  title: string;
+  testCaseId: string;
+  inputPayload: Record<string, unknown>;
+  commonParams: Record<string, unknown>;
+  routeIds: string[];
+  status: "pending" | "running" | "completed" | "completed_with_manual" | "partial" | "failed";
+  results: RouteResult[];
+  createdAt: string | null;
+  completedAt: string | null;
+  elapsedMs: number | null;
 }

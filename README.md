@@ -18,16 +18,20 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 
 ## 技术路线
 
-当前验证 6 类视频生成技术路线：
+当前验证 8 类视频生成技术路线：
 
 | 路线 | 说明 | 状态 |
 |------|------|------|
-| `local_frame_compose` | 本地图像帧合成 + FFmpeg | Mock |
+| `local_frame_compose` | 本地图像帧合成 + FFmpeg | **Real** |
+| `template_programmatic_render` | Remotion 程序化模板渲染 | **Real** |
+| `hyperframes_html_render` | HTML + CSS → HeyGen HyperFrames | **Manual** |
+| `tts_subtitle_compose` | MiniMax TTS 旁白 + SRT 字幕 | **Real** |
 | `local_media_compose` | 本地素材合成（MoviePy/FFmpeg） | Mock |
-| `template_programmatic_render` | Remotion 程序化模板渲染 | Mock |
 | `ai_video_direct` | 大模型直接生成视频 | Reserved |
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | Mock |
 | `hybrid_pipeline` | 混合编排流水线 | Mock |
+
+> **V0.3.5-dev 稳定化分支**：当前分支 `stabilize/v0.3-video-capability-lab`，统一版本为 `0.3.5-dev`，修复了前后端类型冲突、benchmark 状态语义、generation_time_ms、异常收口、artifact 类型等问题。
 
 ## 测试用例
 
@@ -49,14 +53,40 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 | `/video-lab/test-cases` | 测试用例列表 |
 | `/video-lab/methods` | 生成方案列表 |
 | `/video-lab/experiments/new` | 创建实验 |
+| `/video-lab/experiments/:id` | 实验详情（视频预览、评分、结论） |
 | `/video-lab/compare` | 结果对比 |
+| `/video-lab/route-benchmark` | 多路线横向验证 |
 | `/video-lab/advice` | 总结建议 |
 
 ## 本地启动
 
+### 依赖要求
+
+- **Python 3.10+**
+- **Node.js 20+**（仅 `template_programmatic_render` 路线需要）
+- **FFmpeg**（需在 PATH 中，或 `ffmpeg` 命令可用）
+- **Pillow**（`requirements.txt` 中已包含）
+- **MiniMax API Key**（可选，仅 `tts_subtitle_compose` 路线需要）
+
+**启动前检查**：
+
+```bash
+# 确认 Python 版本
+python --version
+
+# 确认 Node.js 版本（可选）
+node --version
+
+# 确认 FFmpeg 可用
+ffmpeg -version
+```
+
+> **注意**：`pip install -r requirements.txt` 只安装 Python 依赖，不会安装 FFmpeg / Node.js / Remotion。
+
 ### 后端
 
 ```bash
+python -m pip install "python-dotenv>=1.0.0"
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
@@ -71,20 +101,33 @@ npm run dev
 
 访问 `http://localhost:3000/video-lab`
 
+#### 前端环境变量
+
+前端 API 地址可通过环境变量配置（详见 `frontend/.env.example`）：
+
+```bash
+VITE_API_BASE=http://localhost:8000/video-lab
+```
+
+不配置时默认使用 `http://localhost:8000/video-lab`。
+
 ## 测试命令
 
 ```bash
-# 后端测试
+# 后端测试（全部）
+python -m pytest tests/ -v
+
+# 后端测试（核心）
 python -m pytest tests/test_video_lab.py -v
+
+# 本地渲染测试
+python -m pytest tests/test_video_lab_local_frame.py -v
 
 # Python 编译检查
 python -m compileall app/ -q
 
 # 前端 TypeScript 检查
 cd frontend && npx tsc --noEmit
-
-# 前端构建
-cd frontend && npm run build
 ```
 
 ## 分支开发规范
@@ -103,7 +146,7 @@ feature/*     ← 功能开发分支
 
 ## 当前限制
 
-- 所有 adapter 均为 Mock 状态，不产出真实 MP4
+- `local_frame_compose` 可产出真实 MP4（需 FFmpeg），其他 adapter 为 Mock/Reserved 状态
 - `ai_video_direct` 为 Reserved 状态，等待视频模型接入
 - 实验结果暂存于内存/本地存储，非持久化数据库
 - 后续接入真实能力时，只需实现对应 Adapter，不影响整体架构
@@ -111,12 +154,38 @@ feature/*     ← 功能开发分支
 ## 下一阶段路线
 
 ```
-V0.2：本地帧合成 + FFmpeg 输出真实 9:16 AI 资讯分享视频
+V0.2.3：实验详情页 + 人工评分 + 对比增强 ✅
+V0.2.4：本地生成视频视觉质量优化（卡片模板、简单转场）
 V0.3：Remotion 模板渲染真实 MP4
 V0.4：接入一个视频模型 Adapter
 V0.5：LLM 拆脚本 + TTS + 图片生成 + 合成
 V0.6：批量对比实验 + 产品化报告
 ```
+
+## API 契约
+
+### POST /video-lab/experiments
+
+**Content-Type: application/json**
+
+```json
+{
+  "testCaseId": "case_ai_frontier_daily_001",
+  "methodId": "method_local_frame_compose",
+  "title": "AI frontier daily test",
+  "inputPayload": {"content": "今日 AI 前沿测试内容"},
+  "params": {"targetDuration": 45, "aspectRatio": "9:16"}
+}
+```
+
+| HTTP 状态码 | 含义 |
+|-------------|------|
+| 200 | 请求成功（实验可能已执行，但 `experiment.status` 可能为 `failed`） |
+| 400 | 未知 `testCaseId` 或 `methodId` |
+| 422 | 请求体结构不合法（缺少必填字段等） |
+| 500 | 服务端未知异常 |
+
+**实验业务失败**（如 FFmpeg 不可用）返回 HTTP 200，`experiment.status = "failed"`。这是正常业务结果，不是 HTTP 错误。
 
 ## 文档
 
