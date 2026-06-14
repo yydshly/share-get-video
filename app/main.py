@@ -2,7 +2,19 @@
 FastAPI Application
 """
 
+import os
+import sys
 from pathlib import Path
+
+# Load .env if not already loaded. Skip during pytest runs so tests
+# can control the environment.
+_in_pytest = "pytest" in sys.modules
+if not _in_pytest and not os.environ.get("MINIMAX_API_KEY"):
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass  # dotenv not installed; assume env is set elsewhere
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
