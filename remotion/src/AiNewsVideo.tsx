@@ -1,6 +1,7 @@
-// AiNewsVideo.tsx - V0.3.8 timeline-style Remotion template
+// AiNewsVideo.tsx - V0.3.8.1 timeline-style Remotion template
 // Portrait 9:16, 1080x1920
 // Pages: Compact cover with keypoint list, keypoint cards, summary
+// V0.3.6-a2: Added keyword/number highlighting in keypoint cards
 
 import React from "react";
 import {
@@ -12,6 +13,58 @@ import {
   Sequence,
 } from "remotion";
 import type { AiNewsVideoProps, KeyPoint } from "./data";
+
+// ─── Highlight Helper (V0.3.6-a2) ────────────────────────────────────────────
+/** Extract numbers, percentages, and key terms for highlighting */
+function extractHighlights(text: string): string[] {
+  const highlights: string[] = [];
+  // Match percentages: 88.9%, 72%, 39% etc.
+  const pctRegex = /\d+\.?\d*%/g;
+  // Match numbers with units: 10倍, 5x, 100万, 5620亿 etc.
+  const numUnitRegex = /\d+\.?\d*(?:倍|x|万|亿|千|[kmgKMG])/g;
+  // Match standalone numbers: 39, 88.9, etc. (but not years like 2024)
+  const numRegex = /(?<!\d)\d{1,3}\.\d+|(?<!\d)\d{2,3}(?!\d)/g;
+
+  const matches = text.matchAll(new RegExp(`(?:${pctRegex.source})|(?:${numUnitRegex.source})|(?:${numRegex.source})`, 'g'));
+  for (const m of matches) {
+    if (m[0] && !highlights.includes(m[0])) {
+      highlights.push(m[0]);
+    }
+  }
+  return highlights;
+}
+
+/** Split text into segments with highlight markers */
+function getHighlightedSegments(text: string): { text: string; highlight: boolean }[] {
+  const highlights = extractHighlights(text);
+  if (highlights.length === 0) return [{ text, highlight: false }];
+
+  const pattern = new RegExp(`(${highlights.map(h => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
+  const parts = text.split(pattern);
+  return parts
+    .filter(p => p)
+    .map(p => ({ text: p, highlight: highlights.includes(p) }));
+}
+
+/** Text segment with inline highlights (V0.3.6-a2) */
+const HighlightedText: React.FC<{
+  text: string;
+  style: React.CSSProperties;
+  highlightColor?: string;
+}> = ({ text, style, highlightColor = C.highlight }) => {
+  const segments = getHighlightedSegments(text);
+  return (
+    <span style={style}>
+      {segments.map((seg, i) =>
+        seg.highlight ? (
+          <span key={i} style={{ color: highlightColor, fontWeight: 700 }}>{seg.text}</span>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        )
+      )}
+    </span>
+  );
+};
 
 // ─── Colors (ai_frontier_dark preset) ───────────────────────────────────────
 const C = {
@@ -303,6 +356,7 @@ const KeyPointCard: React.FC<{
         </div>
 
         {/* Title - V0.3.6-a: increased to 44px for mobile readability */}
+        {/* V0.3.6-a2: Added keyword/number highlighting */}
         <h2
           style={{
             fontSize: 44,
@@ -315,7 +369,7 @@ const KeyPointCard: React.FC<{
             textShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
           }}
         >
-          {kp.title}
+          <HighlightedText text={kp.title} style={{}} />
         </h2>
 
         {/* Decorative separator */}
@@ -331,6 +385,7 @@ const KeyPointCard: React.FC<{
         />
 
         {/* Body - V0.3.6-a: increased to 32px for mobile readability */}
+        {/* V0.3.6-a2: Added keyword/number highlighting */}
         <p
           style={{
             fontSize: 32,
@@ -341,7 +396,7 @@ const KeyPointCard: React.FC<{
             opacity: bodyOpacity,
           }}
         >
-          {kp.body}
+          <HighlightedText text={kp.body} style={{}} highlightColor={C.highlight} />
         </p>
 
         {/* Source footer */}
