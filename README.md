@@ -69,6 +69,7 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 ### 后端
 
 ```bash
+python -m pip install "python-dotenv>=1.0.0"
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```

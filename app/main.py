@@ -4,12 +4,15 @@ FastAPI Application
 
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.video_lab.router import router as video_lab_router
+# Load .env before importing anything that reads env vars
+load_dotenv()
 
+from app.video_lab.router import router as video_lab_router
 
 # Ensure runtime directory exists
 RUNTIME_BASE = Path("runtime/video_lab/experiments")
