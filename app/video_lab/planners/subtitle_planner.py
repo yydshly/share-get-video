@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from app.video_lab.renderers.file_store import path_to_url
+
 
 def generate_subtitle_plan(
     script: dict[str, Any],
@@ -118,7 +120,7 @@ def generate_srt_from_segments(
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(srt_content, encoding="utf-8")
         srt_path = str(output_path)
-        srt_url = _path_to_url(output_path)
+        srt_url = path_to_url(output_path)
 
     return {
         "subtitles": subtitles,
@@ -168,11 +170,3 @@ def _format_srt_time(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
 
 
-def _path_to_url(path: Path) -> str:
-    """Convert a file path to a URL path for static serving."""
-    # The runtime directory is served at /runtime
-    try:
-        rel = path.relative_to(Path(__file__).resolve().parents[3] / "runtime")
-        return f"/runtime/{rel.as_posix()}"
-    except ValueError:
-        return f"/runtime/{path.name}"

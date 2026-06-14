@@ -65,6 +65,17 @@ def check_remotion_available() -> tuple[bool, str]:
     return True, "Remotion environment available"
 
 
+def _find_mp4_in_dir(directory: Path) -> Path | None:
+    """Search directory recursively for any .mp4 file (fallback when output path is unknown)."""
+    if not directory.exists():
+        return None
+    for mp4 in directory.rglob("*.mp4"):
+        # Skip final_with_audio.mp4 and any obviously non-remotion files
+        if mp4.name not in ("final_with_audio.mp4", "voiceover.mp3"):
+            return mp4
+    return None
+
+
 def render_remotion_video(
     experiment_id: str,
     props: dict[str, Any],
@@ -85,8 +96,6 @@ def render_remotion_video(
     warnings: list[str] = []
     logs: list[str] = []
     exp_dir = get_experiment_dir(experiment_id)
-    # Use absolute path for output to avoid cwd confusion
-    output_mp4 = exp_dir.resolve() / "output.mp4"
 
     # Check environment
     available, avail_msg = check_remotion_available()
@@ -108,7 +117,11 @@ def render_remotion_video(
     logs.append(f"[Remotion] cwd: {REMOTION_DIR.resolve()}")
     logs.append(f"[Remotion] root: {REMOTION_ROOT_TSX}")
     logs.append(f"[Remotion] props: {REMOTION_PROPS_PATH} -> {remotion_props_path}")
-    logs.append(f"[Remotion] output: {output_mp4}")
+
+    # Use absolute path with forward slashes for FFmpeg/Remotion compatibility on Windows
+    output_mp4 = exp_dir.resolve() / "output.mp4"
+    output_mp4_posix = Path(output_mp4.as_posix())  # ensures forward slashes
+    logs.append(f"[Remotion] output: {output_mp4_posix}")
 
     # Build npx remotion render command
     # npx remotion render <entry> <compName> <output> --props=<propsPath> --codec=h264
@@ -119,7 +132,7 @@ def render_remotion_video(
         "render",
         "./" + str(REMOTION_ROOT_TSX),  # ./src/Root.tsx
         REMOTION_ENTRY,
-        str(output_mp4),
+        str(output_mp4_posix),
         "--props",
         "./" + str(REMOTION_PROPS_PATH),  # ./src/props.json
         "--codec",
@@ -142,9 +155,25 @@ def render_remotion_video(
         if stderr:
             logs.append(f"[Remotion] stderr: {stderr[:500]}")
 
-        if result.returncode == 0 and output_mp4.exists():
-            video_url = path_to_url(output_mp4)
-            logs.append(f"[Remotion] Success: {output_mp4} -> {video_url}")
+        # Check for success: returncode 0 AND file exists
+        found_mp4: Path | None = None
+        if result.returncode == 0:
+            if output_mp4.exists():
+                found_mp4 = output_mp4
+                logs.append(f"[Remotion] Output found at expected path: {output_mp4}")
+            else:
+                # Fallback: search for any MP4 in experiment directory
+                fallback = _find_mp4_in_dir(exp_dir)
+                if fallback:
+                    found_mp4 = fallback
+                    logs.append(f"[Remotion] Output found via fallback search: {found_mp4}")
+                    warnings.append(f"Remotion output not at expected path, used: {found_mp4.name}")
+                else:
+                    logs.append(f"[Remotion] returncode=0 but no MP4 found at {output_mp4} or subdirectories")
+
+        if found_mp4:
+            video_url = path_to_url(found_mp4)
+            logs.append(f"[Remotion] Success: {found_mp4} -> {video_url}")
 
             # Write manifest with final manifestUrl
             manifest_path = get_experiment_dir(experiment_id) / "manifest.json"
@@ -157,7 +186,7 @@ def render_remotion_video(
                 "fps": 30,
                 "durationSec": props.get("durationSec", 45),
                 "stylePreset": props.get("stylePreset", "ai_frontier_dark"),
-                "outputVideo": str(output_mp4),
+                "outputVideo": str(found_mp4),
                 "outputVideoUrl": video_url,
                 "manifestUrl": manifest_url,
                 "props": props,
@@ -178,7 +207,14 @@ def render_remotion_video(
                 "manifestPath": str(manifest_path),
             }
         else:
-            msg = f"Remotion render failed with code {result.returncode}"
+            # Decode Windows FFmpeg exit codes that look like large unsigned ints
+            rc = result.returncode
+            decoded_msg = ""
+            if rc > 255 and os.name == "nt":
+                # Windows FFmpeg may exit with signed int cast to unsigned 32-bit
+                signed_rc = rc - (1 << 32)
+                decoded_msg = f" (signed: {signed_rc})"
+            msg = f"Remotion render failed with code {rc}{decoded_msg}"
             if stderr:
                 msg += f": {stderr[:200]}"
             logs.append(f"[Remotion] {msg}")
