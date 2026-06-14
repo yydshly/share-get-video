@@ -151,7 +151,7 @@ class BenchmarkRunner:
                         stability="high" if route_id == "local_frame_compose" else ("medium" if route_id == "template_programmatic_render" else "unknown"),
                         quality_ceiling="high" if route_id == "template_programmatic_render" else "medium",
                     ).__dict__,
-                    warnings=[],
+                    warnings=_build_warnings(result, video_url),
                     raw_output=getattr(result, "rawOutput", {}) or {},
                 )
 
@@ -219,6 +219,28 @@ class BenchmarkRunner:
             ).__dict__,
             warnings=[f"{route_def.name} is reserved - requires future implementation"],
         )
+
+
+def _build_warnings(result: Any, video_url: str) -> list[str]:
+    """
+    Build warnings list from a failed route result.
+
+    Preserves FFmpeg/render failure reasons in warnings so the UI can display them.
+    """
+    if video_url:
+        return []
+    warnings: list[str] = []
+    raw = getattr(result, "rawOutput", {}) or {}
+    # FFmpeg message
+    if raw.get("ffmpegMessage"):
+        warnings.append(raw["ffmpegMessage"][:200])
+    # Render message
+    elif raw.get("renderMessage"):
+        warnings.append(raw["renderMessage"][:200])
+    # Status
+    elif raw.get("status"):
+        warnings.append(f"render status: {raw['status']}")
+    return warnings
 
 
 # Singleton instance

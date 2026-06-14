@@ -67,41 +67,45 @@ def compose_video_from_frames(
             "version": "not_found",
         }
 
-    # Build frames.txt for concat demuxer
+    # Build frames.txt for concat demuxer with absolute paths
     frames_txt = frames_dir / "frames.txt"
     with open(frames_txt, "w", encoding="utf-8") as ft:
         for frame_name, duration in duration_per_frame.items():
-            frame_path = (frames_dir / frame_name).as_posix()
+            frame_path = (frames_dir / frame_name).resolve().as_posix()
             ft.write(f"file '{frame_path}'\n")
             ft.write(f"duration {duration}\n")
         # Repeat last frame to avoid duration issues at end
         last_frame = list(duration_per_frame.keys())[-1]
-        ft.write(f"file '{(frames_dir / last_frame).as_posix()}'\n")
+        ft.write(f"file '{(frames_dir / last_frame).resolve().as_posix()}'\n")
 
     width, height = resolution
 
-    # Build FFmpeg command
+    # Use ABSOLUTE paths throughout — do NOT rely on cwd
+    frames_txt_abs = frames_txt.resolve().as_posix()
+    output_abs = output_path.resolve().as_posix()
+
+    # Build FFmpeg command with absolute paths
     cmd = [
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0",
-        "-i", frames_txt.as_posix(),
+        "-i", frames_txt_abs,
         "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
         "-r", str(fps),
         "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "23",
         "-pix_fmt", "yuv420p",
-        output_path.as_posix(),
+        output_abs,
     ]
 
     cmd_str = " ".join(shlex.quote(c) for c in cmd)
 
     try:
+        # No cwd dependency — all paths are absolute
         result = subprocess.run(
             cmd,
             capture_output=True,
             timeout=timeout,
-            cwd=frames_dir.parent.as_posix(),
         )
 
         if result.returncode == 0:
@@ -163,15 +167,15 @@ def build_concat_file_content(
             or 0.1
         )
 
-        # Convert to posix path for FFmpeg
-        posix_path = Path(path_str).as_posix()
-        lines.append(f"file '{posix_path}'")
+        # Convert to absolute POSIX path for FFmpeg
+        abs_path = Path(path_str).resolve().as_posix()
+        lines.append(f"file '{abs_path}'")
         lines.append(f"duration {duration}")
 
     # Repeat last frame to avoid duration issues at end
     if frame_sequence:
-        last_path = Path(frame_sequence[-1]["path"]).as_posix()
-        lines.append(f"file '{last_path}'")
+        last_abs = Path(frame_sequence[-1]["path"]).resolve().as_posix()
+        lines.append(f"file '{last_abs}'")
 
     return "\n".join(lines) + "\n"
 
@@ -216,34 +220,39 @@ def compose_video_from_frame_sequence(
     else:
         frames_dir = output_path.parent
 
+    # Write frames.txt with absolute path to frames_dir
     frames_txt = frames_dir / "frames.txt"
     with open(frames_txt, "w", encoding="utf-8") as ft:
         ft.write(frames_txt_content)
 
     width, height = resolution
 
-    # Build FFmpeg command
+    # Use ABSOLUTE paths throughout — do NOT rely on cwd
+    frames_txt_abs = frames_txt.resolve().as_posix()
+    output_abs = output_path.resolve().as_posix()
+
+    # Build FFmpeg command with absolute paths
     cmd = [
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0",
-        "-i", frames_txt.as_posix(),
+        "-i", frames_txt_abs,
         "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
         "-r", str(fps),
         "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "23",
         "-pix_fmt", "yuv420p",
-        output_path.as_posix(),
+        output_abs,
     ]
 
     cmd_str = " ".join(shlex.quote(c) for c in cmd)
 
     try:
+        # No cwd dependency — all paths are absolute
         result = subprocess.run(
             cmd,
             capture_output=True,
             timeout=timeout,
-            cwd=frames_dir.parent.as_posix(),
         )
 
         if result.returncode == 0:

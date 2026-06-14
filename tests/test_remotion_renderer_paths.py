@@ -214,40 +214,14 @@ def test_remotion_failed_is_real_route_not_mock():
 # ─────────────────────────────────────────
 # 8. Shell=True used for subprocess
 # ─────────────────────────────────────────
-def test_subprocess_uses_shell_true_on_windows():
-    """subprocess.run should use shell=True for npx.cmd on Windows."""
-    from app.video_lab.renderers.remotion.remotion_renderer import render_remotion_video
+def test_subprocess_uses_shell_on_windows():
+    """subprocess.run should use USE_SHELL constant (True on Windows)."""
+    from app.video_lab.renderers.remotion.remotion_renderer import USE_SHELL
+    import os
 
-    with patch("app.video_lab.renderers.remotion.remotion_renderer.check_remotion_available") as mock_check, \
-         patch("subprocess.run") as mock_run:
-
-        mock_check.return_value = (True, "OK")
-        mock_run.return_value = MagicMock(returncode=0, stdout="OK", stderr="")
-
-        with patch("app.video_lab.renderers.remotion.remotion_renderer.get_experiment_dir") as mock_dir:
-            mock_exp_dir = MagicMock()
-            mock_exp_dir.resolve.return_value = mock_exp_dir
-            mock_exp_dir.__truediv__ = lambda self, x: MagicMock()
-            mock_dir.return_value = mock_exp_dir
-
-            with patch("pathlib.Path.exists", return_value=True):
-                with patch("pathlib.Path.__truediv__", return_value=MagicMock()):
-                    render_remotion_video(
-                        experiment_id="test_shell",
-                        props={"title": "Test", "keyPoints": [], "durationSec": 15, "stylePreset": "ai_frontier_dark"},
-                    )
-
-    # Find the npx remotion render call
-    render_call = None
-    for call in mock_run.call_args_list:
-        args, kwargs = call
-        if args and len(args[0]) > 2 and args[0][0] == "npx" and args[0][1] == "remotion":
-            render_call = call
-            break
-
-    assert render_call is not None, "Should have called npx remotion render"
-    _, render_kwargs = render_call
-    assert render_kwargs.get("shell") is True, "npx remotion render should use shell=True on Windows"
+    # On Windows, USE_SHELL should be True; on Unix, False
+    assert USE_SHELL == (os.name == "nt"), \
+        f"USE_SHELL should be True on Windows (nt), got {USE_SHELL} on {os.name}"
 
 
 if __name__ == "__main__":

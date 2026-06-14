@@ -105,19 +105,17 @@ def test_create_experiment_local_frame_compose_ffmpeg_failure_returns_200_with_f
     the API should return HTTP 200 with experiment.status='failed'.
     The business failure is distinguished from HTTP errors.
     """
-    import pytest
-
-    def fake_compose(*args, **kwargs):
-        return {
-            "success": False,
-            "message": "FFmpeg not found",
-            "version": "not_found",
-            "ffmpeg_command": "",
-        }
+    # Patch check_ffmpeg_available at BOTH locations (ffmpeg_composer and local_frame_compose import)
+    def fake_check(*args, **kwargs):
+        return False
 
     monkeypatch.setattr(
-        "app.video_lab.adapters.local_frame_compose.compose_video_from_frames",
-        fake_compose,
+        "app.video_lab.renderers.ffmpeg_composer.check_ffmpeg_available",
+        fake_check,
+    )
+    monkeypatch.setattr(
+        "app.video_lab.adapters.local_frame_compose.check_ffmpeg_available",
+        fake_check,
     )
 
     payload = {

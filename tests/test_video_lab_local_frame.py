@@ -182,15 +182,18 @@ def test_experiment_runner_sets_failed_when_ffmpeg_fails(monkeypatch):
     from app.video_lab.experiment_runner import ExperimentRunner
     from app.video_lab.models import ExperimentStatus, ProductionStepStatus
 
-    # Patch compose_video_from_frames to return a failure
-    class FakeResult:
-        def get(self, key, default=None):
-            return {"success": False, "message": "FFmpeg error", "version": "test", "ffmpeg_command": "fake cmd"}.get(key, default)
+    # Patch check_ffmpeg_available at both locations so BOTH compose paths fail fast
+    def fake_check(*args, **kwargs):
+        return False
 
-    def fake_compose(*args, **kwargs):
-        return {"success": False, "message": "FFmpeg error", "version": "test", "ffmpeg_command": "fake cmd"}
-
-    monkeypatch.setattr("app.video_lab.adapters.local_frame_compose.compose_video_from_frames", fake_compose)
+    monkeypatch.setattr(
+        "app.video_lab.renderers.ffmpeg_composer.check_ffmpeg_available",
+        fake_check,
+    )
+    monkeypatch.setattr(
+        "app.video_lab.adapters.local_frame_compose.check_ffmpeg_available",
+        fake_check,
+    )
 
     runner = ExperimentRunner()
     exp = runner.create_experiment(
@@ -212,10 +215,18 @@ def test_experiment_runner_ffmpeg_failure_has_failed_step(monkeypatch):
     from app.video_lab.experiment_runner import ExperimentRunner
     from app.video_lab.models import ProductionStepStatus
 
-    def fake_compose(*args, **kwargs):
-        return {"success": False, "message": "FFmpeg error", "version": "test", "ffmpeg_command": "fake cmd"}
+    # Patch check_ffmpeg_available so both compose paths fail fast
+    def fake_check(*args, **kwargs):
+        return False
 
-    monkeypatch.setattr("app.video_lab.adapters.local_frame_compose.compose_video_from_frames", fake_compose)
+    monkeypatch.setattr(
+        "app.video_lab.renderers.ffmpeg_composer.check_ffmpeg_available",
+        fake_check,
+    )
+    monkeypatch.setattr(
+        "app.video_lab.adapters.local_frame_compose.check_ffmpeg_available",
+        fake_check,
+    )
 
     runner = ExperimentRunner()
     exp = runner.create_experiment(

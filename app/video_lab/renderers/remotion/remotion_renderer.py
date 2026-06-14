@@ -4,6 +4,7 @@ V0.3.1: Minimum verification
 """
 
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,6 +19,8 @@ REMOTION_DIR = Path("remotion")
 REMOTION_ROOT_TSX = Path("src") / "Root.tsx"
 REMOTION_PROPS_PATH = Path("src") / "props.json"
 REMOTION_ENTRY = "AiNewsVideo"
+# shell=True needed on Windows for npx.cmd
+USE_SHELL = os.name == "nt"
 
 
 def check_remotion_available() -> tuple[bool, str]:
@@ -44,7 +47,7 @@ def check_remotion_available() -> tuple[bool, str]:
             capture_output=True,
             text=True,
             timeout=10,
-            shell=True,  # Windows: npx is npx.cmd
+            shell=USE_SHELL,
         )
         if result.returncode != 0:
             return False, "npx not available. Check Node.js installation."
@@ -131,7 +134,7 @@ def render_remotion_video(
             capture_output=True,
             text=True,
             timeout=timeout,
-            shell=True,  # Windows: shell needed for .cmd files like npx.cmd
+            shell=USE_SHELL,  # Windows: shell needed for .cmd files like npx.cmd
         )
         stdout = result.stdout
         stderr = result.stderr

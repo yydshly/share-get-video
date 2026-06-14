@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.1.2] - 2026-06-14
+
+### Fixed
+- **FFmpeg concat file paths**: `build_concat_file_content()` now uses `Path.resolve().as_posix()` for absolute paths (was using relative paths causing FFmpeg to fail with "No such file")
+- **FFmpeg cwd dependency removed**: Both `compose_video_from_frames` and `compose_video_from_frame_sequence` now use absolute paths throughout — no longer rely on `cwd`
+- **RouteResult warnings**: `_build_warnings()` helper preserves FFmpeg/render failure reasons in `warnings` field for UI display
+- **Remotion `USE_SHELL` constant**: `shell=True` only on Windows (`os.name == "nt"`), defined as module-level `USE_SHELL` constant
+
+### Added
+- **Gitignore**: `remotion/src/props.json` and `remotion/out/` added to `.gitignore`
+- **remotion/package-lock.json**: Committed to repo for reproducible environments
+
+### Verified
+- **local_frame_compose + template_programmatic_render**: Both routes now succeed in Route Benchmark simultaneously
+- **benchmarkId**: `bench_c673f651e32d` — `completed` status, both routes `succeeded`
+
 ## [0.3.1.1] - 2026-06-14
 
 ### Fixed
