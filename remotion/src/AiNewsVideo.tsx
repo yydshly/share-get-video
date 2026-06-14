@@ -199,7 +199,7 @@ const CoverPage: React.FC<{
   );
 };
 
-// ─── Key Point Card (V0.3.8: smaller title, source line, tag pill) ───────────
+// ─── Key Point Card (V0.3.8.2: bigger card, denser, full-screen info) ───────
 const KeyPointCard: React.FC<{
   kp: KeyPoint;
   index: number;
@@ -231,66 +231,68 @@ const KeyPointCard: React.FC<{
         background: C.bg,
         justifyContent: "center",
         alignItems: "center",
-        padding: "70px 50px",
+        padding: "60px 40px",
       }}
     >
-      {/* Card container */}
+      {/* Card container - 80% width of 1080 = 864px */}
       <div
         style={{
-          width: "100%",
-          maxWidth: 900,
+          width: "82%",
+          maxWidth: 880,
           background: C.card,
-          borderRadius: 20,
-          border: `1px solid ${C.border}`,
-          padding: "40px 36px",
+          borderRadius: 24,
+          border: `2px solid ${C.border}`,
+          padding: "50px 44px",
           position: "relative",
           opacity: cardOpacity,
           transform: `translateY(${cardY}px)`,
-          boxShadow: `0 0 60px ${C.glow}, 0 16px 50px rgba(0,0,0,0.5)`,
+          boxShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
+          minHeight: 1100,
         }}
       >
         {/* Accent glow */}
         <div
           style={{
             position: "absolute",
-            top: -1,
+            top: -2,
             left: "10%",
             right: "10%",
-            height: 2,
+            height: 3,
             background: `linear-gradient(90deg, transparent, ${C.accent}, transparent)`,
             opacity: 0.3 + borderPulse * 0.4,
           }}
         />
 
-        {/* Header row: index badge + tag pill */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+        {/* Header row: big index + category tag */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 36 }}>
           <div
             style={{
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 48,
-              height: 48,
-              borderRadius: 12,
+              width: 64,
+              height: 64,
+              borderRadius: 16,
               background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
-              fontSize: 20,
+              fontSize: 28,
               fontWeight: 800,
               color: C.textPrimary,
               opacity: indexOpacity,
+              boxShadow: `0 0 20px ${C.accent}40`,
             }}
           >
             {String(index + 1).padStart(2, "0")}
           </div>
           <div
             style={{
-              fontSize: 14,
-              fontWeight: 600,
+              fontSize: 16,
+              fontWeight: 700,
               color: C.accent,
               background: "rgba(59, 130, 246, 0.15)",
-              border: `1px solid rgba(59, 130, 246, 0.3)`,
+              border: `1px solid rgba(59, 130, 246, 0.4)`,
               borderRadius: 999,
-              padding: "4px 12px",
-              letterSpacing: 1,
+              padding: "6px 16px",
+              letterSpacing: 1.5,
               textTransform: "uppercase",
               opacity: indexOpacity,
             }}
@@ -299,15 +301,15 @@ const KeyPointCard: React.FC<{
           </div>
         </div>
 
-        {/* Title - reduced from 72 to 40 */}
+        {/* Title - balanced 32px, can span 3-4 lines */}
         <h2
           style={{
-            fontSize: 40,
+            fontSize: 32,
             fontWeight: 800,
             color: C.textPrimary,
             margin: 0,
-            marginBottom: 20,
-            lineHeight: 1.2,
+            marginBottom: 28,
+            lineHeight: 1.3,
             opacity: titleOpacity,
             textShadow: "0 0 30px rgba(59, 130, 246, 0.2)",
           }}
@@ -315,25 +317,40 @@ const KeyPointCard: React.FC<{
           {kp.title}
         </h2>
 
-        {/* Body - reduced from 38 to 24 */}
+        {/* Decorative separator */}
+        <div
+          style={{
+            width: 80,
+            height: 3,
+            background: `linear-gradient(90deg, ${C.accent}, ${C.accent2})`,
+            borderRadius: 2,
+            marginBottom: 28,
+            opacity: titleOpacity,
+          }}
+        />
+
+        {/* Body - 24px, multi-line, fills the card */}
         <p
           style={{
             fontSize: 24,
             color: C.textSecondary,
             margin: 0,
-            marginBottom: 16,
-            lineHeight: 1.5,
+            marginBottom: 24,
+            lineHeight: 1.6,
             opacity: bodyOpacity,
           }}
         >
           {kp.body}
         </p>
 
-        {/* Source */}
+        {/* Source footer */}
         {kp.source && (
           <div
             style={{
-              fontSize: 16,
+              marginTop: 32,
+              paddingTop: 20,
+              borderTop: `1px solid ${C.border}`,
+              fontSize: 18,
               color: C.textMuted,
               opacity: sourceOpacity,
             }}
@@ -465,13 +482,13 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
 }) => {
   const { fps } = useVideoConfig();
 
-  // Layout timing (in frames)
-  // Cover: 0 → 120 frames (~4s) — extended to show 3-point preview
-  // Each KeyPoint card: 120 → 120 + 5*150 = 870 frames (~5s each, 3 cards = 15s)
-  // Summary: last 150 frames (~5s)
-  const COVER_DURATION = 120; // 4s
-  const CARD_DURATION = 150; // 5s
-  const SUMMARY_DURATION = 150; // 5s
+  // V0.3.8.2: Layout timing
+  // Cover: 2.5s, Each KeyPoint card: 4.5s, Summary: 2s
+  // Total: 2.5 + 3*4.5 + 2 = 18s (matches typical audio duration)
+  // V0.3.8.2: shorter cover, normal cards, shorter summary
+  const COVER_DURATION = 75;   // 2.5s
+  const CARD_DURATION = 135;   // 4.5s
+  const SUMMARY_DURATION = 60; // 2s
 
   const cardStart = COVER_DURATION;
   const summaryStart = COVER_DURATION + keyPoints.length * CARD_DURATION;

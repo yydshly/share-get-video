@@ -374,12 +374,11 @@ def render_keypoint_template(
     resolution: Tuple[int, int] = (1080, 1920),
 ) -> Dict[str, Any]:
     """
-    Render enhanced keypoint frame with:
-    - Top index: 01/06
-    - Category tag
-    - Main title with highlight support
-    - Body text
-    - Source
+    V0.3.8.2: Render a denser keypoint frame with:
+    - Top: index + category tag
+    - Center: large main title (info card)
+    - Mid: body explanation (filled, not blank)
+    - Bottom: source attribution
     """
     width, height = resolution
     img = render_gradient_background(width, height)
@@ -405,76 +404,73 @@ def render_keypoint_template(
 
     category_style = get_category_style(category)
 
-    # Left side index
-    index_text = f"{index:02d}/{total}"
-    draw.text((50, 50), index_text, font=font_index, fill=COLORS["accent_blue"])
+    # V0.3.8.2: Information card background in the center to fill space
+    card_x1 = int(width * 0.06)
+    card_y1 = int(height * 0.12)
+    card_x2 = int(width * 0.94)
+    card_y2 = int(height * 0.92)
+    draw.rounded_rectangle(
+        [(card_x1, card_y1), (card_x2, card_y2)],
+        radius=20,
+        fill=COLORS["bg_card"],
+        outline=COLORS["border_active"],
+        width=2,
+    )
 
-    # Top decorative bar
-    draw.rectangle([(40, 110), (width - 40, 114)], fill=COLORS["border_subtle"])
+    # Header row: big index + category tag
+    header_y = card_y1 + 50
+    # Big index "01" on the left
+    big_idx_text = f"{index:02d}"
+    big_idx_font_size = int(FONT_SIZES["highlight_large"] * (width / 1080))
+    big_idx_font, _w_big = find_chinese_font(big_idx_font_size)
+    warnings.extend(_w_big)
+    # Gradient colored number — use accent_blue
+    draw.text((card_x1 + 50, header_y), big_idx_text, font=big_idx_font, fill=COLORS["accent_blue"])
 
-    # Category tag
-    tag_y = 150
-    draw_tag(draw, category, width // 2, tag_y, font_category, category_style)
+    # "/ total" small text after
+    total_text = f" / {total:02d}"
+    total_bbox = draw.textbbox((0, 0), total_text, font=font_index)
+    total_w = total_bbox[2] - total_bbox[0]
+    draw.text((card_x1 + 50 + draw.textbbox((0, 0), big_idx_text, font=big_idx_font)[2] + 10, header_y + 30),
+              total_text, font=font_index, fill=COLORS["text_tertiary"])
 
-    # Title area - try to show highlights
-    title_max_width = int(width * 0.88)
-    title_lines = split_lines_with_max_count(title, font_title, title_max_width, draw, max_lines=3)
-    title_line_h = get_text_size("测试", font_title, draw)[1] + 10
-    title_start_y = 250
+    # Category tag on the right
+    draw_tag(draw, category, card_x2 - 130, header_y + 40, font_category, category_style)
+
+    # Decorative bar under header
+    bar_y = header_y + 130
+    draw.rectangle([(card_x1 + 50, bar_y), (card_x2 - 50, bar_y + 2)], fill=COLORS["border_subtle"])
+
+    # Title block — V0.3.8.2: medium title, more lines
+    title_max_width = int((card_x2 - card_x1) * 0.86)
+    title_lines = split_lines_with_max_count(title, font_title, title_max_width, draw, max_lines=4)
+    title_line_h = get_text_size("测试", font_title, draw)[1] + 12
+    title_start_y = bar_y + 40
 
     for i, line in enumerate(title_lines):
-        # Check if line contains highlight terms and draw differently
-        highlights_in_line = extract_highlights(line)
-        if highlights_in_line and i == 0:  # Highlight first line's key numbers
-            _draw_text_with_highlights(draw, line, (width - title_max_width) // 2, title_start_y + i * title_line_h, font_title)
-        else:
-            bbox = draw.textbbox((0, 0), line, font=font_title)
-            tw = bbox[2] - bbox[0]
-            draw.text(((width - tw) // 2, title_start_y + i * title_line_h), line, font=font_title, fill=COLORS["text_primary"])
+        bbox = draw.textbbox((0, 0), line, font=font_title)
+        tw = bbox[2] - bbox[0]
+        # Left-aligned inside card
+        draw.text((card_x1 + 50, title_start_y + i * title_line_h), line, font=font_title, fill=COLORS["text_primary"])
 
-    # Divider line
-    div_y = title_start_y + len(title_lines) * title_line_h + 30
-    draw.rectangle([(width // 4, div_y), (width * 3 // 4, div_y + 2)], fill=COLORS["accent_glow_blue"])
-
-    # Body text
+    # Body — V0.3.8.2: anchor to lower-middle, fill with content
     if body:
-        body_max_width = int(width * 0.85)
-        body_lines = split_lines_with_max_count(body, font_body, body_max_width, draw, max_lines=5)
-        body_line_h = get_text_size("测试", font_body, draw)[1] + 8
-        body_start_y = div_y + 40
+        body_max_width = int((card_x2 - card_x1) * 0.86)
+        body_lines = split_lines_with_max_count(body, font_body, body_max_width, draw, max_lines=8)
+        body_line_h = get_text_size("测试", font_body, draw)[1] + 10
+        body_start_y = title_start_y + len(title_lines) * title_line_h + 40
 
         for i, line in enumerate(body_lines):
-            highlights_in_line = extract_highlights(line)
-            if highlights_in_line:
-                _draw_text_with_highlights(draw, line, (width - body_max_width) // 2, body_start_y + i * body_line_h, font_body, is_body=True)
-            else:
-                bbox = draw.textbbox((0, 0), line, font=font_body)
-                bw = bbox[2] - bbox[0]
-                draw.text(((width - bw) // 2, body_start_y + i * body_line_h), line, font=font_body, fill=COLORS["text_secondary"])
+            draw.text((card_x1 + 50, body_start_y + i * body_line_h), line, font=font_body, fill=COLORS["text_secondary"])
 
-    # Source
+    # Source at bottom of card
     if source:
-        source_short = truncate_text(source, 70)
-        source_max_width = int(width * 0.8)
-        source_lines = wrap_text(source_short, font_source, source_max_width, draw)
+        source_short = truncate_text(source, 80)
+        source_lines = wrap_text(source_short, font_source, int((card_x2 - card_x1) * 0.86), draw)
         source_line_h = get_text_size("测试", font_source, draw)[1] + 4
-        source_start_y = height - 280
-
-        for i, line in enumerate(source_lines[:2]):
-            bbox = draw.textbbox((0, 0), line, font=font_source)
-            sw = bbox[2] - bbox[0]
-            draw.text(((width - sw) // 2, source_start_y + i * source_line_h), line, font=font_source, fill=COLORS["text_tertiary"])
-
-    # Bottom tag
-    tag_text = "AI Frontier Radar"
-    bbox = draw.textbbox((0, 0), tag_text, font=font_source)
-    tw = bbox[2] - bbox[0]
-    draw.rounded_rectangle(
-        [(width // 2 - tw // 2 - 20, height - 100), (width // 2 + tw // 2 + 20, height - 60)],
-        radius=8,
-        fill=COLORS["tag_background"],
-    )
-    draw.text(((width - tw) // 2, height - 95), tag_text, font=font_source, fill=COLORS["tag_text"])
+        source_start_y = card_y2 - 60 - len(source_lines[:1]) * source_line_h
+        for i, line in enumerate(source_lines[:1]):
+            draw.text((card_x1 + 50, source_start_y + i * source_line_h), line, font=font_source, fill=COLORS["text_tertiary"])
 
     frame_name = f"frame_{index:03d}.png"
     output_path = frames_dir / frame_name

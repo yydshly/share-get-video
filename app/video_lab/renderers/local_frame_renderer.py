@@ -157,12 +157,12 @@ def generate_frames(
     if num_keypoints == 0:
         num_keypoints = 1
 
-    # Duration allocation
-    cover_duration = 4.0
-    overview_duration = 3.0
-    summary_duration = 4.0
+    # V0.3.8.2 Duration allocation - reduce chrome, give keypoints more time
+    cover_duration = 2.0
+    overview_duration = 5.0
+    summary_duration = 2.0
     available_for_keypoints = target_duration_sec - cover_duration - overview_duration - summary_duration
-    keypoint_duration = max(3.0, available_for_keypoints / max(num_keypoints, 1))
+    keypoint_duration = max(3.5, available_for_keypoints / max(num_keypoints, 1))
 
     # Date string
     date_str = datetime.now().strftime("%Y年%m月%d日")
