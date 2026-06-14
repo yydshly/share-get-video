@@ -318,7 +318,7 @@ def run_tts_subtitle_compose(
 
     artifact_audio = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_audio",
-        type=ArtifactType.VOICEOVER_PLAN,
+        type=ArtifactType.AUDIO_OUTPUT,
         title="Voiceover Audio",
         summary=f"Duration: {tts_result.get('durationSec', 0)}s",
         payload={
@@ -381,7 +381,7 @@ def run_tts_subtitle_compose(
     )
     artifact_srt = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_srt",
-        type=ArtifactType.SUBTITLE_PLAN,
+        type=ArtifactType.SUBTITLE_FILE,
         title="Subtitle SRT",
         summary=f"{len(srt_result.get('subtitles', []))} subtitle entries",
         payload={
@@ -392,7 +392,7 @@ def run_tts_subtitle_compose(
     )
     artifact_ass = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_ass",
-        type=ArtifactType.SUBTITLE_PLAN,
+        type=ArtifactType.SUBTITLE_FILE,
         title="Subtitle ASS",
         summary=f"ASS, {len(ass_result.get('subtitles', []))} entries, fontSize={ass_result.get('style', {}).get('font_size')}",
         payload={

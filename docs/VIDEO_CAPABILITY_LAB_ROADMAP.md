@@ -154,7 +154,9 @@
 
 ---
 
-## V0.3 - Remotion 最小真实路线验证
+## V0.3 - Remotion 最小真实路线验证 ✅ V0.3.5-dev 稳定化
+
+**当前版本**：V0.3.5-dev（stabilize/v0.3-video-capability-lab 分支）
 
 **目标**
 - 接入 Node.js + Remotion CLI

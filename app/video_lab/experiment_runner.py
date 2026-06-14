@@ -78,14 +78,24 @@ class ExperimentRunner:
             experiment.finishedAt = datetime.utcnow()
             raise ValueError(experiment.errorMessage)
 
-        # 调用 adapter 执行
+        # 调用 adapter 执行（捕获异常，防止 experiment 卡在 running 状态）
         start = time.time()
-        result = adapter_fn(
-            experiment_id=experiment_id,
-            test_case_id=experiment.testCaseId,
-            input_payload=experiment.inputPayload,
-            params=experiment.params,
-        )
+        try:
+            result = adapter_fn(
+                experiment_id=experiment_id,
+                test_case_id=experiment.testCaseId,
+                input_payload=experiment.inputPayload,
+                params=experiment.params,
+            )
+        except Exception as e:
+            elapsed_ms = int((time.time() - start) * 1000)
+            experiment.status = ExperimentStatus.FAILED
+            experiment.errorMessage = f"Adapter exception: {str(e)[:200]}"
+            experiment.finishedAt = datetime.utcnow()
+            experiment.elapsedMs = elapsed_ms
+            # Re-raise so API layer can return proper error response
+            raise
+
         elapsed_ms = int((time.time() - start) * 1000)
 
         # 检查结果是否包含失败的 step 或声明的失败

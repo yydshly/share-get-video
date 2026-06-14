@@ -11,6 +11,8 @@ class MethodCategory(str, Enum):
     LOCAL_FRAME_COMPOSE = "local_frame_compose"
     LOCAL_MEDIA_COMPOSE = "local_media_compose"
     TEMPLATE_PROGRAMMATIC_RENDER = "template_programmatic_render"
+    TTS_SUBTITLE_COMPOSE = "tts_subtitle_compose"
+    HYPERFRAMES_HTML_RENDER = "hyperframes_html_render"
     AI_VIDEO_DIRECT = "ai_video_direct"
     AI_ASSET_THEN_COMPOSE = "ai_asset_then_compose"
     HYBRID_PIPELINE = "hybrid_pipeline"
@@ -19,6 +21,7 @@ class MethodCategory(str, Enum):
 class ImplementationStatus(str, Enum):
     AVAILABLE = "available"
     MOCK = "mock"
+    MANUAL = "manual"
     RESERVED = "reserved"
     NOT_CONFIGURED = "not_configured"
 
@@ -90,6 +93,9 @@ class ArtifactType(str, Enum):
     MANIFEST = "manifest"
     MOCK_VIDEO = "mock_video"
     EVALUATION = "evaluation"
+    AUDIO_OUTPUT = "audio_output"
+    SUBTITLE_FILE = "subtitle_file"
+    HTML_OUTPUT = "html_output"
 
 
 # ─────────────────────────────────────────────

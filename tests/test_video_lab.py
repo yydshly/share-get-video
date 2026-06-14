@@ -57,11 +57,13 @@ def test_case_ai_frontier_default_input():
 # 2. 生成方案配置测试
 # ─────────────────────────────────────────────
 def test_seed_methods_exist():
-    """验证内置 6 类生成方案存在"""
+    """验证内置 8 类生成方案存在"""
     expected_categories = [
         MethodCategory.LOCAL_FRAME_COMPOSE,
         MethodCategory.LOCAL_MEDIA_COMPOSE,
         MethodCategory.TEMPLATE_PROGRAMMATIC_RENDER,
+        MethodCategory.TTS_SUBTITLE_COMPOSE,
+        MethodCategory.HYPERFRAMES_HTML_RENDER,
         MethodCategory.AI_VIDEO_DIRECT,
         MethodCategory.AI_ASSET_THEN_COMPOSE,
         MethodCategory.HYBRID_PIPELINE,
@@ -69,7 +71,7 @@ def test_seed_methods_exist():
     actual_categories = [m.category for m in SEED_VIDEO_METHODS]
     for cat in expected_categories:
         assert cat in actual_categories, f"Missing method category: {cat}"
-    assert len(SEED_VIDEO_METHODS) == 6
+    assert len(SEED_VIDEO_METHODS) == 8
 
 
 def test_methods_have_required_fields():
@@ -90,7 +92,7 @@ def test_all_categories_registered():
     """验证所有 method category 都已注册 adapter"""
     for cat in MethodCategory:
         assert get_adapter_for_category(cat) is not None, f"Adapter not registered: {cat.value}"
-    assert len(list_registered_categories()) == 6
+    assert len(list_registered_categories()) == 8
 
 
 # ─────────────────────────────────────────────

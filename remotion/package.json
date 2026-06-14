@@ -1,7 +1,10 @@
 {
   "name": "share-get-video-remotion",
-  "version": "0.3.1",
-  "description": "Remotion workspace for AI news video rendering - V0.3.1 minimum verification",
+  "version": "0.3.5-dev",
+  "description": "Remotion workspace for AI news video rendering - V0.3.5 minimum verification",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "private": true,
   "scripts": {
     "render": "remotion render src/Root.tsx AiNewsVideo out/video.mp4 --props=src/props.json --codec=h264",

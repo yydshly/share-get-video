@@ -31,7 +31,7 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | Mock |
 | `hybrid_pipeline` | 混合编排流水线 | Mock |
 
-> **V0.3.3 进展**：新增 `tts_subtitle_compose` real 路线（MiniMax TTS 旁白 + SRT 字幕 + FFmpeg 合成）。需配置 `MINIMAX_API_KEY` 环境变量。
+> **V0.3.5-dev 稳定化分支**：当前分支 `stabilize/v0.3-video-capability-lab`，统一版本为 `0.3.5-dev`，修复了前后端类型冲突、benchmark 状态语义、generation_time_ms、异常收口、artifact 类型等问题。
 
 ## 测试用例
 
@@ -63,8 +63,25 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 ### 依赖要求
 
 - **Python 3.10+**
+- **Node.js 20+**（仅 `template_programmatic_render` 路线需要）
 - **FFmpeg**（需在 PATH 中，或 `ffmpeg` 命令可用）
 - **Pillow**（`requirements.txt` 中已包含）
+- **MiniMax API Key**（可选，仅 `tts_subtitle_compose` 路线需要）
+
+**启动前检查**：
+
+```bash
+# 确认 Python 版本
+python --version
+
+# 确认 Node.js 版本（可选）
+node --version
+
+# 确认 FFmpeg 可用
+ffmpeg -version
+```
+
+> **注意**：`pip install -r requirements.txt` 只安装 Python 依赖，不会安装 FFmpeg / Node.js / Remotion。
 
 ### 后端
 

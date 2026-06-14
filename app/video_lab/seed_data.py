@@ -301,6 +301,49 @@ SEED_VIDEO_METHODS: list[VideoMethod] = [
         productizationLevel=ProductizationLevel.HIGH,
         implementationStatus=ImplementationStatus.MOCK,
     ),
+    VideoMethod(
+        id="method_tts_subtitle_compose",
+        name="TTS + 字幕合成",
+        category=MethodCategory.TTS_SUBTITLE_COMPOSE,
+        description="MiniMax TTS 生成旁白，生成 SRT 字幕计划，并与本地画面合成为带声音/字幕的视频。",
+        suitableScenarios=[
+            "需要旁白的资讯视频",
+            "知识讲解视频",
+            "带字幕的新闻摘要",
+        ],
+        unsuitableScenarios=[
+            "不需要声音的视频",
+            "需要高精度嘴型同步",
+        ],
+        inputRequirements="文本内容 + MiniMax API Key",
+        outputType="MP4 (with audio + subtitles)",
+        costLevel=CostLevel.MEDIUM,
+        controlLevel=ControlLevel.HIGH,
+        stabilityLevel=StabilityLevel.MEDIUM,
+        productizationLevel=ProductizationLevel.MEDIUM,
+        implementationStatus=ImplementationStatus.AVAILABLE,
+    ),
+    VideoMethod(
+        id="method_hyperframes_html_render",
+        name="HyperFrames HTML 渲染",
+        category=MethodCategory.HYPERFRAMES_HTML_RENDER,
+        description="生成自包含 HTML 页面，人工复制到 HeyGen HyperFrames 插件渲染 MP4。",
+        suitableScenarios=[
+            "需要丰富 CSS 动画的视觉效果",
+            "快速验证 HTML 转视频路线",
+        ],
+        unsuitableScenarios=[
+            "需要批量自动化",
+            "无法人工操作外部工具",
+        ],
+        inputRequirements="文本内容（生成 HTML artifact）",
+        outputType="HTML artifact (需 HeyGen HyperFrames 插件渲染)",
+        costLevel=CostLevel.LOW,
+        controlLevel=ControlLevel.HIGH,
+        stabilityLevel=StabilityLevel.LOW,
+        productizationLevel=ProductizationLevel.LOW,
+        implementationStatus=ImplementationStatus.MANUAL,
+    ),
 ]
 
 

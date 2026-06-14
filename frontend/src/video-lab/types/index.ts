@@ -5,11 +5,12 @@ export type MethodCategory =
   | "local_media_compose"
   | "template_programmatic_render"
   | "tts_subtitle_compose"
+  | "hyperframes_html_render"
   | "ai_video_direct"
   | "ai_asset_then_compose"
   | "hybrid_pipeline";
 
-export type ImplementationStatus = "available" | "mock" | "reserved" | "not_configured";
+export type ImplementationStatus = "available" | "mock" | "manual" | "reserved" | "not_configured";
 
 export type ExperimentStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled";
 
@@ -53,7 +54,10 @@ export type ArtifactType =
   | "frame_image"
   | "manifest"
   | "mock_video"
-  | "evaluation";
+  | "evaluation"
+  | "audio_output"
+  | "subtitle_file"
+  | "html_output";
 
 // ─────────────────────────────────────────────
 // VideoProductionArtifact
@@ -225,7 +229,7 @@ export interface ExperimentsByTestCaseResponse {
 export interface RouteDefinition {
   routeId: string;
   name: string;
-  status: "real" | "mock" | "reserved";
+  status: "real" | "mock" | "manual" | "reserved";
   description: string;
   expectedPipeline: string[];
 }
@@ -256,7 +260,7 @@ export interface RouteBenchmark {
   inputPayload: Record<string, unknown>;
   commonParams: Record<string, unknown>;
   routeIds: string[];
-  status: "pending" | "running" | "completed" | "partial";
+  status: "pending" | "running" | "completed" | "completed_with_manual" | "partial" | "failed";
   results: RouteResult[];
   createdAt: string | null;
   completedAt: string | null;

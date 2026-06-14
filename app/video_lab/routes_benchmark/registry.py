@@ -93,6 +93,21 @@ ROUTE_REGISTRY: list[RouteDefinition] = [
         adapter_category="tts_subtitle_compose",
     ),
     RouteDefinition(
+        route_id="local_media_compose",
+        name="本地媒体素材合成",
+        status="mock",
+        description="使用 MoviePy / FFmpeg 对图片、音频、字幕、BGM、已有视频片段做合成。适合素材拼接和后期编排。",
+        expected_pipeline=[
+            "接收输入",
+            "素材收集",
+            "音频处理",
+            "字幕生成",
+            "FFmpeg 合成",
+            "输出 MP4",
+        ],
+        adapter_category="local_media_compose",
+    ),
+    RouteDefinition(
         route_id="ai_asset_then_compose",
         name="AI 素材 + 本地合成",
         status="mock",

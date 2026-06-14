@@ -91,10 +91,24 @@ class BenchmarkRunner:
             benchmark.results.append(route_result)
 
         # Determine overall status
+        # All succeeded => completed
         if all(r.status == "succeeded" for r in benchmark.results):
             benchmark.status = "completed"
+        # All mock/reserved/manual => completed
         elif all(r.status in ("mock", "reserved", "manual") for r in benchmark.results):
             benchmark.status = "completed"
+        # succeeded + manual (no failed) => completed_with_manual
+        elif all(r.status in ("succeeded", "manual") for r in benchmark.results):
+            benchmark.status = "completed_with_manual"
+        # Some succeeded + some manual + at least one succeeded => completed_with_manual
+        elif any(r.status == "succeeded" for r in benchmark.results) and all(r.status in ("succeeded", "manual", "mock", "reserved") for r in benchmark.results):
+            benchmark.status = "completed_with_manual"
+        # Has failed => partial
+        elif any(r.status == "failed" for r in benchmark.results):
+            benchmark.status = "partial"
+        # All failed => failed
+        elif all(r.status == "failed" for r in benchmark.results):
+            benchmark.status = "failed"
         else:
             benchmark.status = "partial"
 
@@ -115,6 +129,7 @@ class BenchmarkRunner:
     ) -> RouteResult:
         """Execute a single route."""
         experiment_id = f"bench_{route_id}_{uuid.uuid4().hex[:8]}"
+        route_start = datetime.utcnow()
 
         try:
             if route_def.status == "real" and route_id in _ADAPTERS:
@@ -141,6 +156,7 @@ class BenchmarkRunner:
                         if art_dict.get("type") == "manifest":
                             manifest_url = art_dict.get("payload", {}).get("manifestUrl", "")
 
+                route_elapsed_ms = int((datetime.utcnow() - route_start).total_seconds() * 1000)
                 return RouteResult(
                     route_id=route_id,
                     status="succeeded" if video_url else "failed",
@@ -150,7 +166,7 @@ class BenchmarkRunner:
                     summary=f"Generated video via {route_id}",
                     artifacts=artifacts,
                     metrics=RouteMetrics(
-                        generation_time_ms=getattr(result, "elapsedMs", 0) or 0,
+                        generation_time_ms=route_elapsed_ms,
                         estimated_cost="low-medium" if route_id == "local_frame_compose" else ("low-medium" if route_id == "template_programmatic_render" else "unknown"),
                         stability="high" if route_id == "local_frame_compose" else ("medium" if route_id == "template_programmatic_render" else "unknown"),
                         quality_ceiling="high" if route_id == "template_programmatic_render" else "medium",
@@ -182,6 +198,7 @@ class BenchmarkRunner:
                         if art_dict.get("type") == "manifest":
                             manifest_url = art_dict.get("payload", {}).get("manifestUrl", "")
 
+                route_elapsed_ms = int((datetime.utcnow() - route_start).total_seconds() * 1000)
                 # For manual routes, use "manual" status, not succeeded/failed
                 return RouteResult(
                     route_id=route_id,
@@ -192,7 +209,7 @@ class BenchmarkRunner:
                     summary=f"Manual route: {route_def.name} — {route_def.description[:50]}",
                     artifacts=artifacts,
                     metrics=RouteMetrics(
-                        generation_time_ms=getattr(result, "elapsedMs", 0) or 0,
+                        generation_time_ms=route_elapsed_ms,
                         estimated_cost="unknown",
                         stability="unknown",
                         quality_ceiling="high",
@@ -208,6 +225,7 @@ class BenchmarkRunner:
                 return self._reserved_route(route_id, route_def, experiment_id)
 
             else:
+                route_elapsed_ms = int((datetime.utcnow() - route_start).total_seconds() * 1000)
                 return RouteResult(
                     route_id=route_id,
                     status="failed",
@@ -215,6 +233,7 @@ class BenchmarkRunner:
                 )
 
         except Exception as e:
+            route_elapsed_ms = int((datetime.utcnow() - route_start).total_seconds() * 1000)
             return RouteResult(
                 route_id=route_id,
                 status="failed",

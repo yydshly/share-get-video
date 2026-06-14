@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.5-dev] - 2026-06-15 (stabilize/v0.3-video-capability-lab)
+
+### Fixed (Stabilization)
+- **版本号统一**：app/main.py, frontend/package.json, remotion/package.json 全部更新为 `0.3.5-dev`
+- **RouteDefinition.status 类型冲突**：前端 `RouteDefinition.status` 类型增加 `"manual"` 选项，与后端一致
+- **RouteBenchmark 状态语义**：新增 `completed_with_manual` 状态，`succeeded + manual` 不再误判为 `partial`
+- **generation_time_ms 来源**：RouteBenchmarkRunner 内部计时，不再依赖不存在的 `result.elapsedMs` 字段
+- **ExperimentRunner 异常收口**：adapter 抛异常时正确设置 `status=FAILED`，不再吞掉异常导致 running 状态
+- **MethodCategory / RouteDefinition 边界**：后端新增 `TTS_SUBTITLE_COMPOSE` 和 `HYPERFRAMES_HTML_RENDER`，seed_data 注册对应 VideoMethod
+- **ImplementationStatus 枚举**：新增 `MANUAL = "manual"` 选项
+- **ArtifactType 语义**：新增 `AUDIO_OUTPUT`、`SUBTITLE_FILE`、`HTML_OUTPUT` 类型，不再复用 plan 类型
+- **local_media_compose mock route**：已加入 ROUTE_REGISTRY（README 描述 8 条路线）
+- **RouteBenchmark.status 前端类型**：增加 `"completed_with_manual"` 和 `"failed"`
+
+### Changed
+- README 更新启动依赖检查说明（python --version, node --version, ffmpeg -version）
+- docs/RUNTIME_REQUIREMENTS.md 新增运行时依赖说明文档
+
 ## [0.3.4] - 2026-06-14
 
 ### Added

@@ -185,7 +185,7 @@ def run_hyperframes_html_render(
 
     artifact_html = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_html",
-        type=ArtifactType.MANIFEST,
+        type=ArtifactType.HTML_OUTPUT,
         title="HyperFrames HTML Artifact",
         summary=f"HTML: {html_result.get('htmlPath', '')}",
         payload={

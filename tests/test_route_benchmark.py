@@ -24,11 +24,11 @@ def test_list_routes_returns_200():
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data, list)
-    assert len(data) == 7
+    assert len(data) == 8
 
 
 def test_list_routes_contains_all_route_ids():
-    """Routes should include all 7 registered route IDs."""
+    """Routes should include all 8 registered route IDs."""
     resp = client.get("/video-lab/routes")
     assert resp.status_code == 200
     data = resp.json()
@@ -38,6 +38,7 @@ def test_list_routes_contains_all_route_ids():
         "template_programmatic_render",
         "hyperframes_html_render",
         "tts_subtitle_compose",
+        "local_media_compose",
         "ai_asset_then_compose",
         "ai_video_direct",
         "hybrid_pipeline",
@@ -232,10 +233,10 @@ def test_local_frame_compose_result_has_video_url_on_success():
 # Registry functions
 # ─────────────────────────────────────────
 def test_registry_list_routes():
-    """Registry should list 7 routes."""
+    """Registry should list 8 routes."""
     from app.video_lab.routes_benchmark.registry import list_routes
     routes = list_routes()
-    assert len(routes) == 7
+    assert len(routes) == 8
 
 
 def test_registry_get_route_by_id():

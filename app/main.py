@@ -30,7 +30,7 @@ RUNTIME_BASE.mkdir(parents=True, exist_ok=True)
 app = FastAPI(
     title="Video Capability Lab",
     description="视频生成能力验证平台",
-    version="0.2.0",
+    version="0.3.5-dev",
 )
 
 # CORS
@@ -53,7 +53,7 @@ app.include_router(video_lab_router)
 def root():
     return {
         "name": "Video Capability Lab",
-        "version": "0.2.0",
+        "version": "0.3.5-dev",
         "description": "视频生成能力验证平台",
     }
 
