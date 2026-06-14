@@ -18,18 +18,19 @@ Video Capability Lab 是一个**视频生成能力验证平台**，不是"一键
 
 ## 技术路线
 
-当前验证 6 类视频生成技术路线：
+当前验证 7 类视频生成技术路线：
 
 | 路线 | 说明 | 状态 |
 |------|------|------|
-| `local_frame_compose` | 本地图像帧合成 + FFmpeg | **Real (V0.3.0)** |
+| `local_frame_compose` | 本地图像帧合成 + FFmpeg | **Real** |
+| `template_programmatic_render` | Remotion 程序化模板渲染 | **Real** |
+| `hyperframes_html_render` | HTML + CSS → HeyGen HyperFrames | **Manual** |
 | `local_media_compose` | 本地素材合成（MoviePy/FFmpeg） | Mock |
-| `template_programmatic_render` | Remotion 程序化模板渲染 | Mock |
 | `ai_video_direct` | 大模型直接生成视频 | Reserved |
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | Mock |
 | `hybrid_pipeline` | 混合编排流水线 | Mock |
 
-> **V0.3.0 进展**：新增多路线横向验证框架 Route Benchmark，支持同一份内容多路线对比、统一评分。`local_frame_compose` 是当前唯一的 real 路线。
+> **V0.3.2 进展**：新增 `hyperframes_html_render` manual 路线（生成 HTML artifact，需人工复制到 HeyGen HyperFrames 插件渲染）。Route Benchmark 支持 `real`/`mock`/`reserved`/`manual` 四种状态。
 
 ## 测试用例
 

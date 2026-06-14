@@ -27,6 +27,7 @@ V0.3.0 新增多路线横向验证框架（Route Benchmark）。
 | `real` | 已有真实 adapter，可产出真实视频 | ✅ 是 |
 | `mock` | 占位实现，未接入真实 API | ❌ 否 |
 | `reserved` | 预留路线，等待未来实现 | ❌ 否 |
+| `manual` | 生成 artifact，需人工操作外部工具（如 HeyGen HyperFrames）完成渲染 | ❌ 否（artifact 除外） |
 
 ---
 
@@ -36,6 +37,7 @@ V0.3.0 新增多路线横向验证框架（Route Benchmark）。
 |---------|------|------|------|
 | `local_frame_compose` | 本地图像帧合成 | **real** | Pillow + FFmpeg |
 | `template_programmatic_render` | Remotion 程序化渲染 | **real ✅** | Remotion/React 模板渲染 MP4（V0.3.1.1 已验证真实渲染） |
+| `hyperframes_html_render` | HyperFrames HTML 渲染 | **manual** | 生成 HTML → HeyGen HyperFrames 插件 → MP4（V0.3.2 视觉验证中） |
 | `tts_subtitle_compose` | TTS + 字幕合成 | mock | 需 TTS API |
 | `ai_asset_then_compose` | AI 素材 + 本地合成 | mock | 需 LLM/TTS/图像 API |
 | `ai_video_direct` | 大模型直接生成视频 | reserved | 视频模型 API 未接入 |
@@ -112,6 +114,7 @@ curl -X POST http://localhost:8000/video-lab/route-benchmarks \
    - `real` 路线：展示真实 video
    - `mock` 路线：展示 expectedPipeline 和 warnings
    - `reserved` 路线：展示路线说明和评估
+   - `manual` 路线：展示 HTML artifact 链接 + 操作说明（复制 → 粘贴到 HyperFrames → 渲染 → 评分）
 
 ---
 
@@ -141,7 +144,7 @@ curl -X POST http://localhost:8000/video-lab/route-benchmarks \
 ```typescript
 interface RouteResult {
   routeId: string;
-  status: "succeeded" | "failed" | "mock" | "reserved";
+  status: "succeeded" | "failed" | "mock" | "manual" | "reserved";
   videoUrl: string;
   coverUrl: string;
   manifestUrl: string;

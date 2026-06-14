@@ -180,10 +180,20 @@
   - 优雅降级: Remotion 环境缺失时返回 `failed` 不抛异常
   - 详见 `docs/REMOTION_ROUTE_V0.3.1.md`
 
+### V0.3.2 已完成 ✅
+- **HyperFrames HTML 渲染路线验证**
+  - `app/video_lab/renderers/hyperframes/`: HTML 生成器（单文件、9:16 竖屏、CSS 动画）
+  - `app/video_lab/adapters/hyperframes_html_render.py`: 5 步 manual adapter
+  - `hyperframes_html_render` registry status: `manual`（需人工复制到 HeyGen HyperFrames 插件）
+  - Route Benchmark 前端：`manual` 状态展示 HTML 链接 + 操作说明
+  - RouteResult 类型支持 `manual` 状态
+  - 详见 `docs/HYPERFRAMES_ROUTE_V0.3.2.md`
+- **第三条候选路线**：HTML/CSS 动态页面 → HyperFrames by HeyGen → 视频
+
 ### V0.3.2 待完成
-- [ ] MiniMax TTS + 字幕合成路线验证
-- [ ] 同一份内容 + TTS voiceover + subtitle burn-in
-- [ ] 对比 local_frame_compose / Remotion / TTS 组合体验
+- [ ] HyperFrames HTML 路线人工验收（用 HeyGen 插件渲染视频并评分）
+- [ ] 对比 local_frame_compose / Remotion / HyperFrames 三条路线视觉质量
+- [ ] 评估是否值得升级为 real route
 
 ---
 

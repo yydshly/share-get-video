@@ -1,11 +1,12 @@
 # Known Limitations
 
-## 当前 V0.3.1 已知限制
+## 当前 V0.3.2 已知限制
 
 ### 1. 部分 Adapter 已升级为真实渲染
 
 - `local_frame_compose` - **已支持真实渲染**（Pillow + FFmpeg）
 - `template_programmatic_render` - **已支持真实渲染**（Remotion/React 模板）
+- `hyperframes_html_render` - **manual 状态**（生成 HTML artifact，需人工复制到 HeyGen HyperFrames 插件渲染）
 - `local_media_compose` - 返回模拟数据，不调用 FFmpeg
 - `ai_video_direct` - Reserved 状态，无 API 接入
 - `ai_asset_then_compose` - 返回模拟数据，不调用 LLM/TTS/图像生成

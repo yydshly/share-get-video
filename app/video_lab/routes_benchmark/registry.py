@@ -58,6 +58,23 @@ ROUTE_REGISTRY: list[RouteDefinition] = [
         adapter_category="template_programmatic_render",
     ),
     RouteDefinition(
+        route_id="hyperframes_html_render",
+        name="HyperFrames HTML 渲染",
+        status="manual",
+        description="HeyGen HyperFrames 插件：生成单文件 HTML，人工复制到插件中渲染 MP4。用于验证 HTML 动态页面转视频路线。",
+        expected_pipeline=[
+            "接收输入",
+            "结构化内容",
+            "提取关键点",
+            "生成 HTML 视频页面",
+            "人工/插件调用 HyperFrames",
+            "渲染视频",
+            "下载/记录结果",
+            "回填 Benchmark",
+        ],
+        adapter_category="hyperframes_html_render",
+    ),
+    RouteDefinition(
         route_id="tts_subtitle_compose",
         name="TTS + 字幕合成",
         status="mock",

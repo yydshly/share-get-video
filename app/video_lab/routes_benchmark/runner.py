@@ -18,6 +18,7 @@ from app.video_lab.routes_benchmark.registry import (
 )
 from app.video_lab.adapters.local_frame_compose import run_local_frame_compose
 from app.video_lab.adapters.remotion_template import run_remotion_template
+from app.video_lab.adapters.hyperframes_html_render import run_hyperframes_html_render
 from app.video_lab.adapters.local_media_compose import run_local_media_compose
 from app.video_lab.adapters.ai_asset_then_compose import run_ai_asset_then_compose
 from app.video_lab.adapters.ai_video_direct import run_ai_video_direct
@@ -28,6 +29,7 @@ from app.video_lab.adapters.hybrid_pipeline import run_hybrid_pipeline
 _ADAPTERS: dict[str, Any] = {
     "local_frame_compose": run_local_frame_compose,
     "template_programmatic_render": run_remotion_template,
+    "hyperframes_html_render": run_hyperframes_html_render,
     "local_media_compose": run_local_media_compose,
     "ai_asset_then_compose": run_ai_asset_then_compose,
     "ai_video_direct": run_ai_video_direct,
@@ -89,7 +91,7 @@ class BenchmarkRunner:
         # Determine overall status
         if all(r.status == "succeeded" for r in benchmark.results):
             benchmark.status = "completed"
-        elif all(r.status in ("mock", "reserved") for r in benchmark.results):
+        elif all(r.status in ("mock", "reserved", "manual") for r in benchmark.results):
             benchmark.status = "completed"
         else:
             benchmark.status = "partial"
@@ -150,6 +152,48 @@ class BenchmarkRunner:
                         estimated_cost="low-medium" if route_id == "local_frame_compose" else ("low-medium" if route_id == "template_programmatic_render" else "unknown"),
                         stability="high" if route_id == "local_frame_compose" else ("medium" if route_id == "template_programmatic_render" else "unknown"),
                         quality_ceiling="high" if route_id == "template_programmatic_render" else "medium",
+                    ).__dict__,
+                    warnings=_build_warnings(result, video_url),
+                    raw_output=getattr(result, "rawOutput", {}) or {},
+                )
+
+            elif route_def.status == "manual" and route_id in _ADAPTERS:
+                # Manual route - execute adapter, return manual result (no videoUrl expected)
+                adapter = _ADAPTERS[route_id]
+                result = adapter(
+                    experiment_id=experiment_id,
+                    test_case_id=test_case_id,
+                    input_payload=input_payload,
+                    params=params,
+                )
+
+                video_url = getattr(result, "videoUrl", "") or ""
+                cover_url = getattr(result, "coverUrl", "") or ""
+
+                # Extract manifest artifact for htmlUrl
+                manifest_url = ""
+                artifacts = []
+                for step in getattr(result, "productionSteps", []):
+                    for art in getattr(step, "artifacts", []):
+                        art_dict = art.to_dict() if hasattr(art, "to_dict") else art
+                        artifacts.append(art_dict)
+                        if art_dict.get("type") == "manifest":
+                            manifest_url = art_dict.get("payload", {}).get("manifestUrl", "")
+
+                # For manual routes, use "manual" status, not succeeded/failed
+                return RouteResult(
+                    route_id=route_id,
+                    status="manual",
+                    video_url=video_url,
+                    cover_url=cover_url,
+                    manifest_url=manifest_url,
+                    summary=f"Manual route: {route_def.name} — {route_def.description[:50]}",
+                    artifacts=artifacts,
+                    metrics=RouteMetrics(
+                        generation_time_ms=getattr(result, "elapsedMs", 0) or 0,
+                        estimated_cost="unknown",
+                        stability="unknown",
+                        quality_ceiling="high",
                     ).__dict__,
                     warnings=_build_warnings(result, video_url),
                     raw_output=getattr(result, "rawOutput", {}) or {},

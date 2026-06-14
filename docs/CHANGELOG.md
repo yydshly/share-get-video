@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.2] - 2026-06-14
+
+### Added
+- **hyperframes_html_render route**: New manual route — generates self-contained HTML file for HeyGen HyperFrames plugin
+  - `app/video_lab/renderers/hyperframes/html_builder.py`: Generates portrait 9:16 HTML with CSS animations
+  - `app/video_lab/adapters/hyperframes_html_render.py`: 5-step adapter
+  - Registry: `status="manual"`, `route_id="hyperframes_html_render"`
+  - Runner: `manual` status handled separately, no videoUrl expected
+  - `BenchmarkRunner._execute_route`: manual branch that executes adapter and returns manual status
+  - `BenchmarkRunner`: overall status check updated to treat manual as terminal
+- **RouteResultCard**: Shows "打开生成的 HTML" link for manual routes
+- **RouteResult.manual status**: TypeScript type updated, STATUS_COLORS updated
+- **HyperFrames HTML**: 7.6KB self-contained HTML with dark theme, CSS keyframe animations, auto-page navigation
+
+### Changed
+- **RouteBenchmark.count check**: `all(r.status in ("mock", "reserved")` → `("mock", "reserved", "manual")`
+
+### Fixed
+- **FFmpeg concat file paths**: `build_concat_file_content()` uses `Path.resolve().as_posix()` for absolute paths
+- **FFmpeg cwd dependency removed**: Both compose functions use absolute paths throughout
+- **RouteResult warnings**: `_build_warnings()` preserves FFmpeg/render failure reasons
+- **Remotion `USE_SHELL` constant**: `shell=True` only on Windows (`os.name == "nt"`)
+- **FFmpeg failure tests**: Patched `check_ffmpeg_available` at both import locations
+
+### Git
+- `.gitignore`: `remotion/src/props.json` and `remotion/out/`
+- `remotion/package-lock.json` committed
+
 ## [0.3.1.2] - 2026-06-14
 
 ### Fixed

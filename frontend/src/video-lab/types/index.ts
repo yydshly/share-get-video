@@ -238,7 +238,7 @@ export interface RouteMetrics {
 
 export interface RouteResult {
   routeId: string;
-  status: "succeeded" | "failed" | "mock" | "reserved";
+  status: "succeeded" | "failed" | "mock" | "manual" | "reserved";
   videoUrl: string;
   coverUrl: string;
   manifestUrl: string;

@@ -1,4 +1,4 @@
-// RouteBenchmarkPage - V0.3.0: Multi-route horizontal benchmark page
+// RouteBenchmarkPage - V0.3.2: Multi-route horizontal benchmark page
 
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
@@ -12,6 +12,7 @@ const STATUS_COLORS: Record<string, string> = {
   succeeded: "#10b981",
   failed: "#ef4444",
   mock: "#f59e0b",
+  manual: "#8b5cf6",
   reserved: "#94a3b8",
   pending: "#94a3b8",
   running: "#3b82f6",
@@ -311,13 +312,24 @@ function RouteResultCard({ result }: { result: RouteResult }) {
   const statusColor = STATUS_COLORS[result.status] ?? "#94a3b8";
 
   // Artifact type helpers - artifacts are unknown[] from backend
-  type ArtifactEntry = { type?: string; pipeline?: string[]; note?: string };
+  type ArtifactEntry = { type?: string; pipeline?: string[]; note?: string; htmlUrl?: string; payload?: Record<string, unknown> };
 
   // Find route_info artifact for mock/reserved routes
   const routeInfoArtifact = (result.artifacts as ArtifactEntry[] | undefined)?.find(
     (a) => a?.type === "route_info"
   );
   const expectedPipeline = routeInfoArtifact?.pipeline ?? [];
+
+  // Find HTML artifact for manual routes
+  const htmlArtifact = (result.artifacts as ArtifactEntry[] | undefined)?.find(
+    (a) => a?.type === "manifest" && (a?.payload as Record<string, unknown>)?.htmlUrl
+  );
+  const htmlUrl = htmlArtifact?.payload?.htmlUrl as string | undefined;
+
+  // Find manifest artifact for real routes
+  const manifestArtifact = (result.artifacts as ArtifactEntry[] | undefined)?.find(
+    (a) => a?.type === "manifest"
+  );
 
   return (
     <div
@@ -376,6 +388,23 @@ function RouteResultCard({ result }: { result: RouteResult }) {
           >
             打开 manifest
           </a>
+        </div>
+      )}
+
+      {/* Show HTML artifact link for manual routes */}
+      {result.status === "manual" && htmlUrl && (
+        <div style={{ marginTop: "0.5rem" }}>
+          <a
+            href={htmlUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: "0.8rem", color: "#8b5cf6", fontWeight: 600, textDecoration: "none" }}
+          >
+            打开生成的 HTML
+          </a>
+          <div style={{ marginTop: "0.4rem", fontSize: "0.7rem", color: "#64748b", lineHeight: 1.5 }}>
+            ① 打开 HTML ② 复制源码 ③ 粘贴到 HeyGen HyperFrames 插件 ④ 渲染视频
+          </div>
         </div>
       )}
 
