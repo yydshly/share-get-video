@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.video_lab.chains.models import ChainResult, ChainStatus
+from app.video_lab.chains import write_chain_manifest
 from app.video_lab.adapters.remotion_template import run_remotion_template
 from app.video_lab.planners.voiceover_planner import generate_voiceover
 from app.video_lab.planners.subtitle_planner import generate_srt_from_segments
@@ -123,6 +124,7 @@ def run_remotion_tts_video(
         )
 
     silent_video_path = Path(silent_video_path_str)
+    silent_video_url = path_to_url(silent_video_path)
     logs.append(f"  Silent video: {silent_video_path}")
 
     # ── Step 2: Generate voiceover plan ─────────────────────────────────
@@ -215,7 +217,8 @@ def run_remotion_tts_video(
                 created_at=start_time,
             )
         audio_url = path_to_url(audio_path)
-        logs.append(f"  Audio: {audio_path}, duration: {tts_result.get('durationSec', 0)}s")
+        audio_duration_sec = float(tts_result.get("durationSec", 0))
+        logs.append(f"  Audio: {audio_path}, duration: {audio_duration_sec}s")
     except Exception as e:
         logs.append(f"  ERROR: {e}")
         return ChainResult(
@@ -316,8 +319,24 @@ def run_remotion_tts_video(
         )
 
     final_video_url = path_to_url(final_output)
-    manifest_path = exp_dir / "manifest.json"
-    manifest_url = path_to_url(manifest_path)
+    manifest_url, _ = write_chain_manifest(
+        experiment_id=experiment_id,
+        chain_id=chain_id,
+        status="succeeded",
+        final_video_url=final_video_url,
+        silent_video_url=silent_video_url,
+        audio_url=audio_url,
+        srt_url=srt_url,
+        subtitle_burned=not subtitle_fallback,
+        audio_duration_sec=audio_duration_sec,
+        visual_duration_sec=float(target_duration),
+        extra={
+            "visual_source": "Remotion template",
+            "audio_source": "MiniMax TTS",
+            "subtitle_mode": "SRT" if not subtitle_fallback else "audio_only",
+            "warnings": warnings,
+        },
+    )
 
     logs.append(f"  SUCCESS: finalVideoUrl={final_video_url}")
 

@@ -130,8 +130,8 @@ def generate_srt_from_segments(
     }
 
 
-def _split_subtitle_text(text: str, max_chars: int = 20) -> list[str]:
-    """Split Chinese text into subtitle lines of reasonable length."""
+def _split_subtitle_text(text: str, max_chars: int = 35) -> list[str]:
+    """Split Chinese text into subtitle lines of reasonable length (max 2 lines for safe area)."""
     if not text:
         return []
     lines = []
@@ -143,7 +143,8 @@ def _split_subtitle_text(text: str, max_chars: int = 20) -> list[str]:
             current = ""
     if current:
         lines.append(current)
-    return lines if lines else [text]
+    # Cap at 2 lines to avoid blocking too much of the video
+    return lines[:2] if lines else [text[:max_chars]]
 
 
 def _build_srt_content(subtitles: list[dict]) -> str:

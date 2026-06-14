@@ -82,7 +82,22 @@ def compose_av_with_subtitles(
         srt_abs = srt_path_obj.as_posix()
         # Escape colons and backslashes for FFmpeg filter graph
         srt_escaped = srt_abs.replace("\\", "\\\\").replace(":", "\\:")
-        srt_for_filter = f",subtitles='{srt_escaped}':force_style='Fontsize=18,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=1'"
+        # Safe area: Fontsize=40 (20% larger than default 24), MarginV=150 (bottom safe ~8% of 1080p),
+        # Alignment=bottom (2), Outline=2, Shadow=1, PrimaryColour=white, OutlineColour=black
+        # PrimaryColour white = &HFFFFFF; OutlineColour black = &H000000
+        srt_for_filter = (
+            f",subtitles='{srt_escaped}':"
+            f"force_style='"
+            f"Fontsize=40,"
+            f"MarginV=150,"
+            f"MarginH=10,"
+            f"Alignment=2,"
+            f"Outline=2,"
+            f"Shadow=1,"
+            f"PrimaryColour=&HFFFFFF&,"
+            f"OutlineColour=&H000000&"
+            f"'"
+        )
 
     # Build filter complex
     if srt_for_filter:

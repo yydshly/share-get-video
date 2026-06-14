@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 
 from app.video_lab.chains.models import ChainResult, ChainStatus
+from app.video_lab.chains import write_chain_manifest
 from app.video_lab.adapters.tts_subtitle_compose import run_tts_subtitle_compose
 from app.video_lab.providers.minimax import MiniMaxTTSClient
 
@@ -98,6 +99,31 @@ def run_local_frame_tts_video(
     if manifest_url or audio_url or srt_url:
         # We have some output - check if it's the final video
         if final_video_url:
+            # Get audio duration from adapter result assets
+            audio_duration_sec = 0.0
+            assets = getattr(adapter_result, "assets", {}) or {}
+            if isinstance(assets, dict):
+                audio_duration_sec = float(assets.get("audioDurationSec", 0))
+
+            # Write chain_manifest.json with final output info
+            chain_manifest_url, _ = write_chain_manifest(
+                experiment_id=experiment_id,
+                chain_id=chain_id,
+                status="succeeded",
+                final_video_url=final_video_url,
+                silent_video_url="",
+                audio_url=audio_url,
+                srt_url=srt_url,
+                subtitle_burned=bool(assets.get("subtitleBurned", True)),
+                audio_duration_sec=audio_duration_sec,
+                visual_duration_sec=audio_duration_sec,  # visual aligns to audio
+                extra={
+                    "visual_source": "Pillow frames",
+                    "audio_source": "MiniMax TTS",
+                    "subtitle_mode": "SRT",
+                },
+            )
+
             logs.append(f"  finalVideoUrl={final_video_url}")
             logs.append(f"  audioUrl={audio_url}")
             logs.append(f"  srtUrl={srt_url}")
@@ -111,7 +137,7 @@ def run_local_frame_tts_video(
                 has_readable_text=True,
                 audio_url=audio_url,
                 srt_url=srt_url,
-                manifest_url=manifest_url,
+                manifest_url=chain_manifest_url,
                 visual_source="Pillow frames",
                 audio_source="MiniMax TTS",
                 subtitle_mode="SRT",
