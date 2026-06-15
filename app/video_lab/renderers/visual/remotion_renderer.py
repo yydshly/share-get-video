@@ -85,9 +85,18 @@ class RemotionVisualRenderer(VisualRenderer):
 
     @staticmethod
     def _url_to_path(video_url: str) -> str:
-        """Convert a /runtime/... URL back to a filesystem path."""
+        """Convert a runtime URL back to a filesystem path.
+
+        用 config 的 RUNTIME_DIR / PUBLIC_RUNTIME_URL_PREFIX，与 path_to_url 保持一致；
+        旧实现写死 "/runtime/" + 相对 Path("runtime")，在自定义/绝对 RUNTIME_DIR 或换目录时会算错。
+        """
         if not video_url:
             return ""
-        if video_url.startswith("/runtime/"):
-            return str(Path("runtime") / video_url[len("/runtime/"):])
+        from app.video_lab.config import RUNTIME_DIR, PUBLIC_RUNTIME_URL_PREFIX
+
+        prefix = (PUBLIC_RUNTIME_URL_PREFIX or "/runtime").rstrip("/")
+        for p in (prefix, "/runtime"):  # 当前前缀优先，兼容历史 /runtime URL
+            marker = p + "/"
+            if video_url.startswith(marker):
+                return str(RUNTIME_DIR / video_url[len(marker):])
         return video_url

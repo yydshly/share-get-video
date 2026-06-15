@@ -7,6 +7,8 @@ import json
 import os
 import shutil
 import subprocess
+import traceback
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -166,8 +168,8 @@ def render_remotion_video(
             timeout=timeout,
             shell=USE_SHELL,  # Windows: shell needed for .cmd files like npx.cmd
         )
-        stdout = result.stdout
-        stderr = result.stderr
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
         logs.append(f"[Remotion] stdout: {stdout[:500]}")
         if stderr:
             logs.append(f"[Remotion] stderr: {stderr[:500]}")
@@ -207,10 +209,9 @@ def render_remotion_video(
                 "outputVideoUrl": video_url,
                 "manifestUrl": manifest_url,
                 "props": props,
-                "createdAt": subprocess.check_output(
-                    ["python", "-c", "from datetime import datetime; print(datetime.utcnow().isoformat())"],
-                    text=True,
-                ).strip(),
+                # 直接用 datetime；旧实现 spawn `python` 在未把 python 加入 PATH 的
+                # 新机器上会直接抛异常（被外层 except 吞成 render exception）。
+                "createdAt": datetime.utcnow().isoformat(),
             }
             write_manifest(experiment_id, manifest)
 
@@ -259,7 +260,10 @@ def render_remotion_video(
         }
     except Exception as e:
         msg = f"Remotion render exception: {e}"
+        # 带上完整 traceback，避免异常被吞后无法定位（新机器/新目录排查关键）
+        tb = traceback.format_exc()
         logs.append(f"[Remotion] {msg}")
+        logs.append(f"[Remotion] traceback:\n{tb}")
         warnings.append(msg)
         return {
             "success": False,
