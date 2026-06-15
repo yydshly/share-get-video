@@ -59,20 +59,27 @@ def main() -> int:
 
     # Static runtime mount — create a temp file and try to fetch it
     print("\n[ Static mount ]")
-    runtime_test_file = Path("runtime") / "video_lab" / ".smoke_test"
     try:
+        from app.video_lab.config import RUNTIME_DIR, PUBLIC_RUNTIME_URL_PREFIX
+        runtime_test_rel = Path("video_lab") / ".smoke_test"
+        runtime_test_file = RUNTIME_DIR / runtime_test_rel
         runtime_test_file.parent.mkdir(parents=True, exist_ok=True)
         runtime_test_file.write_text("smoke test ok", encoding="utf-8")
-        resp = httpx.get(f"{BASE_URL}/runtime/video_lab/.smoke_test", timeout=10)
-        all_ok &= check(
-            "GET /runtime/video_lab/.smoke_test serves file",
-            resp.status_code == 200 and "smoke test ok" in resp.text,
-            f"{resp.status_code}",
-        )
+        prefix = PUBLIC_RUNTIME_URL_PREFIX.rstrip("/")
+        url_path = f"{prefix}/{runtime_test_rel.as_posix().replace(chr(92), '/')}"
+        resp = httpx.get(f"{BASE_URL}{url_path}", timeout=10)
+        if resp.status_code == 200 and "smoke test ok" in resp.text:
+            all_ok &= check(f"GET {url_path} serves file", True, f"{resp.status_code}")
+        else:
+            # 404 with server running → likely server was started before config changes
+            all_ok &= check(
+                f"GET {url_path} serves file",
+                False,
+                f"{resp.status_code} — restart server if it was started before code updates",
+            )
         runtime_test_file.unlink(missing_ok=True)
     except Exception as e:
         all_ok &= check("Static mount", False, str(e))
-        all_ok = False
 
     print()
     if all_ok:

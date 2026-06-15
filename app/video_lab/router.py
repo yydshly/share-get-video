@@ -11,6 +11,7 @@ from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
 from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest, StyleSampleGenerateRequest, StyleSampleSaveRequest, StyleFamilyCompareRequest, TechniqueProbeRequest, StyleSweepRequest
 from app.video_lab.config import PUBLIC_RUNTIME_URL_PREFIX
+from app.video_lab.path_contract import runtime_url_to_path
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -403,8 +404,7 @@ def visual_judge(request: VisualJudgeRequest) -> dict[str, Any]:
     from app.video_lab.quality.visual_judge import assess_visual_quality
 
     url = request.imageUrl
-    rel = url[len("/runtime/"):] if url.startswith("/runtime/") else url.lstrip("/")
-    local = Path("runtime") / rel if not rel.startswith("runtime") else Path(rel)
+    local = runtime_url_to_path(url)
     if not local.exists():
         raise HTTPException(status_code=404, detail=f"file not found: {local}")
 
@@ -708,14 +708,14 @@ def _judge_probe_result(result: dict[str, Any]) -> dict[str, Any] | None:
     url = result.get("finalVideoUrl") or result.get("coverUrl") or ""
     if not url:
         return None
-    # /runtime/... URL → 项目根下相对路径（runtime 由根目录提供）
-    fs_path = url[1:] if url.startswith("/") else url
+    # Use runtime_url_to_path for proper URL → local path conversion
+    fs_path = runtime_url_to_path(url)
 
-    if fs_path.endswith(".mp4"):
+    if str(fs_path).endswith(".mp4"):
         # 多帧送评：封面/中段/结尾各抽一帧，给视觉模型更多区分信号（并触发 consistency 维度）
-        frames = [f for f in (_extract_video_frame(fs_path, fr) for fr in (0.06, 0.45, 0.85)) if f]
+        frames = [f for f in (_extract_video_frame(str(fs_path), fr) for fr in (0.06, 0.45, 0.85)) if f]
     else:
-        frames = [fs_path]
+        frames = [str(fs_path)]
     if not frames:
         return None
     j = assess_visual_quality(frames)

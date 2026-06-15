@@ -25,7 +25,6 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_ROOT = PROJECT_ROOT / "app"
 FRONTEND_ROOT = PROJECT_ROOT / "frontend"
-REMOTION_ROOT = PROJECT_ROOT / "remotion"
 
 # Load .env before reading any env vars (override=False so system env takes precedence)
 try:
@@ -43,6 +42,15 @@ def resolve_project_path(p: str | Path) -> Path:
 
 # Runtime dir from config (env var or default)
 RUNTIME_DIR = resolve_project_path(os.getenv("VIDEO_LAB_RUNTIME_DIR", "runtime"))
+
+# Remotion workspace from config
+try:
+    import sys
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from app.video_lab.config import REMOTION_DIR
+    REMOTION_ROOT = REMOTION_DIR
+except Exception:
+    REMOTION_ROOT = PROJECT_ROOT / "remotion"
 
 
 def check(name: str, condition: bool, detail: str = "", warn: bool = False) -> bool:

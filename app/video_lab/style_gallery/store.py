@@ -10,11 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from app.video_lab.style_gallery.models import StyleSample
+from app.video_lab.config import RUNTIME_DIR, PUBLIC_RUNTIME_URL_PREFIX
 
 
 # ─── 路径常量 ────────────────────────────────────────────────────────────────
 
-_RUNTIME = Path(__file__).parent.parent.parent.parent.parent / "runtime" / "style_gallery"
+_RUNTIME = RUNTIME_DIR / "style_gallery"
 _RECORDS_DIR = _RUNTIME / "records"
 _JSONL_PATH = _RECORDS_DIR / "style_samples.jsonl"
 
@@ -112,37 +113,35 @@ def get_output_dir(sample_id: str) -> Path:
 
 
 def to_runtime_url(path: str) -> str:
-    """将各种路径格式统一转换为 /runtime/ URL。
+    """将各种路径格式统一转换为带 PUBLIC_RUNTIME_URL_PREFIX 的 URL。
 
     支持格式：
-    - /runtime/video_lab/experiments/xxx/final.mp4  → 保持不变
-    - runtime/video_lab/experiments/xxx/final.mp4  → /runtime/video_lab/...
-    - video_lab/experiments/xxx/final.mp4          → /runtime/video_lab/...
-    - style_gallery/remotion/xxx.mp4               → /runtime/style_gallery/...
-    - remotion/xxx.mp4                             → /runtime/style_gallery/...
-    - /runtime/style_gallery/xxx.mp4                 → 保持不变
+    - /runtime/video_lab/experiments/xxx/final.mp4  → 保持不变（替换为当前 prefix）
+    - runtime/video_lab/experiments/xxx/final.mp4  → <prefix>/video_lab/...
+    - video_lab/experiments/xxx/final.mp4          → <prefix>/video_lab/...
+    - style_gallery/remotion/xxx.mp4               → <prefix>/style_gallery/...
+    - remotion/xxx.mp4                             → <prefix>/style_gallery/...
+    - /assets/video_lab/...                       → <prefix>/video_lab/...（替换 prefix）
     """
     if not path:
         return ""
-    # 已经是完整 URL
+    prefix = PUBLIC_RUNTIME_URL_PREFIX.rstrip("/")
+    # 已经是完整 URL，保持不变
     if path.startswith("http://") or path.startswith("https://"):
         return path
-    # 已经是 /runtime/ 开头，直接返回
-    if path.startswith("/runtime/"):
-        return path
-    # runtime/xxx → /runtime/xxx
-    if path.startswith("runtime/"):
-        return "/" + path
-    # video_lab/xxx → /runtime/video_lab/xxx
-    if path.startswith("video_lab/"):
-        return "/runtime/" + path
-    # style_gallery/xxx → /runtime/style_gallery/xxx
-    if path.startswith("style_gallery/"):
-        return "/runtime/" + path
-    # 其他情况（如 remotion/xxx），默认归入 style_gallery
-    if path == "/" or not path:
-        return ""
-    return "/runtime/style_gallery/" + path
+    # 替换任何已有的 /runtime/ 或 /assets/ 前缀为当前 prefix
+    stripped = path
+    for old_prefix in ("/runtime/", "/assets/"):
+        if stripped.startswith(old_prefix):
+            stripped = stripped[len(old_prefix):]
+            break
+    # 补上前缀
+    if stripped.startswith(prefix + "/"):
+        return stripped  # already has this prefix
+    if stripped.startswith("runtime/"):
+        # runtime/xxx → prefix/xxx
+        return f"{prefix}/" + stripped[len("runtime/"):]
+    return f"{prefix}/{stripped}"
 
 
 def resolve_sample_urls(sample: StyleSample) -> dict[str, str]:

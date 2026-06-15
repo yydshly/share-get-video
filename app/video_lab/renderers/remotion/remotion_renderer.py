@@ -11,10 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from app.video_lab.renderers.file_store import get_experiment_dir, path_to_url, write_manifest
-
-
-# Path to the Remotion workspace (relative to project root)
-REMOTION_DIR = Path("remotion")
+from app.video_lab.config import REMOTION_DIR
 # Paths passed to CLI are relative to cwd=REMOTION_DIR
 REMOTION_ROOT_TSX = Path("src") / "Root.tsx"
 REMOTION_PROPS_PATH = Path("src") / "props.json"
@@ -54,12 +51,12 @@ def check_remotion_available() -> tuple[bool, str]:
     except Exception as e:
         return False, f"npx check failed: {e}"
 
-    # Check if remotion package is installed
+    # Check if remotion package is installed under the configured REMOTION_DIR
     remotion_pkg = REMOTION_DIR / "node_modules" / "remotion"
     if not remotion_pkg.exists():
         return (
             False,
-            "Remotion not installed. Run: cd remotion && npm install",
+            f"Remotion not installed at {REMOTION_DIR}. Run: cd {REMOTION_DIR} && npm install",
         )
 
     return True, "Remotion environment available"
@@ -70,8 +67,8 @@ def _find_mp4_in_dir(directory: Path) -> Path | None:
     if not directory.exists():
         return None
     for mp4 in directory.rglob("*.mp4"):
-        # Skip final_with_audio.mp4 and any obviously non-remotion files
-        if mp4.name not in ("final_with_audio.mp4", "voiceover.mp3"):
+        # Skip common non-remotion files
+        if mp4.name in ("final_with_audio.mp4", "voiceover.mp3", "clip.mp4", "output.mp4"):
             return mp4
     return None
 

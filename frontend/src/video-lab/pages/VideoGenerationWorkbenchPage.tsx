@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { resolveUrl, API_BASE } from "../utils/url";
+import { resolveUrl, stripRuntimeUrlPrefix, API_BASE } from "../utils/url";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -131,11 +131,6 @@ const ROUTE_SAMPLE_META: Record<RouteId, { route_id: string; route_name: string;
   },
   ai_asset: null,
 };
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-const stripRuntimePrefix = (url: string) =>
-  url.startsWith("/runtime/") ? url.replace(/^\/runtime\//, "") : url;
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -352,7 +347,11 @@ export default function VideoGenerationWorkbenchPage() {
       });
       const data = await resp.json();
       if (!resp.ok && !data) throw new Error(`${resp.status}`);
-      if (!data.success) throw new Error(data.message || "预览生成失败");
+      if (!data.success) {
+        // Surface real error from backend
+        const msg = data?.message || data?.detail || data?.warnings?.join("；") || "预览生成失败";
+        throw new Error(msg);
+      }
 
       setPreviewResult({
         experimentId: data.experimentId || "—",
@@ -441,11 +440,11 @@ export default function VideoGenerationWorkbenchPage() {
             reviewNotes,
           },
           output_type: "mp4",
-          output_path: stripRuntimePrefix(fullResult.finalVideoUrl),
-          poster_path: stripRuntimePrefix(fullResult.coverUrl || ""),
-          audio_url: stripRuntimePrefix(fullResult.audioUrl || ""),
-          srt_url: stripRuntimePrefix(fullResult.srtUrl || ""),
-          manifest_url: stripRuntimePrefix(fullResult.manifestUrl || ""),
+          output_path: stripRuntimeUrlPrefix(fullResult.finalVideoUrl),
+          poster_path: stripRuntimeUrlPrefix(fullResult.coverUrl || ""),
+          audio_url: stripRuntimeUrlPrefix(fullResult.audioUrl || ""),
+          srt_url: stripRuntimeUrlPrefix(fullResult.srtUrl || ""),
+          manifest_url: stripRuntimeUrlPrefix(fullResult.manifestUrl || ""),
           content_preview: body.trim().slice(0, 160),
           duration_sec: Number(fullResult.audioDurationSec || 0),
           audio_duration_sec: Number(fullResult.audioDurationSec || 0),
