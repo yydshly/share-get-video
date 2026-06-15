@@ -832,20 +832,31 @@ export default function StyleGalleryPage() {
   useEffect(() => { loadSamples(); }, [loadSamples]);
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
-  const handleGenerate = async (preset: PresetStyle) => {
-    setGenerating(preset.style_id);
+  // 通用：生成一条样片并自动保存到样片库（预置风格 / 模板复用共用，避免复制粘贴）
+  const generateAndSaveSample = async (opts: {
+    key: string;            // 用于 generating loading 态
+    route_id: string;
+    route_name: string;
+    style_name: string;
+    description: string;
+    params: Record<string, unknown>;
+    tags: string[];
+    successMsg?: string;
+  }): Promise<boolean> => {
+    setGenerating(opts.key);
     setError("");
+    setSuccessMsg("");
     try {
       const resp = await fetch(`${API_BASE}/style-samples/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          style_name: preset.style_name,
-          description: preset.description,
-          route_id: preset.route_id,
+          style_name: opts.style_name,
+          description: opts.description,
+          route_id: opts.route_id,
           content: "",
-          params: preset.params,
-          tags: preset.tags,
+          params: opts.params,
+          tags: opts.tags,
         }),
       });
       const data: GenerateResult = await resp.json();
@@ -858,7 +869,7 @@ export default function StyleGalleryPage() {
         body: JSON.stringify({
           id: data.sample_id,
           route_id: data.route_id,
-          route_name: preset.route_name,
+          route_name: opts.route_name,
           style_name: data.style_name,
           description: data.description,
           status: "candidate",
@@ -872,17 +883,44 @@ export default function StyleGalleryPage() {
           content_preview: data.content_preview,
           duration_sec: data.duration_sec,
           audio_duration_sec: data.audio_duration_sec,
-          tags: preset.tags,
+          tags: opts.tags,
         }),
       });
       loadSamples();
       setActiveTab("gallery");
+      if (opts.successMsg) setSuccessMsg(opts.successMsg);
+      return true;
     } catch (e) {
       setError("生成失败: " + String(e));
+      return false;
     } finally {
       setGenerating(null);
     }
   };
+
+  const handleGenerate = (preset: PresetStyle) =>
+    generateAndSaveSample({
+      key: preset.style_id,
+      route_id: preset.route_id,
+      route_name: preset.route_name,
+      style_name: preset.style_name,
+      description: preset.description,
+      params: preset.params,
+      tags: preset.tags,
+    });
+
+  // V0.4.3: 用模板一键生成新样片 → 形成「样片 → 模板 → 新样片」闭环
+  const handleUseTemplate = (t: StyleTemplate) =>
+    generateAndSaveSample({
+      key: t.id,
+      route_id: t.route_id,
+      route_name: t.route_name,
+      style_name: t.style_name || t.name,
+      description: t.description || "",
+      params: t.params,
+      tags: t.tags,
+      successMsg: `已用模板「${t.name}」生成新样片`,
+    });
 
   const handleDelete = async (id: string) => {
     if (!confirm("确认删除该记录？文件不受影响。")) return;
@@ -1323,37 +1361,57 @@ export default function StyleGalleryPage() {
                     )}
 
                     {/* Actions */}
-                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "auto" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "auto" }}>
+                      {/* V0.4.3: 用模板生成新样片 */}
                       <button
-                        onClick={() => navigator.clipboard.writeText(JSON.stringify(t.params, null, 2))}
+                        onClick={() => handleUseTemplate(t)}
+                        disabled={generating === t.id}
                         style={{
-                          background: "#f1f5f9",
-                          color: "#475569",
+                          background: generating === t.id ? "#93c5fd" : color,
+                          color: "white",
                           border: "none",
                           borderRadius: 6,
-                          padding: "0.35rem 0.75rem",
-                          fontSize: "0.72rem",
-                          cursor: "pointer",
-                          flex: 1,
+                          padding: "0.45rem 0.75rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          cursor: generating === t.id ? "wait" : "pointer",
+                          width: "100%",
                         }}
                       >
-                        📋 复制参数
+                        {generating === t.id ? "生成中…（约 1-2 分钟）" : "✨ 使用此模板生成样片"}
                       </button>
-                      <button
-                        onClick={() => handleDeleteTemplate(t.id)}
-                        style={{
-                          background: "#fef2f2",
-                          color: "#ef4444",
-                          border: "1px solid #fecaca",
-                          borderRadius: 6,
-                          padding: "0.35rem 0.75rem",
-                          fontSize: "0.72rem",
-                          cursor: "pointer",
-                          flex: 1,
-                        }}
-                      >
-                        🗑 删除
-                      </button>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(JSON.stringify(t.params, null, 2))}
+                          style={{
+                            background: "#f1f5f9",
+                            color: "#475569",
+                            border: "none",
+                            borderRadius: 6,
+                            padding: "0.35rem 0.75rem",
+                            fontSize: "0.72rem",
+                            cursor: "pointer",
+                            flex: 1,
+                          }}
+                        >
+                          📋 复制参数
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTemplate(t.id)}
+                          style={{
+                            background: "#fef2f2",
+                            color: "#ef4444",
+                            border: "1px solid #fecaca",
+                            borderRadius: 6,
+                            padding: "0.35rem 0.75rem",
+                            fontSize: "0.72rem",
+                            cursor: "pointer",
+                            flex: 1,
+                          }}
+                        >
+                          🗑 删除
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
