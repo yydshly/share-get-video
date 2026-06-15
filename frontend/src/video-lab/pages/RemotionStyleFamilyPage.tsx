@@ -686,10 +686,10 @@ export default function RemotionStyleFamilyPage() {
         }}
       >
         <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem", color: "#1e293b" }}>
-          实际预览对比 · V0.6.4
+          实际预览对比 · V0.6.5
         </h2>
         <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "1rem" }}>
-          点击「生成对比预览」同时渲染 Data News 和 Card Stack 两种范式的实际效果，可在浏览器中直接查看差异。
+          点击「生成对比预览」同时渲染 Data News 和 Card Stack 两种范式的实际效果。Card Stack V0.6.5 已强化叠层偏移（prev card 右上露出更明显，next card 左下预览更清晰），可在右侧视频中查看更明显的卡片堆叠效果。
         </p>
 
         {/* Generate Button */}
@@ -766,7 +766,7 @@ export default function RemotionStyleFamilyPage() {
               <div style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
                 <div style={{ background: "linear-gradient(135deg, #2563eb18 0%, #2563eb08 100%)", padding: "0.75rem 1rem", borderBottom: "1px solid #e2e8f0" }}>
                   <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#2563eb" }}>🗂️ Card Stack</div>
-                  <div style={{ fontSize: "0.72rem", color: "#64748b" }}>主卡后方有 secondary card layer</div>
+                  <div style={{ fontSize: "0.72rem", color: "#64748b" }}>V0.6.5 强化：prev 右上露出 + next 左下预览</div>
                 </div>
                 <div style={{ padding: "1rem" }}>
                   {compareResult.cardStack.success && compareResult.cardStack.videoUrl ? (
@@ -807,8 +807,9 @@ export default function RemotionStyleFamilyPage() {
               <div style={{ fontWeight: 600, marginBottom: "0.4rem", color: "#1e293b" }}>视觉差异结论：</div>
               <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
                 <li>Data News：单一居中卡片，数字滚动动画和数据条更突出，适合需要强调数据的场景。</li>
-                <li>Card Stack：主卡后方有 secondary card layer（右下角露出叠加边缘），形成堆叠视觉效果，短视频信息流感更强。</li>
-                <li>当前判断：Card Stack 已有可见差异，但短视频信息流感仍需强化（卡片入场动效不够强）。</li>
+                <li>Card Stack V0.6.5：主卡（z=2）居中，前一张（z=1）在右上角露出，后一张（z=0）在左下角预览，形成三层卡片堆叠感。</li>
+                <li>强化效果：prev card 右上露出更明显（offsetX=140, offsetY=-80），next card 左下预览更大（offsetX=-120, offsetY=70）。</li>
+                <li>当前判断：短视频信息流感已增强，但主卡入场动效可进一步强化（当前是直接淡入）。</li>
               </ul>
             </div>
           </>

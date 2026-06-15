@@ -838,29 +838,29 @@ const CardStackLayer: React.FC<{
   let scale: number, opacity: number, offsetX: number, offsetY: number;
 
   if (isPrev) {
-    // Previous card: starts prominent at center, slides up-right and shrinks
+    // V0.6.5: Strengthened — prev card now slides to top-right corner and is much more visible
     const progress = Math.min(1, localFrame / entryDuration);
     const eased = 1 - Math.pow(1 - progress, 2);
-    scale = 1.0 - 0.12 * eased;    // 1.0 → 0.88
-    opacity = 1.0 - 0.5 * eased;    // 1.0 → 0.5
-    offsetX = 60 * eased;            // slides right
-    offsetY = -40 * eased;           // slides up
+    scale = 1.0 - 0.16 * eased;    // 1.0 → 0.84 (smaller = further away)
+    opacity = 1.0 - 0.35 * eased;   // 1.0 → 0.65 (more visible than V0.6.4's 0.5)
+    offsetX = 140 * eased;           // slides right much more (was 60)
+    offsetY = -80 * eased;          // slides up much more (was -40)
   } else if (isNext) {
-    // Next card: small peek that grows slightly then fades as current enters
+    // V0.6.5: Strengthened — next card now peeks more visibly from bottom-left
     const progress = Math.min(1, localFrame / entryDuration);
     const eased = 1 - Math.pow(1 - progress, 2);
-    scale = 0.7 + 0.1 * eased;     // 0.7 → 0.8
-    opacity = 0.6 - 0.3 * eased;   // 0.6 → 0.3
-    offsetX = -50 * eased;           // from left
-    offsetY = 30 * eased;            // from bottom
+    scale = 0.72 + 0.10 * eased;    // 0.72 → 0.82 (more visible size)
+    opacity = 0.55 - 0.15 * eased;  // 0.55 → 0.40 (stays more visible than V0.6.4's 0.3)
+    offsetX = -120 * eased;          // from left more (was -50)
+    offsetY = 70 * eased;           // from bottom more (was 30)
   } else {
-    // Current card: slides up from bottom, scales in
+    // Current card: V0.6.5 — slides up from bottom, scales in to full size
     const progress = Math.min(1, localFrame / entryDuration);
     const eased = 1 - Math.pow(1 - progress, 3);
-    scale = 0.92 + 0.08 * eased;   // 0.92 → 1.0
+    scale = 0.90 + 0.10 * eased;   // 0.90 → 1.0 (was 0.92 → 1.0)
     opacity = 0.0 + 1.0 * eased;    // 0 → 1
-    offsetX = 20 * (1 - eased);     // slides from right
-    offsetY = 30 * (1 - eased);     // slides from bottom
+    offsetX = 0;                    // V0.6.5: centered (was 20 → 0)
+    offsetY = 0;                   // V0.6.5: centered (was 30 → 0)
   }
 
   // Build the card JSX (same content as KeyPointCard but positioned differently)
@@ -996,6 +996,9 @@ const CardStackLayer: React.FC<{
     </div>
   );
 
+  // V0.6.5: z-index — ensure correct stacking (prev=1, next=0, current=2)
+  const zIndex = isPrev ? 1 : isNext ? 0 : 2;
+
   return (
     <div
       style={{
@@ -1007,6 +1010,7 @@ const CardStackLayer: React.FC<{
         transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
         opacity,
         transformOrigin: "center center",
+        zIndex,
       }}
     >
       {cardContent}
