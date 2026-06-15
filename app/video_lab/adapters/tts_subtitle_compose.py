@@ -192,6 +192,8 @@ def run_tts_subtitle_compose(
             "emphasisTerms": s.get("emphasisTerms", []),
             # 主题自适应：语义基调
             "tone": s.get("tone", ""),
+            # V0.3.6-quality-p0: carry metrics through to key_points
+            "metrics": s.get("metrics", []),
         })
     key_points = {
         "keyPoints": kps_list,

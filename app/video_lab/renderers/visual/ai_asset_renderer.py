@@ -32,6 +32,16 @@ from app.video_lab.providers.minimax import MiniMaxImageClient
 _STYLE = "深蓝科技风格抽象背景，未来感，极简，无文字，无文本，电影质感，柔和景深"
 
 
+def _resolve_image_style(params: dict) -> str:
+    """Resolve imageStyle from params, falling back to default _STYLE.
+    V0.3.6-quality-p0: imageStyle from debug console now works in formal output.
+    """
+    style = params.get("imageStyle") if isinstance(params, dict) else None
+    if style and isinstance(style, str) and style.strip():
+        return style.strip()
+    return _STYLE
+
+
 class AiAssetVisualRenderer(VisualRenderer):
     route_id = "ai_asset_then_compose"
     display_name = "AI 素材 + 程序化合成"
@@ -67,10 +77,13 @@ class AiAssetVisualRenderer(VisualRenderer):
 
         kps = request.key_points.get("keyPoints") or request.key_points.get("key_points") or []
 
+        # V0.3.6-quality-p0: resolve imageStyle from params (debug console style now works in formal output)
+        effective_style = _resolve_image_style(request.params)
+
         # 1) 生成背景图（封面 + 每条要点）
         backgrounds: dict = {}
         cover_topic = (request.structured.get("lead") or "AI 前沿").strip()
-        cover_prompt = f"{cover_topic}；{_STYLE}"
+        cover_prompt = f"{cover_topic}；{effective_style}"
         cover_path = bg_dir / "cover_bg.png"
         res = img_client.generate(cover_prompt, cover_path, aspect_ratio=aspect)
         if res.get("success"):
@@ -80,7 +93,7 @@ class AiAssetVisualRenderer(VisualRenderer):
 
         for i, kp in enumerate(kps, 1):
             topic = (kp.get("headline") or kp.get("title") or "").strip()
-            prompt = f"{topic}；{_STYLE}"
+            prompt = f"{topic}；{effective_style}"
             p = bg_dir / f"kp_{i}_bg.png"
             r = img_client.generate(prompt, p, aspect_ratio=aspect)
             if r.get("success"):

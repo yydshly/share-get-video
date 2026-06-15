@@ -229,6 +229,80 @@ def test_default_opening_is_not_boring_template():
     assert "今天AI圈的重点，正在从能力走向落地。" in opening
 
 
+# ─── V0.3.6-quality-p0: metrics extraction tests ───────────────────────────────
+
+def test_extract_metrics_percentages():
+    text = "ProReviewer错误拒绝率从88.9%降至16%，质量提升39%"
+    metrics = _shot_from_item({"title": text})["metrics"]
+    vals = [m["value"] for m in metrics]
+    # Only first 2 metrics captured due to max_metrics=2 limit
+    assert 88.9 in vals or 88 in vals
+    assert 16.0 in vals or 16 in vals
+
+
+def test_extract_metrics_range():
+    text = "主流模型通过率57-77%"
+    metrics = _shot_from_item({"title": text})["metrics"]
+    assert len(metrics) >= 1
+    m = metrics[0]
+    assert m["unit"] == "%"
+    assert m["min"] == 57
+    assert m["max"] == 77
+
+
+def test_extract_metrics_max_2():
+    text = "准确率88.9%，F1分数0.84，召回率72%"
+    metrics = _shot_from_item({"title": text})["metrics"]
+    assert len(metrics) <= 2
+
+
+def test_extract_metrics_units():
+    text = "BBVA部署ChatGPT至10万员工，涉及5620亿参数"
+    metrics = _shot_from_item({"title": text})["metrics"]
+    assert len(metrics) >= 1
+    units = [m["unit"] for m in metrics]
+    # Should capture 万 or 亿
+    assert any(u in ("万", "亿") for u in units)
+
+
+def test_fallback_shot_has_metrics():
+    item = {"title": "评审系统突破：错误率从88.9%降至16%"}
+    shot = _shot_from_item(item)
+    assert "metrics" in shot
+    assert isinstance(shot["metrics"], list)
+    assert len(shot["metrics"]) >= 1
+
+
+def test_normalize_plan_retains_llm_metrics():
+    items = [{"title": "ProReviewer评审突破"}]
+    raw = {
+        "coverTitle": "T",
+        "opening": "开篇",
+        "shots": [{
+            "headline": "h",
+            "display": "d",
+            "narration": "n",
+            "emphasisTerms": [],
+            "metrics": [{"label": "质量提升", "value": 39, "unit": "%"}],
+        }],
+        "closing": "收尾",
+    }
+    plan = _normalize_plan(raw, items, "")
+    m = plan["shots"][0]["metrics"]
+    assert len(m) == 1
+    assert m[0]["value"] == 39
+    assert m[0]["unit"] == "%"
+
+
+def test_fallback_plan_produces_shots_with_metrics():
+    plan = plan_shots(REPORT, max_items=6, use_llm=False)
+    assert plan["source"] == "fallback"
+    assert len(plan["shots"]) == 3
+    for s in plan["shots"]:
+        assert "metrics" in s
+        assert isinstance(s["metrics"], list)
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

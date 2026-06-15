@@ -305,6 +305,7 @@ def generate_frames(
             highlight_color=eff_highlight,
             content_align=kp_content_align,
             icon=eff_icon,
+            metrics=kp.get("metrics"),  # V0.3.6-quality-p0
         )
         frame_name = frame_result["frame_name"]
         frame_outputs.append({
@@ -317,6 +318,7 @@ def generate_frames(
             "visualPreset": VISUAL_PRESET,
             "category": category,
             "highlights": frame_result.get("highlights", highlights),
+            "metrics": frame_result.get("metrics"),  # V0.3.6-quality-p0
         })
         duration_per_frame[frame_name] = keypoint_duration
         all_warnings.extend(frame_result.get("warnings", []))

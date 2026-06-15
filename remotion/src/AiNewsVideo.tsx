@@ -12,7 +12,7 @@ import {
   spring,
   Sequence,
 } from "remotion";
-import type { AiNewsVideoProps, KeyPoint, RemotionStyle } from "./data";
+import type { AiNewsVideoProps, KeyPoint, Metric, RemotionStyle } from "./data";
 
 // ─── Highlight Helper (V0.3.6-b1) ────────────────────────────────────────────
 /** Auto-extract numbers, percentages, and key terms from text (fallback). */
@@ -103,14 +103,46 @@ const TONE_STYLES: Record<string, { accent: string; highlight: string; glyph: st
 
 // ─── Data motion helpers (count-up number + growing bar) ─────────────────────
 // Remotion 特有：把百分比做成"数字滚动 + 数据条生长"，这是静态卡(Pillow)做不到的动画。
-function findPrimaryStat(kp: KeyPoint): { value: number; suffix: string } | null {
+// V0.3.6-quality-p0: priority — kp.metrics > auto-extract from text
+function findPrimaryStat(kp: KeyPoint): { value: number; suffix: string; label?: string } | null {
+  // Priority 1: explicit kp.metrics
+  if (kp.metrics && kp.metrics.length > 0) {
+    const m = kp.metrics[0];
+    const unit = m.unit ?? "";
+    return { value: m.value, suffix: unit, label: m.label };
+  }
+  // Priority 2: auto-extract from text (legacy fallback)
   const sources = [...(kp.emphasisTerms ?? []), kp.body ?? "", kp.title ?? ""];
   for (const s of sources) {
-    const m = String(s).match(/(\d+(?:\.\d+)?)\s*%/);
-    if (m) return { value: parseFloat(m[1]), suffix: "%" };
+    const match = String(s).match(/(\d+(?:\.\d+)?)\s*%/);
+    if (match) return { value: parseFloat(match[1]), suffix: "%" };
   }
   return null;
 }
+
+// V0.3.6-quality-p0: Range bar for interval metrics (e.g. 57-77%)
+const RangeBar: React.FC<{
+  min: number; max: number; unit: string; startFrame?: number; durationFrames?: number;
+  fromColor?: string; toColor?: string;
+}> = ({ min, max, unit, startFrame = 18, durationFrames = 30, fromColor = C.accent, toColor = C.highlight }) => {
+  const frame = useCurrentFrame();
+  const progress = interpolate(frame, [startFrame, startFrame + durationFrames], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const eased = 1 - Math.pow(1 - progress, 3);
+  const filled = min + (max - min) * eased;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 72, fontWeight: 900, color: toColor, textShadow: `0 0 36px ${toColor}55`, lineHeight: 1 }}>
+        {filled.toFixed(0)}{unit}
+      </div>
+      <div style={{ width: "100%", height: 16, background: C.surface, borderRadius: 999, overflow: "hidden", border: `1px solid ${C.border}` }}>
+        <div style={{ width: `${Math.min(100, Math.max(0, (filled / 100) * 100))}%`, height: "100%", background: `linear-gradient(90deg, ${fromColor}, ${toColor})`, borderRadius: 999 }} />
+      </div>
+      <div style={{ fontSize: 20, color: C.textMuted }}>
+        区间 {min}{unit} – {max}{unit}
+      </div>
+    </div>
+  );
+};
 
 const CountUpNumber: React.FC<{
   value: number; suffix?: string; startFrame?: number; durationFrames?: number; decimals?: number; style?: React.CSSProperties;
@@ -478,7 +510,38 @@ const KeyPointCard: React.FC<{
         </p>
 
         {/* Data animation: count-up + growing bar for the primary percentage */}
+        {/* V0.3.6-quality-p0: kp.metrics takes priority */}
         {(() => {
+          // Priority 1: kp.metrics with range (57-77%)
+          if (kp.metrics && kp.metrics.length > 0) {
+            const m = kp.metrics[0];
+            if (m.min !== undefined && m.max !== undefined) {
+              return (
+                <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
+                  <RangeBar
+                    min={m.min}
+                    max={m.max}
+                    unit={m.unit ?? ""}
+                    fromColor={accent}
+                    toColor={hl}
+                  />
+                </div>
+              );
+            }
+            // Simple metric: count-up + bar
+            return (
+              <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
+                <CountUpNumber
+                  value={m.value}
+                  suffix={m.unit ?? ""}
+                  decimals={m.value % 1 === 0 ? 0 : 1}
+                  style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}
+                />
+                <DataBar pct={Math.min(100, Math.max(0, m.value))} fromColor={accent} toColor={hl} />
+              </div>
+            );
+          }
+          // Priority 2: auto-extract fallback
           const stat = findPrimaryStat(kp);
           if (!stat) return null;
           return (

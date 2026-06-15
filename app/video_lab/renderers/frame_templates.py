@@ -513,6 +513,142 @@ def _draw_lines_with_highlights(
     return cur_y
 
 
+def _draw_progress_bar(
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    ratio: float,
+    bg_color: Tuple[int, int, int],
+    fill_color: Tuple[int, int, int],
+    radius: int = 4,
+) -> None:
+    """Draw a horizontal progress bar with rounded ends."""
+    # Background
+    draw.rounded_rectangle([(x, y), (x + width, y + height)], radius=radius, fill=bg_color)
+    # Fill (clamp ratio 0..1)
+    ratio = max(0.0, min(1.0, ratio))
+    if ratio > 0:
+        fill_w = max(height, int(width * ratio))
+        draw.rounded_rectangle([(x, y), (x + fill_w, y + height)], radius=radius, fill=fill_color)
+
+
+def _draw_metrics_card(
+    draw: ImageDraw.ImageDraw,
+    metrics: list[dict],
+    x: int,
+    y: int,
+    max_width: int,
+    scale: float,
+    accent_color: Tuple[int, int, int],
+    hl_color: Tuple[int, int, int],
+) -> int:
+    """
+    Draw a static data visualization card for metrics.
+    Returns the height consumed.
+    V0.3.6-quality-p0: percentages shown as large number + progress bar;
+    other metrics shown as large number + label.
+    """
+    if not metrics:
+        return 0
+
+    # Only show the first (primary) metric
+    m = metrics[0]
+    value = float(m.get("value", 0))
+    unit = str(m.get("unit", ""))
+    label = str(m.get("label", "指标"))
+    mn = m.get("min")
+    mx = m.get("max")
+    is_range = mn is not None and mx is not None
+
+    # Layout constants
+    gap = int(12 * scale)
+    inner_pad = int(24 * scale)
+    bar_h = int(12 * scale)
+    max_h = int(180 * scale)
+
+    # Determine bar width and big number font size
+    bar_total_w = max_width - inner_pad * 2
+    big_num_size = int(80 * scale)
+    label_size = int(22 * scale)
+    unit_size = int(40 * scale)
+
+    font_big, _ = find_chinese_font(big_num_size)
+    font_label, _ = find_chinese_font(label_size)
+    font_unit, _ = find_chinese_font(unit_size)
+
+    # Value string
+    if is_range:
+        val_str = f"{int(float(mx))}{unit}"
+    else:
+        decimals = 0 if value == int(value) else 1
+        val_str = f"{value:.{decimals}f}{unit}"
+
+    # Draw background card
+    card_padding = int(20 * scale)
+    card_h = max_h
+    card_w = max_width
+    card_bg = blend_colors(COLORS["bg_card"], COLORS["bg_primary"], 0.2)
+    draw.rounded_rectangle(
+        [(x, y), (x + card_w, y + card_h)],
+        radius=int(14 * scale),
+        fill=card_bg,
+        outline=(accent_color[0] // 3, accent_color[1] // 3, accent_color[2] // 3),
+        width=1,
+    )
+
+    # Left accent strip
+    strip_w = int(5 * scale)
+    draw.rounded_rectangle(
+        [(x + card_padding, y + card_padding), (x + card_padding + strip_w, y + card_h - card_padding)],
+        radius=int(3 * scale),
+        fill=accent_color,
+    )
+
+    content_x = x + card_padding + strip_w + int(16 * scale)
+    content_w = card_w - (content_x - x) - card_padding
+
+    cur_y = y + card_padding
+
+    # Label
+    bbox = draw.textbbox((0, 0), label, font=font_label)
+    lbl_h = bbox[3] - bbox[1]
+    draw.text((content_x, cur_y), label, font=font_label, fill=COLORS["text_dim"])
+    cur_y += lbl_h + gap
+
+    # Big number + unit
+    bbox = draw.textbbox((0, 0), val_str, font=font_big)
+    num_h = bbox[3] - bbox[1]
+    draw.text((content_x, cur_y), val_str, font=font_big, fill=hl_color)
+    cur_y += num_h + gap
+
+    # Progress bar (for percentage metrics) or range indicator
+    if is_range:
+        # Range: show a dual-bar showing min..max
+        min_val = float(mn)
+        max_val = float(mx)
+        range_label = f"{int(min_val)}{unit} – {int(max_val)}{unit}"
+        bbox = draw.textbbox((0, 0), range_label, font=font_unit)
+        rng_h = bbox[3] - bbox[1]
+        draw.text((content_x, cur_y), range_label, font=font_unit, fill=hl_color)
+        cur_y += rng_h + gap
+        # Mini range bar showing the range span
+        _draw_progress_bar(draw, content_x, cur_y, bar_total_w, bar_h, 1.0, COLORS["bg_primary"], accent_color)
+        cur_y += bar_h + gap
+    elif unit == "%":
+        # Percentage: progress bar
+        pct_ratio = min(1.0, max(0.0, value / 100.0))
+        _draw_progress_bar(draw, content_x, cur_y, bar_total_w, bar_h, pct_ratio, COLORS["bg_primary"], accent_color)
+        cur_y += bar_h + gap
+    else:
+        # Non-percentages: just show the label already displayed above
+        pass
+
+    drawn_h = cur_y - y + card_padding
+    return min(drawn_h, max_h + card_padding * 2)
+
+
 def render_keypoint_template(
     index: int,
     total: int,
@@ -529,6 +665,8 @@ def render_keypoint_template(
     highlight_color: Tuple[int, int, int] | None = None,
     content_align: str = "top",
     icon: str = "",
+    # V0.3.6-quality-p0: data visualization metrics
+    metrics: list[dict] | None = None,
 ) -> Dict[str, Any]:
     """
     Render a keypoint card that FILLS the card with auto-fit fonts and never
@@ -539,6 +677,7 @@ def render_keypoint_template(
     - Headline (`title`): auto-fit large text
     - Detail (`body`): auto-fit body text, fills remaining space
     - V0.3.6-b2: explicit emphasisTerms take priority for highlighting; fallback to auto-extract
+    - V0.3.6-quality-p0: metrics — static data card (big number + label + progress bar)
     - Numbers are highlighted; placeholder source is dropped
     - background_path: 若提供 AI 生成的背景图，则用其作背景 + 半透明信息卡
     """
@@ -632,17 +771,25 @@ def render_keypoint_template(
 
     headline = (title or "").strip()
     detail = (body or "").strip()
+    has_metrics = bool(metrics and len(metrics) > 0)
 
     # 颜色（可被参数覆盖，用于区分标题/正文/强调）
     t_color = title_color or COLORS["text_primary"]
     b_color = body_color or COLORS["text_secondary"]
     hl_color = highlight_color or COLORS["highlight_yellow"]
+    accent = COLORS["accent_blue"]
+
+    # Reserve space for metrics card (bottom of content area)
+    # Metrics card area: ~180 * scale height, plus gap
+    metrics_reserve_h = int(200 * scale) if has_metrics else 0
+    metrics_gap = int(24 * scale) if has_metrics else 0
+    effective_content_h = content_h - metrics_reserve_h - metrics_gap
 
     # Allocate vertical space: headline gets up to ~45% when detail exists
     if detail:
-        headline_box_h = int(content_h * 0.42)
+        headline_box_h = int(effective_content_h * 0.42)
     else:
-        headline_box_h = content_h
+        headline_box_h = effective_content_h
 
     # Headline — auto-fit large, minimum 40px for readability on mobile
     h_font, h_lines, h_size, h_line_h, h_overflow = fit_wrapped_text(
@@ -659,7 +806,7 @@ def render_keypoint_template(
     detail_h = 0
     if detail:
         prov_detail_top = content_top + headline_h + gap
-        prov_avail_h = content_bottom - prov_detail_top
+        prov_avail_h = content_bottom - metrics_reserve_h - metrics_gap - prov_detail_top
         d_font, d_lines, d_size, d_line_h, d_overflow = fit_wrapped_text(
             detail, inner_w, prov_avail_h, draw,
             size_max=int(52 * scale), size_min=int(28 * scale), line_spacing=int(14 * scale),
@@ -668,7 +815,7 @@ def render_keypoint_template(
 
     # 内容垂直对齐：center 时整块下移居中，改善"下半部空"的留白
     used_h = headline_h + (gap + detail_h if detail else 0)
-    offset = max(0, (content_h - used_h) // 2) if content_align == "center" else 0
+    offset = max(0, (effective_content_h - used_h) // 2) if content_align == "center" else 0
     head_top = content_top + offset
 
     end_y = _draw_lines_with_highlights(
@@ -687,6 +834,14 @@ def render_keypoint_template(
         )
         if d_overflow:
             warnings.append(f"keypoint {index}: detail overflow (text truncated visually)")
+
+    # V0.3.6-quality-p0: Metrics card — drawn at bottom of content area
+    if has_metrics:
+        metrics_card_y = content_bottom - metrics_reserve_h
+        _draw_metrics_card(
+            draw, metrics, inner_x, metrics_card_y, inner_w, scale,
+            accent_color=accent, hl_color=hl_color,
+        )
 
     # Source — only when it's real (skip placeholder like "依据 1")
     src = (source or "").strip()
@@ -710,6 +865,7 @@ def render_keypoint_template(
         "visualPreset": VISUAL_PRESET,
         "category": category,
         "highlights": (emphasis_terms if emphasis_terms else extract_highlights(headline + " " + detail)),
+        "metrics": metrics if has_metrics else None,  # V0.3.6-quality-p0
     }
 
 

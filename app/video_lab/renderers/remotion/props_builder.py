@@ -36,6 +36,7 @@ def build_remotion_props(
 
     # Build keyPoints array (prefer LLM-planned headline/display)
     # V0.3.6-b1: also carry emphasisTerms for Remotion highlighting
+    # V0.3.6-quality-p0: also carry metrics for data visualization
     from app.video_lab.renderers.theme_presets import resolve_shot_tone
 
     kps_list = key_points.get("keyPoints", key_points.get("key_points", []))
@@ -48,6 +49,8 @@ def build_remotion_props(
                 "source": kp.get("source", ""),
                 # V0.3.6-b1: carry through emphasisTerms if present
                 "emphasisTerms": kp.get("emphasisTerms", []),
+                # V0.3.6-quality-p0: carry through metrics if present
+                "metrics": kp.get("metrics", []),
                 # 主题自适应：解析每条基调（LLM 给的优先，否则按文本推断）
                 "tone": resolve_shot_tone(kp),
             })
@@ -57,6 +60,7 @@ def build_remotion_props(
                 "body": "",
                 "source": "",
                 "emphasisTerms": [],
+                "metrics": [],
                 "tone": "neutral",
             })
 

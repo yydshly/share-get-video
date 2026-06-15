@@ -32,6 +32,7 @@ from app.video_lab.renderers.text_layout import split_headline_and_detail
 
 
 # V0.3.6-b1: Added opening hook requirement and emphasisTerms extraction
+# V0.3.6-quality-p0: Added metrics field
 _SYSTEM_PROMPT = (
     "你是资深短视频编导，把信息密集的中文资讯改写成竖屏短视频脚本。"
     "最高原则：忠实、完整、不丢信息。必须逐条处理，禁止合并、删减或省略任何一条要点；"
@@ -45,6 +46,11 @@ _SYSTEM_PROMPT = (
     "重要：每条 shot 必须包含 emphasisTerms 数组，列出该条最值得在视频中突出的关键词（1-4个）。"
     "emphasisTerms 优先级：数字/百分比 > 英文模型/系统名 > 机构名 > 关键术语。"
     "emphasisTerms 必须来自原文/display/narration，不允许编造。"
+    "\n"
+    "重要：每条 shot 可选包含 metrics 数组（最多2个），格式："
+    "[{\"label\": \"质量提升\", \"value\": 39, \"unit\": \"%\"}] 或 "
+    "[{\"label\": \"通过率\", \"value\": 77, \"min\": 57, \"max\": 77, \"unit\": \"%\"}]。"
+    "metrics 必须来自原文，不允许编造数值。"
 )
 
 
@@ -57,16 +63,18 @@ def _build_user_prompt(lead: str, items: list[dict]) -> str:
     return (
         f"下面是一份 AI 资讯报告，共 {n} 条要点（总起：{lead}）。\n"
         f"请严格按顺序逐条改写，输出**恰好 {n} 条** shots，与下面编号一一对应，不要合并/增删/调序。\n"
-        "每条输出四个字段：\n"
+        "每条输出字段：\n"
         "- headline: 6-14 字短标题，体现该条的具体主体（如系统名/机构名），不要写成笼统的大类\n"
         "- display: 卡片正文，用通顺的一句话**完整呈现该条核心信息**，必须包含关键数字/百分比/机构名/核心结论，"
         "不要为了短而省略关键事实（长度以信息完整为准，约 30-80 字）\n"
         "- narration: 口播文案，自然口语，完整传达该条信息（保留关键数字），可比 display 略详细\n"
         "- emphasisTerms: 数组，该条最值得突出的 1-4 个关键词，优先数字/百分比/模型名/系统名/机构名，如 []\n"
         "- tone: 该条的语义基调，只能取 positive（突破/提升/达成）/ negative（短板/漏洞/落后/风险）/ neutral（合作/发布/中性）之一\n"
+        "- metrics: 数组，该条的关键数据可视化指标（最多2个），如 [{\"label\":\"质量提升\",\"value\":39,\"unit\":\"%\"}]；"
+        "区间值用 {\"label\":\"通过率\",\"value\":77,\"min\":57,\"max\":77,\"unit\":\"%\"}；无数据则填 []\n"
         "再输出：coverTitle（<=16字封面标题）、opening（<=30字开场钩子句，要有观点/冲突/趋势，不要流水账）、closing（<=24字收尾口播）。\n"
         "严格输出 JSON：\n"
-        '{"coverTitle":"...","opening":"...","shots":[{"headline":"...","display":"...","narration":"...","emphasisTerms":["..."],"tone":"positive"}],"closing":"..."}\n\n'
+        '{"coverTitle":"...","opening":"...","shots":[{"headline":"...","display":"...","narration":"...","emphasisTerms":["..."],"tone":"positive","metrics":[{"label":"...","value":0,"unit":"..."}]}],"closing":"..."}\n\n'
         f"待改写的 {n} 条要点：\n{items_block}"
     )
 
@@ -129,9 +137,118 @@ def _extract_emphasis_terms(text: str, max_terms: int = 4) -> list[str]:
     return terms[:max_terms]
 
 
+# V0.3.6-quality-p0: metrics extraction
+_METRIC_UNIT_MAP = {
+    "%": "%",
+    "倍": "倍",
+    "分": "分",
+    "万": "万",
+    "亿": "亿",
+    "美元": "美元",
+    "千万美元": "千万美元",
+    "百万美元": "百万美元",
+}
+
+
+def _extract_metrics(text: str, max_metrics: int = 2) -> list[dict]:
+    """
+    Fallback regex-based metric extraction from text.
+    Extracts up to max_metrics metrics, each with label/value/unit.
+    Priority: percentages > numbers with units.
+    """
+    if not text:
+        return []
+    metrics: list[dict] = []
+    seen_vals: set[str] = set()
+
+    # 1. Percentages: 88.9%, 72%, 39%, 57-77%
+    # Range: 57-77% (only one % at the end)
+    for m in re.finditer(r"(\d+\.?\d*)-(\d+\.?\d*)%", text):
+        min_val, max_val = m.group(1), m.group(2)
+        key = f"{min_val}-{max_val}%"
+        if key not in seen_vals:
+            seen_vals.add(key)
+            # Also block individual ends so they aren't re-captured
+            seen_vals.add(f"{min_val}%")
+            seen_vals.add(f"{max_val}%")
+            metrics.append({
+                "label": "区间",
+                "value": float(max_val),
+                "min": float(min_val),
+                "max": float(max_val),
+                "unit": "%",
+            })
+            if len(metrics) >= max_metrics:
+                break
+    if len(metrics) < max_metrics:
+        for m in re.finditer(r"(?<!\d\.)(\d+(?:\.\d+)?)%", text):
+            key = m.group(0)
+            if key not in seen_vals:
+                seen_vals.add(key)
+                val = float(m.group(1))
+                metrics.append({
+                    "label": "比例",
+                    "value": val,
+                    "unit": "%",
+                })
+                if len(metrics) >= max_metrics:
+                    break
+
+    # 2. Numbers with units: 10倍, 100万, 5620亿, 5个, 千万美元
+    if len(metrics) < max_metrics:
+        for m in re.finditer(r"(\d+\.?\d*)\s*(倍|x|万|亿|千|个|美元|千万美元|百万美元)", text):
+            val_str, unit = m.group(1), m.group(2)
+            key = f"{val_str}{unit}"
+            if key not in seen_vals:
+                seen_vals.add(key)
+                val = float(val_str)
+                if unit in ("万", "亿", "千万美元", "百万美元"):
+                    label = "金额" if unit in ("万美元", "亿美元", "千万美元", "百万美元") else "数值"
+                else:
+                    label = "倍数" if unit in ("倍", "x") else "数量"
+                metrics.append({
+                    "label": label,
+                    "value": val,
+                    "unit": unit,
+                })
+                if len(metrics) >= max_metrics:
+                    break
+
+    return metrics[:max_metrics]
+
+
+def _validate_metrics(raw: list) -> list[dict]:
+    """Validate and normalize a list of raw metric dicts."""
+    result = []
+    for m in raw:
+        if not isinstance(m, dict):
+            continue
+        val = m.get("value")
+        if val is None:
+            continue
+        try:
+            val = float(val)
+        except (TypeError, ValueError):
+            continue
+        unit = str(m.get("unit", "")).strip() or ""
+        label = str(m.get("label", "指标")).strip() or "指标"
+        entry: dict[str, Any] = {"label": label, "value": val, "unit": unit}
+        mn = m.get("min")
+        mx = m.get("max")
+        if mn is not None and mx is not None:
+            try:
+                entry["min"] = float(mn)
+                entry["max"] = float(mx)
+            except (TypeError, ValueError):
+                pass
+        result.append(entry)
+    return result[:2]  # max 2 metrics per shot
+
+
 def _shot_from_item(item: dict) -> dict:
     """从单条源条目确定性生成 shot（用于回退或补全缺失条目，保证不丢信息）。
     V0.3.6-b1: includes emphasisTerms extracted from the content.
+    V0.3.6-quality-p0: includes metrics extracted from the content.
     """
     full = (item.get("title", "") or "").strip()
     headline, detail = split_headline_and_detail(full)
@@ -141,6 +258,7 @@ def _shot_from_item(item: dict) -> dict:
         "display": body_text,   # 完整保留，不截断（卡片自适应字号承载）
         "narration": full,
         "emphasisTerms": _extract_emphasis_terms(f"{headline} {body_text}", max_terms=4),
+        "metrics": _extract_metrics(f"{headline} {body_text}", max_metrics=2),
     }
 
 
@@ -227,6 +345,14 @@ def _normalize_plan(raw: dict, items: list[dict], lead: str) -> dict[str, Any]:
             # Auto-extract from resolved content (after fallback fill)
             emp = _extract_emphasis_terms(f"{headline} {display} {narration}", max_terms=4)
 
+        # V0.3.6-quality-p0: metrics - use LLM value or fallback regex extraction
+        raw_metrics = s.get("metrics")
+        if isinstance(raw_metrics, list) and raw_metrics:
+            metrics = _validate_metrics(raw_metrics)
+        else:
+            # Fallback: extract from resolved text
+            metrics = _extract_metrics(f"{headline} {display} {narration}")
+
         tone = (s.get("tone") or "").strip().lower()
         if tone not in ("positive", "negative", "neutral"):
             tone = ""  # 留空，渲染器按文本推断
@@ -236,6 +362,7 @@ def _normalize_plan(raw: dict, items: list[dict], lead: str) -> dict[str, Any]:
             "narration": narration,      # 不截断
             "emphasisTerms": emp,
             "tone": tone,
+            "metrics": metrics,          # V0.3.6-quality-p0
         })
 
     cover_default, _ = split_headline_and_detail(lead)

@@ -1,5 +1,14 @@
 // data.ts - Shared types for Remotion template
 // V0.3.6-b1: Added emphasisTerms to KeyPoint
+// V0.3.6-quality-p0: Added metrics to KeyPoint
+
+export type Metric = {
+  label: string;
+  value: number;
+  unit: string;
+  min?: number;
+  max?: number;
+};
 
 export type KeyPoint = {
   title: string;
@@ -7,6 +16,8 @@ export type KeyPoint = {
   source?: string;
   // V0.3.6-b1: explicit emphasis terms for highlight; falls back to auto-extract
   emphasisTerms?: string[];
+  // V0.3.6-quality-p0: data visualization metrics
+  metrics?: Metric[];
   // 主题自适应：positive | negative | neutral（驱动配色/图标）
   tone?: string;
 };
