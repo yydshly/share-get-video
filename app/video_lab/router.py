@@ -772,6 +772,32 @@ def mark_sample_for_compare(sample_id: str) -> dict[str, Any]:
     return d
 
 
+@router.post("/style-samples/{sample_id}/status")
+def update_sample_status(sample_id: str, request: dict[str, str]) -> dict[str, Any]:
+    """更新样片状态。
+
+    支持的状态：candidate / comparing / approved / rejected
+    """
+    from app.video_lab.style_gallery import store as sg_store
+    sample = sg_store.get_sample(sample_id)
+    if not sample:
+        raise HTTPException(status_code=404, detail=f"Sample not found: {sample_id}")
+
+    new_status = request.get("status", "")
+    valid_statuses = [s.value for s in SampleStatus]
+    if new_status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status. Must be one of: {valid_statuses}",
+        )
+
+    sample.status = SampleStatus(new_status)
+    sg_store.save_sample(sample)
+    d = sample.to_dict()
+    d["urls"] = sg_store.resolve_sample_urls(sample)
+    return d
+
+
 @router.get("/style-gallery/preset-styles")
 def list_preset_styles() -> list[dict[str, Any]]:
     """

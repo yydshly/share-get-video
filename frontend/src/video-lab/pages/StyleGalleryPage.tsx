@@ -226,6 +226,11 @@ function PresetStyleCard({
       >
         {generating ? "生成中..." : "▶ 生成样片"}
       </button>
+      {!generating && (
+        <div style={{ fontSize: "0.6rem", color: "#94a3b8", marginTop: "0.2rem" }}>
+          生成完整样片，可能耗时较长，并消耗 TTS / AI 图像额度
+        </div>
+      )}
     </div>
   );
 }
@@ -412,7 +417,7 @@ function SampleCard({
             cursor: "pointer",
           }}
         >
-          🗑 删除
+          🗑 删除记录
         </button>
       </div>
     </div>
@@ -512,7 +517,7 @@ export default function StyleGalleryPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("确认删除该样片记录？")) return;
+    if (!confirm("确认删除该记录？文件不受影响。")) return;
     try {
       await fetch(`${API_BASE}/style-samples/${id}`, { method: "DELETE" });
       loadSamples();
@@ -524,8 +529,17 @@ export default function StyleGalleryPage() {
   const handleCompare = async (id: string) => {
     const next = new Set(compareSet);
     if (next.has(id)) {
+      // 取消对比：调用 status 接口改回 candidate
       next.delete(id);
+      try {
+        await fetch(`${API_BASE}/style-samples/${id}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "candidate" }),
+        });
+      } catch { /* ignore */ }
     } else {
+      // 加入对比
       next.add(id);
       try {
         await fetch(`${API_BASE}/style-samples/${id}/compare`, { method: "POST" });

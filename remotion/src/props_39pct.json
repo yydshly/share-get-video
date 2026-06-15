@@ -1,0 +1,23 @@
+{
+  "title": "AI 前沿动态",
+  "subtitle": "今日 AI 资讯速览",
+  "keyPoints": [
+    {
+      "title": "ProReviewer 系统在五个质量维度超越传统方法",
+      "body": "ProReviewer 评审系统在质量评估中全面领先传统方案",
+      "source": "ACL 2024",
+      "emphasisTerms": ["ProReviewer", "39%"],
+      "metrics": [
+        {
+          "label": "质量提升",
+          "value": 39,
+          "unit": "%"
+        }
+      ],
+      "tone": "positive"
+    }
+  ],
+  "durationSec": 8,
+  "stylePreset": "ai_frontier_dark",
+  "showDataViz": true
+}

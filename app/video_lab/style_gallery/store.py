@@ -111,14 +111,47 @@ def get_output_dir(sample_id: str) -> Path:
     return _RUNTIME / sample_id
 
 
+def to_runtime_url(path: str) -> str:
+    """将各种路径格式统一转换为 /runtime/ URL。
+
+    支持格式：
+    - /runtime/video_lab/experiments/xxx/final.mp4  → 保持不变
+    - runtime/video_lab/experiments/xxx/final.mp4  → /runtime/video_lab/...
+    - video_lab/experiments/xxx/final.mp4          → /runtime/video_lab/...
+    - style_gallery/remotion/xxx.mp4               → /runtime/style_gallery/...
+    - remotion/xxx.mp4                             → /runtime/style_gallery/...
+    - /runtime/style_gallery/xxx.mp4                 → 保持不变
+    """
+    if not path:
+        return ""
+    # 已经是完整 URL
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+    # 已经是 /runtime/ 开头，直接返回
+    if path.startswith("/runtime/"):
+        return path
+    # runtime/xxx → /runtime/xxx
+    if path.startswith("runtime/"):
+        return "/" + path
+    # video_lab/xxx → /runtime/video_lab/xxx
+    if path.startswith("video_lab/"):
+        return "/runtime/" + path
+    # style_gallery/xxx → /runtime/style_gallery/xxx
+    if path.startswith("style_gallery/"):
+        return "/runtime/" + path
+    # 其他情况（如 remotion/xxx），默认归入 style_gallery
+    if path == "/" or not path:
+        return ""
+    return "/runtime/style_gallery/" + path
+
+
 def resolve_sample_urls(sample: StyleSample) -> dict[str, str]:
     """把相对路径转换为 /runtime/ URL 前缀。"""
-    base = "/runtime/style_gallery"
     out = sample.output
     return {
-        "video_url": f"{base}/{out.path}" if out.path else "",
-        "poster_url": f"{base}/{out.poster}" if out.poster else "",
-        "audio_url": f"{base}/{out.audio_url}" if out.audio_url else "",
-        "srt_url": f"{base}/{out.srt_url}" if out.srt_url else "",
-        "manifest_url": f"{base}/{out.manifest_url}" if out.manifest_url else "",
+        "video_url": to_runtime_url(out.path) if out.path else "",
+        "poster_url": to_runtime_url(out.poster) if out.poster else "",
+        "audio_url": to_runtime_url(out.audio_url) if out.audio_url else "",
+        "srt_url": to_runtime_url(out.srt_url) if out.srt_url else "",
+        "manifest_url": to_runtime_url(out.manifest_url) if out.manifest_url else "",
     }
