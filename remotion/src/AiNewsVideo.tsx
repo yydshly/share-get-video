@@ -326,11 +326,12 @@ const CoverPage: React.FC<{
 
   // Default: editorial style (original behavior)
   // editorial: current default news cover style with clear title, subtitle, and preview list
+  // V0.5.6: 竖屏垂直居中内容块（原 flex-start 把标题/列表钉在顶部，下方大片空白）
   return (
     <AbsoluteFill
       style={{
         background: C.bg,
-        justifyContent: "flex-start",
+        justifyContent: "center",
         alignItems: "stretch",
         padding: "60px 50px",
       }}
