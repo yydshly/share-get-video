@@ -976,20 +976,29 @@ def render_summary_template(
         fill=COLORS["accent_blue"]
     )
 
-    # Conclusions
-    conclusion_start_y = height // 3
-    conclusion_spacing = 80
+    # Conclusions — V0.5.4: 在标题与 CTA 之间的区域内垂直居中 + 自适应间距，减少中下部大空白
+    scale = width / 1080
+    items = conclusions[:5]
+    n = max(1, len(items))
+    region_top = line_y + int(80 * scale)
+    region_bottom = (height - 280) - int(60 * scale)  # 留出 CTA 上方空间
+    region_h = max(1, region_bottom - region_top)
+    conclusion_spacing = int(min(150 * scale, max(96 * scale, region_h / (n + 0.4))))
+    block_h = n * conclusion_spacing
+    conclusion_start_y = region_top + max(0, (region_h - block_h) // 2)
+    body_line_h = get_text_size("测试", font_body, draw)[1] + 6
 
-    for i, conclusion in enumerate(conclusions[:5]):
+    for i, conclusion in enumerate(items):
+        row_y = conclusion_start_y + i * conclusion_spacing
         # Index
         idx_text = f"{i + 1}."
-        draw.text((width // 3 - 60, conclusion_start_y + i * conclusion_spacing), idx_text, font=font_body, fill=COLORS["accent_cyan"])
+        draw.text((width // 3 - 60, row_y), idx_text, font=font_body, fill=COLORS["accent_cyan"])
 
         # Text
         text_max_width = int(width * 0.6)
         text_lines = split_lines_with_max_count(conclusion, font_body, text_max_width, draw, max_lines=2)
         for j, line in enumerate(text_lines):
-            draw.text((width // 3, conclusion_start_y + i * conclusion_spacing + j * (get_text_size("测试", font_body, draw)[1] + 6)), line, font=font_body, fill=COLORS["text_primary"])
+            draw.text((width // 3, row_y + j * body_line_h), line, font=font_body, fill=COLORS["text_primary"])
 
     # CTA
     cta_y = height - 280
