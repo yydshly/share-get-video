@@ -11,6 +11,13 @@ const NAV_CARDS = [
     color: "#0ea5e9",
   },
   {
+    to: "/video-lab/style-sweep",
+    title: "样式对比台",
+    desc: "选一条技术 → 同内容跑它的全部样式 → 并排看「同技术不同样式」效果差异",
+    icon: "🎨",
+    color: "#c026d3",
+  },
+  {
     to: "/video-lab/workbench",
     title: "视频生成实验台",
     desc: "V0.7.0 · 输入内容，选择路线，生成预览，人工观察确认",

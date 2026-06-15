@@ -18,6 +18,7 @@ import RouteBaselineComparisonPage from "./video-lab/pages/RouteBaselineComparis
 import RemotionStyleFamilyPage from "./video-lab/pages/RemotionStyleFamilyPage";
 import VideoGenerationWorkbenchPage from "./video-lab/pages/VideoGenerationWorkbenchPage";
 import TechniqueProbePage from "./video-lab/pages/TechniqueProbePage";
+import StyleSweepPage from "./video-lab/pages/StyleSweepPage";
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/video-lab/remotion-style-family" element={<RemotionStyleFamilyPage />} />
         <Route path="/video-lab/workbench" element={<VideoGenerationWorkbenchPage />} />
         <Route path="/video-lab/technique-probe" element={<TechniqueProbePage />} />
+        <Route path="/video-lab/style-sweep" element={<StyleSweepPage />} />
         <Route path="/" element={<Navigate to="/video-lab" replace />} />
       </Routes>
     </BrowserRouter>
