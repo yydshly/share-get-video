@@ -106,31 +106,6 @@ def build_remotion_props(
             "totalSec": duration_sec,
         }
 
-    # V0.8.2: contentDebug snapshot for cheap post-hoc inspection.
-    # Mirrors the content the Remotion template will render so users can
-    # diff "what we said the title was" vs "what came out". Includes per-KP
-    # metrics to diagnose "number chart missing" reports. Diagnostic-only;
-    # not read by the template.
-    metrics_by_key_point = []
-    for _i, _kp in enumerate(key_points_list, 1):
-        metrics_by_key_point.append({
-            "index": _i,
-            "title": _kp.get("title", ""),
-            "metrics": list(_kp.get("metrics", []) or []),
-        })
-    has_metrics = any(bool(m.get("metrics")) for m in metrics_by_key_point)
-    props["contentDebug"] = {
-        "title": title,
-        "subtitle": subtitle,
-        "keyPointCount": len(key_points_list),
-        "keyPointTitles": [kp.get("title", "") for kp in key_points_list],
-        "keyPointBodies": [kp.get("body", "") for kp in key_points_list],
-        "metricsByKeyPoint": metrics_by_key_point,
-        "hasMetrics": has_metrics,
-        "style": style,
-        "remotionFamily": props.get("remotionFamily", "data_news"),
-    }
-
     # 可调样式（对应调试台旋钮：配色/字号/图标）
     # V0.3.7: remotionStyle takes priority; top-level params also accepted
     rstyle = params.get("remotionStyle") if isinstance(params.get("remotionStyle"), dict) else {}
@@ -170,6 +145,31 @@ def build_remotion_props(
 
     if style:
         props["style"] = style
+
+    # V0.8.2: contentDebug snapshot for cheap post-hoc inspection.
+    # Mirrors the content the Remotion template will render so users can
+    # diff "what we said the title was" vs "what came out". Includes per-KP
+    # metrics to diagnose "number chart missing" reports. Diagnostic-only;
+    # not read by the template.
+    metrics_by_key_point = []
+    for _i, _kp in enumerate(key_points_list, 1):
+        metrics_by_key_point.append({
+            "index": _i,
+            "title": _kp.get("title", ""),
+            "metrics": list(_kp.get("metrics", []) or []),
+        })
+    has_metrics = any(bool(m.get("metrics")) for m in metrics_by_key_point)
+    props["contentDebug"] = {
+        "title": title,
+        "subtitle": subtitle,
+        "keyPointCount": len(key_points_list),
+        "keyPointTitles": [kp.get("title", "") for kp in key_points_list],
+        "keyPointBodies": [kp.get("body", "") for kp in key_points_list],
+        "metricsByKeyPoint": metrics_by_key_point,
+        "hasMetrics": has_metrics,
+        "style": style,
+        "remotionFamily": props.get("remotionFamily", "data_news"),
+    }
 
     # V0.6.2: Remotion family — selects presentation paradigm (data_news | card_stack)
     remotion_family = params.get("remotionFamily")

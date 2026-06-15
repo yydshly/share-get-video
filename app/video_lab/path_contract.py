@@ -102,7 +102,16 @@ def runtime_url_to_path(url_or_path: str) -> Path:
     if s and not s.startswith("runtime/"):
         s = "runtime/" + s
 
-    return Path(s)
+    # Strip any leading "runtime/" to avoid double-nesting when RUNTIME_DIR is "runtime"
+    if s.startswith("runtime/"):
+        s = s[len("runtime/"):]
+
+    # Normalize: ensure s is a relative path (not starting with /) before joining
+    # On Windows, RUNTIME_DIR / "/absolute/path" returns the absolute path, not under RUNTIME_DIR
+    s = s.lstrip("/")
+
+    # Always return path inside RUNTIME_DIR so custom VIDEO_LAB_RUNTIME_DIR is respected
+    return RUNTIME_DIR / s
 
 
 def strip_runtime_url_prefix(url: str) -> str:

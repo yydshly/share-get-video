@@ -62,14 +62,28 @@ def check_remotion_available() -> tuple[bool, str]:
     return True, "Remotion environment available"
 
 
-def _find_mp4_in_dir(directory: Path) -> Path | None:
-    """Search directory recursively for any .mp4 file (fallback when output path is unknown)."""
+def _find_mp4_in_dir(directory: Path, preferred_name: str | None = None) -> Path | None:
+    """Search directory for an .mp4 file.
+
+    Args:
+        directory: directory to search
+        preferred_name: if provided, only return this exact filename; otherwise
+                       return the first non-final_with_audio.mp4 .mp4 found.
+                       final_with_audio.mp4 is never returned (audio post-process artifact).
+    """
     if not directory.exists():
         return None
+
+    if preferred_name:
+        candidate = directory / preferred_name
+        if candidate.exists():
+            return candidate
+        return None
+
     for mp4 in directory.rglob("*.mp4"):
-        # Skip common non-remotion files
-        if mp4.name in ("final_with_audio.mp4", "voiceover.mp3", "clip.mp4", "output.mp4"):
-            return mp4
+        if mp4.name == "final_with_audio.mp4":
+            continue
+        return mp4
     return None
 
 
@@ -166,7 +180,7 @@ def render_remotion_video(
                 logs.append(f"[Remotion] Output found at expected path: {output_mp4}")
             else:
                 # Fallback: search for any MP4 in experiment directory
-                fallback = _find_mp4_in_dir(exp_dir)
+                fallback = _find_mp4_in_dir(exp_dir, output_name)
                 if fallback:
                     found_mp4 = fallback
                     logs.append(f"[Remotion] Output found via fallback search: {found_mp4}")

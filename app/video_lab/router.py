@@ -491,7 +491,10 @@ def clip_preview(request: ClipPreviewRequest) -> dict[str, Any]:
             cover_title=request.coverTitle,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[clip-preview] {tb}")
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
 @router.post("/style-family/compare")
@@ -653,7 +656,10 @@ def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
     try:
         return _run_visual_compose(request.content, request.visualRoute, request.params)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[visual-compose] {tb}")
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
 @router.post("/technique-probe")

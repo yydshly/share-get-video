@@ -57,45 +57,58 @@ class TestStripRuntimeUrlPrefix:
 class TestRuntimeUrlToPath:
     """Tests for runtime_url_to_path.
 
-    Paths on Windows store backslashes internally; use .as_posix() for
-    OS-agnostic forward-slash comparison.
+    All paths are returned inside RUNTIME_DIR so custom VIDEO_LAB_RUNTIME_DIR
+    (e.g. D:/custom-runtime) is respected. Use .as_posix() for OS-agnostic
+    forward-slash comparison on Windows.
     """
 
     def test_strip_default_runtime(self):
-        """URLs under /runtime/ map to runtime/... on disk."""
+        """URLs under /runtime/ map to RUNTIME_DIR/video_lab/..."""
         from app.video_lab.path_contract import runtime_url_to_path
+        from app.video_lab.config import RUNTIME_DIR
         p = runtime_url_to_path("/runtime/video_lab/experiments/exp_a/final.mp4")
-        assert p.as_posix() == "runtime/video_lab/experiments/exp_a/final.mp4"
+        assert p.as_posix().endswith("video_lab/experiments/exp_a/final.mp4")
+        assert p.as_posix().startswith(str(RUNTIME_DIR).replace("\\", "/"))
 
     def test_strip_custom_prefix_assets(self):
-        """URLs under /assets/ map to runtime/assets/... on disk (remapped)."""
+        """URLs under /assets/ map to RUNTIME_DIR/assets/... when prefix=/assets."""
         from app.video_lab.path_contract import runtime_url_to_path
+        from app.video_lab.config import RUNTIME_DIR
         p = runtime_url_to_path("/assets/video_lab/experiments/exp_a/final.mp4")
-        assert p.as_posix() == "runtime/assets/video_lab/experiments/exp_a/final.mp4"
+        assert p.as_posix().endswith("assets/video_lab/experiments/exp_a/final.mp4")
+        assert p.as_posix().startswith(str(RUNTIME_DIR).replace("\\", "/"))
 
     def test_bare_video_lab_path(self):
-        """Bare video_lab/... gets runtime/ prepended."""
+        """Bare video_lab/... gets RUNTIME_DIR prepended."""
         from app.video_lab.path_contract import runtime_url_to_path
+        from app.video_lab.config import RUNTIME_DIR
         p = runtime_url_to_path("video_lab/experiments/exp_a/final.mp4")
-        assert p.as_posix() == "runtime/video_lab/experiments/exp_a/final.mp4"
+        assert p.as_posix().endswith("video_lab/experiments/exp_a/final.mp4")
+        assert p.as_posix().startswith(str(RUNTIME_DIR).replace("\\", "/"))
 
     def test_runtime_prefix_path(self):
-        """runtime/... stays as-is."""
+        """runtime/... gets RUNTIME_DIR prepended (no double runtime/runtime)."""
         from app.video_lab.path_contract import runtime_url_to_path
+        from app.video_lab.config import RUNTIME_DIR
         p = runtime_url_to_path("runtime/video_lab/experiments/exp_a/final.mp4")
-        assert p.as_posix() == "runtime/video_lab/experiments/exp_a/final.mp4"
+        assert p.as_posix().endswith("video_lab/experiments/exp_a/final.mp4")
+        assert not p.as_posix().startswith("runtime/runtime/")
 
     def test_full_url_with_scheme(self):
-        """Full http:// URL with /runtime/ maps to runtime/... on disk."""
+        """Full http:// URL with /runtime/ maps to RUNTIME_DIR/video_lab/..."""
         from app.video_lab.path_contract import runtime_url_to_path
+        from app.video_lab.config import RUNTIME_DIR
         p = runtime_url_to_path("http://localhost:8000/runtime/video_lab/x.mp4")
-        assert p.as_posix() == "runtime/video_lab/x.mp4"
+        assert p.as_posix().endswith("video_lab/x.mp4")
+        assert p.as_posix().startswith(str(RUNTIME_DIR).replace("\\", "/"))
 
     def test_full_url_with_assets_prefix(self):
-        """Full http:// URL with /assets/ maps to runtime/assets/... on disk."""
+        """Full http:// URL with /assets/ maps to RUNTIME_DIR/assets/..."""
         from app.video_lab.path_contract import runtime_url_to_path
+        from app.video_lab.config import RUNTIME_DIR
         p = runtime_url_to_path("http://localhost:8000/assets/video_lab/x.mp4")
-        assert p.as_posix() == "runtime/assets/video_lab/x.mp4"
+        assert p.as_posix().endswith("assets/video_lab/x.mp4")
+        assert p.as_posix().startswith(str(RUNTIME_DIR).replace("\\", "/"))
 
     def test_empty_string(self):
         from app.video_lab.path_contract import runtime_url_to_path
