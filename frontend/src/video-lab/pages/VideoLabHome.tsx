@@ -67,6 +67,13 @@ const NAV_CARDS = [
     color: "#ec4899",
   },
   {
+    to: "/video-lab/route-baseline-comparison",
+    title: "路线对比矩阵",
+    desc: "V0.6.0 · Pillow / Remotion / AI素材 三路线 baseline 对比",
+    icon: "📋",
+    color: "#0891b2",
+  },
+  {
     to: "/video-lab/compare",
     title: "结果对比",
     desc: "对比不同方案的实验结果",

@@ -14,6 +14,7 @@ import VisualComposePage from "./video-lab/pages/VisualComposePage";
 import FramePreviewPage from "./video-lab/pages/FramePreviewPage";
 import QualityHistoryPage from "./video-lab/pages/QualityHistoryPage";
 import StyleGalleryPage from "./video-lab/pages/StyleGalleryPage";
+import RouteBaselineComparisonPage from "./video-lab/pages/RouteBaselineComparisonPage";
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="/video-lab/frame-preview" element={<FramePreviewPage />} />
         <Route path="/video-lab/quality-history" element={<QualityHistoryPage />} />
         <Route path="/video-lab/style-gallery" element={<StyleGalleryPage />} />
+        <Route path="/video-lab/route-baseline-comparison" element={<RouteBaselineComparisonPage />} />
         <Route path="/" element={<Navigate to="/video-lab" replace />} />
       </Routes>
     </BrowserRouter>
