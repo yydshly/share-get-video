@@ -253,9 +253,9 @@ const MIN_SAMPLE = {
   family: "Card Stack",
   reason:
     "1. 与当前 AiNewsVideo 差异明显（卡片 vs 数字）\n2. 短视频感更强\n3. 适合'今日 AI 三件事'\n4. 不需要复杂数据图表\n5. 可复用现有数据结构快速验证",
-  status: "V0.6.2 已实现 — CardStackLayer + remotionFamily 参数",
-  experimentId: "card_stack_remotion_95e8de24",
-  detail: "remotionFamily=card_stack 时，KeyPointCard 切换为 CardStackLayer：\n- prev/current/next 三层卡片叠加布局\n- 当前卡片居中突出，上一张缩放后退，下一张预览\n- 数字高亮/数据动画保留",
+  status: "V0.6.3 已完成实际样片验证",
+  experimentId: "clip_4f6e00b7",
+  detail: "remotionFamily=card_stack 时，主卡后层叠加一张 prev 卡片（右下角露出），形成堆叠视觉效果。\n实际渲染验证：secondary card layer 确实出现在主卡右下角，与 Data News 有可见差异。",
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
