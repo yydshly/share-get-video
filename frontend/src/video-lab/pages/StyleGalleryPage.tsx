@@ -456,6 +456,8 @@ export default function StyleGalleryPage() {
       if (!resp.ok) throw new Error(`${resp.status}`);
       const data: StyleSample[] = await resp.json();
       setSamples(data);
+      // 同步后端 comparing 状态到本地 compareSet
+      setCompareSet(new Set(data.filter((s) => s.status === "comparing").map((s) => s.id)));
     } catch (e) {
       setError("加载样片库失败: " + String(e));
     }
