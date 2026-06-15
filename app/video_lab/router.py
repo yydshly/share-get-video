@@ -9,7 +9,7 @@ from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResu
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
-from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest, StyleSampleGenerateRequest, StyleSampleSaveRequest
+from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest, StyleSampleGenerateRequest, StyleSampleSaveRequest, StyleFamilyCompareRequest
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -390,6 +390,69 @@ def clip_preview(request: ClipPreviewRequest) -> dict[str, Any]:
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/style-family/compare")
+def style_family_compare(request: StyleFamilyCompareRequest) -> dict[str, Any]:
+    """对比 Data News vs Card Stack 两种 Remotion 表现范式的实际效果。
+
+    V0.6.4: 让用户在 UI 中直接看到两者的实际 preview 视频或抽帧。
+    不做数据库，不做历史记录，只返回当前渲染结果。
+    """
+    from app.video_lab.renderers.frame_preview import render_clip_preview
+    import time
+    t0 = time.time()
+
+    default_content = (
+        "科学研究评审实现突破：ProReviewer系统将评审建模为马尔可夫决策过程，在五个质量维度超越传统方法39%。\n"
+        "依据：依据 1\n"
+        "购物AI助手落后：主流模型通过率仅57-77%。\n"
+        "依据：依据 1\n"
+        "企业级AI加速落地：Anthropic与TCS合作，DeepMind投资千万美元。\n"
+        "依据：依据 1"
+    )
+    content = request.content.strip() or default_content
+    params = dict(request.params or {})
+    params["visualRoute"] = "template_programmatic_render"
+    clip_seconds = int(params.get("clipSeconds", 3))
+    key_point_count = int(params.get("keyPointCount", 3))
+
+    # Render Data News
+    dn_params = {**params, "remotionFamily": "data_news", "keyPointCount": key_point_count}
+    dn_result = render_clip_preview(
+        content=content,
+        visual_route="template_programmatic_render",
+        params=dn_params,
+        clip_seconds=clip_seconds,
+    )
+
+    # Render Card Stack
+    cs_params = {**params, "remotionFamily": "card_stack", "keyPointCount": key_point_count}
+    cs_result = render_clip_preview(
+        content=content,
+        visual_route="template_programmatic_render",
+        params=cs_params,
+        clip_seconds=clip_seconds,
+    )
+
+    elapsed = int((time.time() - t0) * 1000)
+
+    def parse_result(r: dict) -> dict:
+        return {
+            "experimentId": r.get("experimentId", ""),
+            "success": r.get("success", False),
+            "videoUrl": r.get("clipUrl", ""),
+            "clipSeconds": r.get("clipSeconds", clip_seconds),
+            "elapsedMs": r.get("elapsedMs", 0),
+            "message": r.get("message", ""),
+            "warnings": r.get("warnings", []),
+        }
+
+    return {
+        "dataNews": parse_result(dn_result),
+        "cardStack": parse_result(cs_result),
+        "totalElapsedMs": elapsed,
+    }
 
 
 @router.post("/visual-compose")

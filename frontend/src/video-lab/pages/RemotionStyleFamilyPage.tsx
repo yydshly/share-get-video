@@ -1,7 +1,26 @@
-// Remotion Style Family Page - V0.6.1
+// Remotion Style Family Page - V0.6.4
 // Remotion 多表现范式探索页面
 
 import { Link } from "react-router-dom";
+import { useState } from "react";
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
+
+interface CompareResult {
+  experimentId: string;
+  success: boolean;
+  videoUrl: string;
+  clipSeconds: number;
+  elapsedMs: number;
+  message: string;
+  warnings: string[];
+}
+
+interface CompareResponse {
+  dataNews: CompareResult;
+  cardStack: CompareResult;
+  totalElapsedMs: number;
+}
 
 // ─── Style Family Definition ───────────────────────────────────────────────────
 
@@ -66,7 +85,7 @@ const FAMILIES: StyleFamily[] = [
       "下一张卡片预览",
       "短视频节奏",
     ],
-    currentStatus: "V0.6.2 已验证 — CardStackLayer 已实现，支持 remotionFamily 参数",
+    currentStatus: "V0.6.4 已支持 UI 预览对比 — 可在页面直接看到 Data News vs Card Stack 实际效果",
     priority: "P1",
     priorityReason: "短视频感最强，适合 AI 新闻信息流方向",
     accentColor: "#2563eb",
@@ -253,7 +272,7 @@ const MIN_SAMPLE = {
   family: "Card Stack",
   reason:
     "1. 与当前 AiNewsVideo 差异明显（卡片 vs 数字）\n2. 短视频感更强\n3. 适合'今日 AI 三件事'\n4. 不需要复杂数据图表\n5. 可复用现有数据结构快速验证",
-  status: "V0.6.3 已完成实际样片验证",
+  status: "V0.6.4 已支持 UI 实际预览对比",
   experimentId: "clip_4f6e00b7",
   detail: "remotionFamily=card_stack 时，主卡后层叠加一张 prev 卡片（右下角露出），形成堆叠视觉效果。\n实际渲染验证：secondary card layer 确实出现在主卡右下角，与 Data News 有可见差异。",
 };
@@ -445,12 +464,39 @@ const tdCenterStyle: React.CSSProperties = {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function RemotionStyleFamilyPage() {
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareResult, setCompareResult] = useState<CompareResponse | null>(null);
+  const [compareError, setCompareError] = useState("");
+
+  const runCompare = async () => {
+    setCompareLoading(true);
+    setCompareError("");
+    setCompareResult(null);
+    try {
+      const resp = await fetch(`${API_BASE}/style-family/compare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+      setCompareResult(data);
+    } catch (e) {
+      setCompareError(String(e));
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
+  const resolveUrl = (u: string) =>
+    u && u.startsWith("/runtime/") ? `${API_BASE.replace(/\/video-lab$/, "")}${u}` : u || "";
+
   return (
     <div style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto" }}>
       {/* Header */}
       <div style={{ marginBottom: "2.5rem" }}>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-          Remotion 表现范式 · V0.6.1
+          Remotion 表现范式 · V0.6.4
         </h1>
         <p style={{ color: "#64748b", fontSize: "0.95rem" }}>
           将 Remotion 从单一路线升级为可编程视频表现系统
@@ -627,6 +673,152 @@ export default function RemotionStyleFamilyPage() {
             <div key={i} style={{ paddingLeft: "0.5rem" }}>{line}</div>
           ))}
         </div>
+      </div>
+
+      {/* Section 5: Actual Preview Comparison - V0.6.4 */}
+      <div
+        style={{
+          background: "white",
+          border: "1px solid #e2e8f0",
+          borderRadius: "16px",
+          padding: "1.25rem",
+          marginBottom: "2.5rem",
+        }}
+      >
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem", color: "#1e293b" }}>
+          实际预览对比 · V0.6.4
+        </h2>
+        <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "1rem" }}>
+          点击「生成对比预览」同时渲染 Data News 和 Card Stack 两种范式的实际效果，可在浏览器中直接查看差异。
+        </p>
+
+        {/* Generate Button */}
+        <button
+          onClick={runCompare}
+          disabled={compareLoading}
+          style={{
+            background: compareLoading ? "#94a3b8" : "#7c3aed",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            padding: "0.65rem 1.25rem",
+            fontSize: "0.9rem",
+            fontWeight: 600,
+            cursor: compareLoading ? "wait" : "pointer",
+            marginBottom: "1.25rem",
+          }}
+        >
+          {compareLoading ? "渲染中（约 20-40 秒）..." : "生成对比预览"}
+        </button>
+
+        {compareError && (
+          <div style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "1rem", padding: "0.75rem", background: "#fef2f2", borderRadius: "8px" }}>
+            错误：{compareError}
+          </div>
+        )}
+
+        {/* Results */}
+        {compareResult && (
+          <>
+            {/* Stats bar */}
+            <div style={{ display: "flex", gap: "1rem", marginBottom: "1.25rem", fontSize: "0.78rem", color: "#64748b" }}>
+              <span>总耗时：{compareResult.totalElapsedMs}ms</span>
+              <span style={{ color: compareResult.dataNews.success ? "#16a34a" : "#ef4444" }}>
+                Data News：{compareResult.dataNews.success ? "成功" : "失败"}
+              </span>
+              <span style={{ color: compareResult.cardStack.success ? "#16a34a" : "#ef4444" }}>
+                Card Stack：{compareResult.cardStack.success ? "成功" : "失败"}
+              </span>
+            </div>
+
+            {/* Video comparison grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
+              {/* Data News */}
+              <div style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
+                <div style={{ background: "linear-gradient(135deg, #7c3aed18 0%, #7c3aed08 100%)", padding: "0.75rem 1rem", borderBottom: "1px solid #e2e8f0" }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#7c3aed" }}>📊 Data News</div>
+                  <div style={{ fontSize: "0.72rem", color: "#64748b" }}>单一居中卡片，数字滚动动画</div>
+                </div>
+                <div style={{ padding: "1rem" }}>
+                  {compareResult.dataNews.success && compareResult.dataNews.videoUrl ? (
+                    <>
+                      <video
+                        controls
+                        src={resolveUrl(compareResult.dataNews.videoUrl)}
+                        style={{ width: "100%", borderRadius: "8px", background: "#0f172a" }}
+                      />
+                      <div style={{ marginTop: "0.5rem", fontSize: "0.72rem", color: "#64748b" }}>
+                        {compareResult.dataNews.clipSeconds}s · {compareResult.dataNews.elapsedMs}ms
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ color: "#ef4444", fontSize: "0.82rem", padding: "1rem", textAlign: "center" }}>
+                      渲染失败：{compareResult.dataNews.message}
+                    </div>
+                  )}
+                  <div style={{ marginTop: "0.5rem", fontSize: "0.7rem", color: "#94a3b8", wordBreak: "break-all" }}>
+                    ID：{compareResult.dataNews.experimentId || "—"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Stack */}
+              <div style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
+                <div style={{ background: "linear-gradient(135deg, #2563eb18 0%, #2563eb08 100%)", padding: "0.75rem 1rem", borderBottom: "1px solid #e2e8f0" }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#2563eb" }}>🗂️ Card Stack</div>
+                  <div style={{ fontSize: "0.72rem", color: "#64748b" }}>主卡后方有 secondary card layer</div>
+                </div>
+                <div style={{ padding: "1rem" }}>
+                  {compareResult.cardStack.success && compareResult.cardStack.videoUrl ? (
+                    <>
+                      <video
+                        controls
+                        src={resolveUrl(compareResult.cardStack.videoUrl)}
+                        style={{ width: "100%", borderRadius: "8px", background: "#0f172a" }}
+                      />
+                      <div style={{ marginTop: "0.5rem", fontSize: "0.72rem", color: "#64748b" }}>
+                        {compareResult.cardStack.clipSeconds}s · {compareResult.cardStack.elapsedMs}ms
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ color: "#ef4444", fontSize: "0.82rem", padding: "1rem", textAlign: "center" }}>
+                      渲染失败：{compareResult.cardStack.message}
+                    </div>
+                  )}
+                  <div style={{ marginTop: "0.5rem", fontSize: "0.7rem", color: "#94a3b8", wordBreak: "break-all" }}>
+                    ID：{compareResult.cardStack.experimentId || "—"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Comparison summary */}
+            <div
+              style={{
+                marginTop: "1.25rem",
+                padding: "1rem",
+                background: "#f8fafc",
+                borderRadius: "8px",
+                fontSize: "0.82rem",
+                color: "#475569",
+                lineHeight: 1.6,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: "0.4rem", color: "#1e293b" }}>视觉差异结论：</div>
+              <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+                <li>Data News：单一居中卡片，数字滚动动画和数据条更突出，适合需要强调数据的场景。</li>
+                <li>Card Stack：主卡后方有 secondary card layer（右下角露出叠加边缘），形成堆叠视觉效果，短视频信息流感更强。</li>
+                <li>当前判断：Card Stack 已有可见差异，但短视频信息流感仍需强化（卡片入场动效不够强）。</li>
+              </ul>
+            </div>
+          </>
+        )}
+
+        {!compareResult && !compareLoading && !compareError && (
+          <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8", fontSize: "0.85rem" }}>
+            点击上方按钮开始渲染对比
+          </div>
+        )}
       </div>
 
       {/* Back link */}
