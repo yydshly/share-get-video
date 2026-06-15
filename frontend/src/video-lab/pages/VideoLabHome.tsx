@@ -4,6 +4,13 @@ import { Link } from "react-router-dom";
 
 const NAV_CARDS = [
   {
+    to: "/video-lab/workbench",
+    title: "视频生成实验台",
+    desc: "V0.7.0 · 输入内容，选择路线，生成预览，人工观察确认",
+    icon: "🧪",
+    color: "#0f766e",
+  },
+  {
     to: "/video-lab/style-gallery",
     title: "风格样片库",
     desc: "V0.3.7 · 每条路线独立风格探索 · 预置风格一键生成",
