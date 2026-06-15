@@ -49,6 +49,9 @@ const ISSUE_OPTIONS = [
 
 interface Quality { overallScore?: number }
 
+// V0.8.2: extended with manifestUrl / audioDurationSec / subtitleCount /
+// warnings / steps / params / logs so the inspection JSON / Markdown report
+// can carry forward the cheap diagnostic surface (see docs/OPEN_ISSUES_VIDEO_LAB.md).
 interface StyleResult {
   styleId: string;
   styleName: string;
@@ -62,6 +65,13 @@ interface StyleResult {
     srtUrl?: string;
     quality?: Quality;
     failedReason?: string;
+    manifestUrl?: string;
+    audioDurationSec?: number;
+    subtitleCount?: number;
+    warnings?: string[];
+    steps?: { name: string; status: string; output?: string }[];
+    params?: Record<string, unknown>;
+    logs?: string[];
   };
 }
 
@@ -166,9 +176,14 @@ export default function StyleSweepPage() {
   };
 
   // 计算单个样式的"排查 JSON"对象
+  // V0.8.2: enrich with manifestUrl / audioDurationSec / subtitleCount /
+  // warnings / steps / params / logsTail (last 30 lines of logs only) so
+  // the inspection report can carry forward the cheap diagnostic surface.
   const buildCheckJson = (s: StyleResult) => {
     const r = s.result;
     const mark = issueMarks[s.styleId] ?? { issues: [], note: "" };
+    const fullLogs = Array.isArray(r.logs) ? r.logs : [];
+    const logsTail = fullLogs.slice(-30);
     return {
       routeId: data?.routeId,
       routeName: data?.routeName,
@@ -180,12 +195,18 @@ export default function StyleSweepPage() {
       coverUrl: r.coverUrl,
       audioUrl: r.audioUrl,
       srtUrl: r.srtUrl,
-      quality: { overallScore: r.quality?.overallScore },
-      params: {
+      manifestUrl: r.manifestUrl || "",
+      audioDurationSec: r.audioDurationSec ?? 0,
+      subtitleCount: r.subtitleCount ?? 0,
+      warnings: Array.isArray(r.warnings) ? r.warnings : [],
+      steps: Array.isArray(r.steps) ? r.steps : [],
+      params: r.params ?? {
         targetDuration: duration,
         keyPointCount,
         useLlmPlan,
       },
+      logsTail,
+      quality: { overallScore: r.quality?.overallScore },
       manualIssues: mark.issues,
       manualNote: mark.note,
     };
@@ -226,6 +247,8 @@ export default function StyleSweepPage() {
   const hasAnyMark = Object.keys(issueMarks).length > 0;
 
   // 复制本轮 Markdown 排查报告
+  // V0.8.2: enrich per-style section with manifestUrl / audioDurationSec /
+  // subtitleCount / warnings / steps / params; add "如何继续排查" section.
   const copyReport = async () => {
     if (!data) return;
     const lines: string[] = [];
@@ -238,6 +261,14 @@ export default function StyleSweepPage() {
     lines.push(`- targetDuration: ${duration}`);
     lines.push(`- keyPointCount: ${keyPointCount}`);
     lines.push(`- useLlmPlan: ${useLlmPlan}`);
+    lines.push("");
+    lines.push("## 如何继续排查");
+    lines.push("");
+    lines.push("1. 先打开 manifestUrl，检查 planDebug.coverTitle / opening / closing 是否符合内容。");
+    lines.push("2. 再打开对应实验目录下 remotion_props.json，检查 contentDebug.title / keyPointTitles / metricsByKeyPoint / timelineDebug。");
+    lines.push("3. 如果标题不对，优先查 plan_shots / coverTitle。");
+    lines.push("4. 如果数字图缺失，优先查 metricsByKeyPoint 是否为空或单位异常。");
+    lines.push("5. 如果音画不同步，优先查 timelineDebug 与 voiceoverSegments。");
     lines.push("");
     lines.push("## 结果统计");
     lines.push("");
@@ -255,6 +286,15 @@ export default function StyleSweepPage() {
       const issueLabels = mark.issues
         .map((id) => ISSUE_OPTIONS.find((o) => o.id === id)?.label ?? id)
         .join("、") || "（无）";
+      const warnings = Array.isArray(r.warnings) && r.warnings.length > 0
+        ? r.warnings.join("； ")
+        : "（无）";
+      const steps = Array.isArray(r.steps) && r.steps.length > 0
+        ? r.steps.map((st) => `${st.name}[${st.status}]`).join(" → ")
+        : "（无）";
+      const paramsStr = r.params && Object.keys(r.params).length > 0
+        ? Object.entries(r.params).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join("; ")
+        : "（无）";
       lines.push("");
       lines.push(`### ${s.styleName}`);
       lines.push("");
@@ -264,6 +304,12 @@ export default function StyleSweepPage() {
       lines.push(`- finalVideoUrl: ${r.finalVideoUrl || "无"}`);
       lines.push(`- audioUrl: ${r.audioUrl || "无"}`);
       lines.push(`- srtUrl: ${r.srtUrl || "无"}`);
+      lines.push(`- manifestUrl: ${r.manifestUrl || "无"}`);
+      lines.push(`- audioDurationSec: ${r.audioDurationSec ?? 0}`);
+      lines.push(`- subtitleCount: ${r.subtitleCount ?? 0}`);
+      lines.push(`- warnings: ${warnings}`);
+      lines.push(`- steps: ${steps}`);
+      lines.push(`- params: ${paramsStr}`);
       lines.push(`- 人工问题：${issueLabels}`);
       lines.push(`- 人工备注：${mark.note || "（无）"}`);
     });
@@ -366,6 +412,14 @@ export default function StyleSweepPage() {
           }}>
             ⚠️ <strong>结构评分只代表程序化结构质量，不代表人工观看质量。</strong>
             请逐个播放并标记缺图、音画不同步、字幕错位、文本溢出、样式差异小等问题。
+          </div>
+
+          {/* V0.8.2: 诊断信息暴露提示 */}
+          <div style={{
+            background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: 8,
+            padding: "0.85rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "#1e3a8a",
+          }}>
+            🔍 定位标题错误、数字图缺失、音画不同步时，请复制排查 JSON 或 Markdown 报告，并检查 <code>manifestUrl</code> / <code>remotion_props.json</code> 中的 <strong>planDebug</strong>、<strong>contentDebug</strong>、<strong>timelineDebug</strong>。
           </div>
 
           {/* 任务四：标注统计 + 任务五：复制报告按钮 */}

@@ -48,6 +48,7 @@ Workbench 生成完整视频
 - **部分历史页面仍可访问但定位不清**：V0.7.4 已降级为「历史 / 待清理」分组。
 - **Advisor / 总结建议可能不是完全基于真实数据**：当前仍以硬编码 + 弱数据驱动为主，结论谨慎采纳。
 - **Style Sweep 人工问题标注能力（V0.8.0）**：已在 `/video-lab/style-sweep` 接入人工问题标签 + 备注 + 排查信息折叠区 + Markdown 报告导出。**当前仅前端临时标注，刷新页面后丢失**；后续可考虑持久化到样片库或单独质量审计记录（不在 V0.8.0 范围）。
+- **Remotion 诊断信息不足（V0.8.2 已增强）**：manifest 写入 planDebug（`planSource` / `coverTitle` / `opening` / `closing` / `shotCount` / `shots[]` / `voiceoverSegments[]`），`remotion_props.json` 写入 contentDebug（`title` / `subtitle` / `keyPointTitles` / `keyPointBodies` / `metricsByKeyPoint` / `hasMetrics` / `style` / `remotionFamily`）+ timelineDebug（保留 V0.8.1），Style Sweep 排查 JSON 和 Markdown 报告增加 `manifestUrl` / `steps` / `warnings` / `params` / `audioDurationSec` / `subtitleCount` / `logsTail`（仅末 30 行）。**仍需结合下一轮 Style Sweep 产物验证具体问题**。本轮**不直接修生成质量**。
 - **首页不再宣传「8 类技术路线」**：V0.7.4 起不再展示，改为只列当前主线 / 验证 / 历史。
 - **V0.7.5 巡检发现：5 个对比页冗余**（route-benchmark / route-playground / route-baseline-comparison / compare / visual-compose）：多数被技术探测台覆盖；后续应收敛为 1 条主线。详见 [docs/UI_ENTRY_AUDIT.md](UI_ENTRY_AUDIT.md) §7 P1。
 - **V0.7.5 巡检发现：VideoMethodsPage 文案提到「6 类视频生成方案」，实际代码只有 3 类**（Pillow / Remotion / AI 素材），「LLM 直出视频」「混合编排」未实现。用户从生成方案页可能误以为有这些能力。

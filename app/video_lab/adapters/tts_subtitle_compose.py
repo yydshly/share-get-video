@@ -660,6 +660,45 @@ def run_tts_subtitle_compose(
     }
     write_manifest(experiment_id, manifest)
 
+    # V0.8.2: Add planDebug to manifest for cheap post-hoc diagnosis
+    # (coverTitle / opening / closing / per-shot headline/display/narration/tone/
+    #  emphasisTerms/metrics + voiceover segment timeline). Does not affect
+    # generation logic; only enriches the manifest on disk so users can open
+    # manifestUrl and trace "title wrong / number missing / audio-visual drift".
+    try:
+        _plan_debug_shots = []
+        for _i, _s in enumerate(plan_shots_list, 1):
+            _plan_debug_shots.append({
+                "index": _i,
+                "headline": _s.get("headline", ""),
+                "display": _s.get("display", ""),
+                "narration": _s.get("narration", ""),
+                "tone": _s.get("tone", ""),
+                "emphasisTerms": list(_s.get("emphasisTerms", []) or []),
+                "metrics": list(_s.get("metrics", []) or []),
+            })
+        _plan_debug_segments = []
+        for _seg in segments:
+            _plan_debug_segments.append({
+                "index": _seg.get("index"),
+                "text": _seg.get("text", ""),
+                "startSec": _seg.get("startSec", 0),
+                "durationSec": _seg.get("durationSec", 0),
+            })
+        manifest["planDebug"] = {
+            "planSource": plan.get("source", "fallback"),
+            "coverTitle": plan.get("coverTitle", ""),
+            "opening": opening,
+            "closing": closing,
+            "shotCount": len(plan_shots_list),
+            "shots": _plan_debug_shots,
+            "voiceoverSegments": _plan_debug_segments,
+        }
+        # Persist updated manifest (with planDebug) back to disk
+        write_manifest(experiment_id, manifest)
+    except Exception as _e:  # pragma: no cover - diagnostic-only, must never break flow
+        all_logs.append(f"  [V0.8.2] planDebug write skipped: {_e}")
+
     quality_artifact = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_quality",
         type=ArtifactType.EVALUATION,
