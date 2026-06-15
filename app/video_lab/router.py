@@ -9,7 +9,7 @@ from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResu
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
-from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest, StyleSampleGenerateRequest, StyleSampleSaveRequest, StyleFamilyCompareRequest
+from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest, StyleSampleGenerateRequest, StyleSampleSaveRequest, StyleFamilyCompareRequest, TechniqueProbeRequest
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -455,30 +455,26 @@ def style_family_compare(request: StyleFamilyCompareRequest) -> dict[str, Any]:
     }
 
 
-@router.post("/visual-compose")
-def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
-    """Run ONE visual route end-to-end (LLM plan + TTS + 字幕 + 合成) and return
-    the final video URL + auto quality report. Frontend calls this per route.
+def _run_visual_compose(content: str, visual_route: str, params_in: dict | None) -> dict[str, Any]:
+    """Run ONE visual route end-to-end (LLM plan + TTS + 字幕 + 合成) and return a
+    UI-ready result dict (finalVideoUrl + coverUrl + quality + steps).
 
-    Synchronous: returns after the video is produced (TTS/render may take minutes).
-    Business failures return HTTP 200 with status='failed' + failedReason.
+    复用方：POST /visual-compose（单路线）与 POST /technique-probe（多路线探测）。
+    Business failures 不抛异常，以 status='failed' + failedReason 返回。
     """
     import uuid
     from app.video_lab.adapters.tts_subtitle_compose import run_tts_subtitle_compose
 
-    exp_id = f"web_{request.visualRoute}_{uuid.uuid4().hex[:8]}"
-    params = dict(request.params or {})
-    params["visualRoute"] = request.visualRoute
+    exp_id = f"web_{visual_route}_{uuid.uuid4().hex[:8]}"
+    params = dict(params_in or {})
+    params["visualRoute"] = visual_route
 
-    try:
-        result = run_tts_subtitle_compose(
-            experiment_id=exp_id,
-            test_case_id="case_ai_frontier_daily_001",
-            input_payload={"content": request.content},
-            params=params,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    result = run_tts_subtitle_compose(
+        experiment_id=exp_id,
+        test_case_id="case_ai_frontier_daily_001",
+        input_payload={"content": content},
+        params=params,
+    )
 
     raw = getattr(result, "rawOutput", {}) or {}
     assets = getattr(result, "assets", {}) or {}
@@ -491,7 +487,6 @@ def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
                 break
         failed_reason = failed_reason or raw.get("error", "")
 
-    # 从 manifest artifact 提取中间产物链接（音频/字幕/manifest）
     audio_url = srt_url = manifest_url = ""
     steps_summary = []
     for step in getattr(result, "productionSteps", []):
@@ -507,20 +502,19 @@ def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
                 srt_url = srt_url or payload.get("srtUrl", "")
                 manifest_url = manifest_url or payload.get("manifestUrl", "")
 
-    # 结构层评分留痕（趋势/防退化）
     try:
         from app.video_lab.quality.quality_log import append_record
         _q = raw.get("quality", {}) or {}
         append_record({
             "kind": "structural",
-            "route": request.visualRoute,
+            "route": visual_route,
             "experimentId": exp_id,
             "status": status,
             "overall": _q.get("overallScore"),
             "dimensions": _q.get("dimensionScores", {}),
             "durationSec": assets.get("audioDurationSec", 0),
             "subtitleCount": assets.get("subtitleCount", 0),
-            "contentChars": len(request.content),
+            "contentChars": len(content),
             "params": params,
         })
     except Exception:
@@ -528,7 +522,7 @@ def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
 
     return {
         "experimentId": exp_id,
-        "visualRoute": request.visualRoute,
+        "visualRoute": visual_route,
         "status": status,
         "params": params,
         "finalVideoUrl": getattr(result, "videoUrl", "") or "",
@@ -544,6 +538,40 @@ def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
         "steps": steps_summary,
         "logs": getattr(result, "logs", []) or [],
     }
+
+
+@router.post("/visual-compose")
+def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
+    """Run ONE visual route end-to-end (LLM plan + TTS + 字幕 + 合成) and return
+    the final video URL + auto quality report. Frontend calls this per route.
+
+    Synchronous: returns after the video is produced (TTS/render may take minutes).
+    Business failures return HTTP 200 with status='failed' + failedReason.
+    """
+    try:
+        return _run_visual_compose(request.content, request.visualRoute, request.params)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/technique-probe")
+def technique_probe(request: TechniqueProbeRequest) -> dict[str, Any]:
+    """最佳技术探测：一份内容 → 多路线各出整片 → 统一质量分排名 → 推荐路线。
+
+    同步执行：会依次跑每条路线的完整出片(TTS/渲染/合成)，可能数分钟。
+    单条路线失败不影响其它路线，整体仍返回排名（失败项排末尾）。
+    """
+    from app.video_lab.technique_probe import run_technique_probe
+
+    try:
+        return run_technique_probe(
+            content=request.content,
+            routes=request.routes or None,
+            params=request.params,
+            compose_fn=_run_visual_compose,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─────────────────────────────────────────────

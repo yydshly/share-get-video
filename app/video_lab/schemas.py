@@ -100,6 +100,30 @@ class VisualComposeRequest(BaseModel):
     }
 
 
+class TechniqueProbeRequest(BaseModel):
+    """JSON body for POST /video-lab/technique-probe (最佳技术探测：多路线各出片→排名)"""
+
+    content: str = Field(..., min_length=1, description="报告原文")
+    routes: list[str] = Field(
+        default_factory=list,
+        description="要探测的视觉路线 routeId 列表；留空=默认三条已落地路线",
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="生成参数 (targetDuration, aspectRatio, keyPointCount, useLlmPlan...)",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "content": "今日 AI 前沿...",
+                "routes": [],
+                "params": {"targetDuration": 45, "aspectRatio": "9:16", "keyPointCount": 3},
+            }
+        }
+    }
+
+
 class FramePreviewRequest(BaseModel):
     """JSON body for POST /video-lab/frame-preview (单帧快速预览，调试台)"""
 
