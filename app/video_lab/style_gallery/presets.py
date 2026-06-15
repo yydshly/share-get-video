@@ -55,6 +55,35 @@ PRESET_STYLES: list[dict[str, Any]] = [
         },
     },
 
+    {
+        "route_id": "local_frame_compose",
+        "route_name": "Pillow 信息卡路线",
+        "style_id": "pillow_bold_contrast",
+        "style_name": "高对比醒目卡",
+        "description": "顶部对齐 + 红色强调 + 更强转场，醒目抢眼，适合需要冲击力的快讯",
+        "capabilities": ["顶部对齐", "高对比红色强调", "强转场", "冲击力"],
+        "tags": ["醒目", "高对比", "冲击"],
+        "params": {
+            "showDataViz": True, "highlightMode": "auto", "contentAlign": "top",
+            "themeAdaptive": True, "transitionEnabled": True, "transitionFrames": 6,
+            "titleColor": "#ffffff", "bodyColor": "#e2e8f0", "highlightColor": "#ef4444",
+        },
+    },
+    {
+        "route_id": "local_frame_compose",
+        "route_name": "Pillow 信息卡路线",
+        "style_id": "pillow_mono_serious",
+        "style_name": "黑白严肃报",
+        "description": "近黑白单色调 + 无数据图 + 无转场，严肃克制的报道感，展示去色端",
+        "capabilities": ["单色调", "严肃克制", "无数据图", "无转场"],
+        "tags": ["黑白", "严肃", "克制"],
+        "params": {
+            "showDataViz": False, "highlightMode": "numbers", "contentAlign": "center",
+            "themeAdaptive": False, "transitionEnabled": False, "transitionFrames": 0,
+            "titleColor": "#f1f5f9", "bodyColor": "#cbd5e1", "highlightColor": "#e2e8f0",
+        },
+    },
+
     # ──────────────── Remotion 动态模板路线 ────────────────
     {
         "route_id": "template_programmatic_render",
@@ -119,6 +148,38 @@ PRESET_STYLES: list[dict[str, Any]] = [
         },
     },
 
+    {
+        "route_id": "template_programmatic_render",
+        "route_name": "Remotion 动态模板路线",
+        "style_id": "remotion_card_stack",
+        "style_name": "卡片叠层",
+        "description": "采用 Card Stack 表现范式（与默认 Data News 完全不同的版式），卡片堆叠呈现，结构感强",
+        "capabilities": ["卡片叠层版式", "区别于数据栏目", "结构感", "层次呈现"],
+        "tags": ["卡片叠层", "版式差异", "结构"],
+        "params": {
+            "showDataViz": True, "accentColor": "#38bdf8", "highlightColor": "#fbbf24",
+            "fontScale": 1, "showIcon": True, "motionIntensity": "medium",
+            "coverStyle": "editorial", "overviewStyle": "timeline",
+            "metricAnimation": "countup_bar", "transitionStyle": "slide_fade",
+            "remotionFamily": "card_stack",
+        },
+    },
+    {
+        "route_id": "template_programmatic_render",
+        "route_name": "Remotion 动态模板路线",
+        "style_id": "remotion_neon_grid",
+        "style_name": "霓虹网格",
+        "description": "品红霓虹配色 + 网格总览 + 大字号 + 高强度动效，潮流社媒风，展示彩色高能端",
+        "capabilities": ["霓虹配色", "网格总览", "大字号", "高强度动效"],
+        "tags": ["霓虹", "网格", "潮流", "高能"],
+        "params": {
+            "showDataViz": True, "accentColor": "#ec4899", "highlightColor": "#a78bfa",
+            "fontScale": 1.15, "showIcon": True, "motionIntensity": "high",
+            "coverStyle": "cinematic", "overviewStyle": "grid",
+            "metricAnimation": "countup_bar", "transitionStyle": "slide",
+        },
+    },
+
     # ──────────────── AI 素材氛围路线 ────────────────
     {
         "route_id": "ai_asset_then_compose",
@@ -164,6 +225,36 @@ PRESET_STYLES: list[dict[str, Any]] = [
             "imageStyle": "极简深色抽象几何背景，大量留白，柔和光晕，高级感，无文字，无文本",
             "backgroundDarken": 0.5, "cardOpacity": 0.78, "cardBlur": True,
             "highlightColor": "#22d3ee", "contentAlign": "center", "kenBurns": False,
+        },
+    },
+    {
+        "route_id": "ai_asset_then_compose",
+        "route_name": "AI 素材氛围路线",
+        "style_id": "ai_warm_illustration",
+        "style_name": "暖色手绘插画",
+        "description": "AI 生成暖色手绘插画背景 + 信息卡，温暖治愈感，区别于科技冷调，适合人文向内容",
+        "capabilities": ["手绘插画背景", "暖色治愈", "人文感", "区别于科技冷调"],
+        "tags": ["手绘", "暖色", "人文"],
+        "params": {
+            "showDataViz": True,
+            "imageStyle": "暖色手绘插画风格背景，柔和笔触，温暖治愈的色调，简约构图，无文字，无文本",
+            "backgroundDarken": 0.5, "cardOpacity": 0.88, "cardBlur": False,
+            "highlightColor": "#fb7185", "contentAlign": "center", "kenBurns": True,
+        },
+    },
+    {
+        "route_id": "ai_asset_then_compose",
+        "route_name": "AI 素材氛围路线",
+        "style_id": "ai_neon_cyber",
+        "style_name": "赛博霓虹",
+        "description": "AI 生成赛博朋克霓虹夜景背景 + 信息卡，紫粉蓝高饱和氛围，潮流冲击力强",
+        "capabilities": ["赛博霓虹背景", "高饱和氛围", "潮流冲击", "夜景质感"],
+        "tags": ["赛博", "霓虹", "潮流"],
+        "params": {
+            "showDataViz": True,
+            "imageStyle": "赛博朋克霓虹城市夜景虚化背景，紫粉蓝霓虹光，未来都市氛围，无文字，无文本",
+            "backgroundDarken": 0.62, "cardOpacity": 0.82, "cardBlur": True,
+            "highlightColor": "#22d3ee", "contentAlign": "top", "kenBurns": True,
         },
     },
 ]

@@ -36,6 +36,29 @@ def test_routes_are_known():
         assert p["route_id"] in KNOWN_ROUTES, f"未知 route_id: {p['route_id']}"
 
 
+def test_remotion_family_values_are_supported():
+    """remotionFamily 只能用真实支持的值（props_builder 仅映射 data_news/card_stack）。"""
+    supported = {"data_news", "card_stack"}
+    for p in list_preset_styles():
+        fam = p["params"].get("remotionFamily")
+        if fam is not None:
+            assert fam in supported, f"{p['style_id']} 用了未实现的 remotionFamily: {fam}"
+
+
+def test_card_stack_paradigm_is_offered():
+    """应有至少一个 Remotion 样式用 card_stack 范式（与默认 data_news 形成版式差异）。"""
+    fams = {p["params"].get("remotionFamily") for p in list_preset_styles()}
+    assert "card_stack" in fams
+
+
+def test_expanded_style_coverage():
+    """扩充后各路线样式数（覆盖更大风格跨度）。"""
+    by_route = Counter(p["route_id"] for p in list_preset_styles())
+    assert by_route["local_frame_compose"] >= 5
+    assert by_route["template_programmatic_render"] >= 6
+    assert by_route["ai_asset_then_compose"] >= 5
+
+
 def test_endpoint_returns_presets():
     from fastapi.testclient import TestClient
     from app.main import app

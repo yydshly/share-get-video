@@ -16,9 +16,9 @@ const DEFAULT_CONTENT = `今日AI前沿三条要点。
 
 // 三条技术路线（含各自样式数，用于成本提示）
 const ROUTES = [
-  { id: "local_frame_compose", name: "Pillow 静态卡", styleCount: 3 },
-  { id: "template_programmatic_render", name: "Remotion 动效", styleCount: 4 },
-  { id: "ai_asset_then_compose", name: "AI 素材 + 合成", styleCount: 3 },
+  { id: "local_frame_compose", name: "Pillow 静态卡", styleCount: 5 },
+  { id: "template_programmatic_render", name: "Remotion 动效", styleCount: 6 },
+  { id: "ai_asset_then_compose", name: "AI 素材 + 合成", styleCount: 5 },
 ];
 
 const GUIDE_STEPS = [
