@@ -157,10 +157,10 @@ const HISTORY_ENTRIES: NavCard[] = [
   {
     to: "/video-lab/route-baseline-comparison",
     title: "路线对比矩阵",
-    desc: "Pillow / Remotion / AI 素材 三路线 baseline 对比。",
+    desc: "Pillow / Remotion / AI 素材 三路线 baseline 对比（纯硬编码静态页，零后端调用）。",
     icon: "📋",
     color: "#94a3b8",
-    status: "历史入口",
+    status: "静态页",
     statusColor: "#64748b",
     statusBg: "#f1f5f9",
     group: "history",

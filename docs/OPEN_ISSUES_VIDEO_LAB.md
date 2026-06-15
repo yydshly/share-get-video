@@ -47,6 +47,9 @@ Workbench 生成完整视频
 - **Advisor / 总结建议可能不是完全基于真实数据**：当前仍以硬编码 + 弱数据驱动为主，结论谨慎采纳。
 - **Style Sweep 缺少人工问题标注能力**：用户实测发现问题只能描述，未沉淀到结构化记录。
 - **首页不再宣传「8 类技术路线」**：V0.7.4 起不再展示，改为只列当前主线 / 验证 / 历史。
+- **V0.7.5 巡检发现：5 个对比页冗余**（route-benchmark / route-playground / route-baseline-comparison / compare / visual-compose）：多数被技术探测台覆盖；后续应收敛为 1 条主线。详见 [docs/UI_ENTRY_AUDIT.md](UI_ENTRY_AUDIT.md) §7 P1。
+- **V0.7.5 巡检发现：VideoMethodsPage 文案提到「6 类视频生成方案」，实际代码只有 3 类**（Pillow / Remotion / AI 素材），「LLM 直出视频」「混合编排」未实现。用户从生成方案页可能误以为有这些能力。
+- **V0.7.5 巡检发现：结果对比页（`/video-lab/compare`）读 localStorage，非实时后端**：用户看到的对比数据可能是过时的旧数据。
 
 ### P2 · 能力扩展问题
 
@@ -73,3 +76,7 @@ Workbench 生成完整视频
 
 首页（`/video-lab`）的"已知问题"区当前只展示 P0/P1 关键项的精简版，全量以本文件为准。
 任何"暂时不修但需要让用户知道"的问题都应该登记在本文件，并由首页聚合显示。
+
+V0.7.5 起，UI 入口层面的可访问性 / 状态一致性巡检单独维护在 [docs/UI_ENTRY_AUDIT.md](UI_ENTRY_AUDIT.md)。两份文档配合使用：
+- 本文件 = 质量问题 / 产品流程问题的统一登记；
+- UI_ENTRY_AUDIT.md = 入口可达性、首页状态文案与实际行为是否一致。
