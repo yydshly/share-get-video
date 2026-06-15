@@ -1,8 +1,11 @@
 // FramePreviewPage - 调试台：单帧快速预览（秒级），调版式/参数/强调词
 // Path: /video-lab/frame-preview
+// V0.3.7: Route-specific config - 每条路线独立参数
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import RouteConfigPanel from "../components/RouteConfigPanel";
+import { getPresetForRoute, isPillowRoute, isRemotionRoute, isAiAssetRoute } from "../presets/videoRoutePresets";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -46,18 +49,11 @@ export default function FramePreviewPage() {
   const [clipSeconds, setClipSeconds] = useState(3);
   const [useLlmPlan, setUseLlmPlan] = useState(true);
   const [advancedJson, setAdvancedJson] = useState("");
-  // 样式参数（对应 AI 建议：颜色区分 / 留白平衡）
-  const [titleColor, setTitleColor] = useState("#f8fafc");
-  const [bodyColor, setBodyColor] = useState("#94a3b8");
-  const [highlightColor, setHighlightColor] = useState("#f59e0b");
-  const [contentAlign, setContentAlign] = useState<"top" | "center">("top");
-  const [icon, setIcon] = useState("none");
-  const styleParams = { titleColor, bodyColor, highlightColor, contentAlign, icon };
-  // Remotion 样式
-  const [accentColor, setAccentColor] = useState("#3b82f6");
-  const [fontScale, setFontScale] = useState(1);
-  const [showIcon, setShowIcon] = useState(false);
-  const remotionStyle = { accentColor, highlightColor, fontScale, showIcon };
+  // V0.3.7: 路线专属样式参数（来自 RouteConfigPanel）
+  const [routeStyleParams, setRouteStyleParams] = useState<Record<string, unknown>>(() => {
+    const preset = getPresetForRoute(route);
+    return preset ? { ...preset.params } : {};
+  });
   // 视觉模型评分
   const [judge, setJudge] = useState<{ success: boolean; scores?: Record<string, number>; overall?: number; suggestions?: string[]; message?: string } | null>(null);
   const [judging, setJudging] = useState(false);
@@ -103,12 +99,28 @@ export default function FramePreviewPage() {
   const resolveUrl = (u?: string) =>
     u && u.startsWith("/runtime/") ? `${API_BASE.replace(/\/video-lab$/, "")}${u}` : u || "";
 
+  // V0.3.7: 路线切换时同步更新 routeStyleParams
+  const handleRouteChange = (newRoute: string) => {
+    setRoute(newRoute);
+    const preset = getPresetForRoute(newRoute);
+    setRouteStyleParams(preset ? { ...preset.params } : {});
+  };
+
   const render = async () => {
     setLoading(true);
     setError("");
     setClip(null);
     setJudge(null);
     try {
+      // V0.3.7: 合并 routeStyleParams（路线专属）+ category/imageStyle（调试台特有）
+      const mergedParams = buildParams({
+        aspectRatio: aspect,
+        index,
+        total,
+        category,
+        imageStyle,
+        ...routeStyleParams,
+      });
       const resp = await fetch(`${API_BASE}/frame-preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -121,7 +133,7 @@ export default function FramePreviewPage() {
             display,
             emphasisTerms: emphasis.split(/[,，]/).map((s) => s.trim()).filter(Boolean),
           },
-          params: buildParams({ aspectRatio: aspect, index, total, category, imageStyle, ...styleParams }),
+          params: mergedParams,
         }),
       });
       const data = await resp.json();
@@ -140,12 +152,39 @@ export default function FramePreviewPage() {
     setResult(null);
     setJudge(null);
     try {
+      // V0.3.7: remotionStyle 从 routeStyleParams 构建
+      const remotionStyleParams = {
+        accentColor: (routeStyleParams as Record<string, unknown>).accentColor ?? "#3b82f6",
+        highlightColor: (routeStyleParams as Record<string, unknown>).highlightColor ?? "#f59e0b",
+        fontScale: (routeStyleParams as Record<string, unknown>).fontScale ?? 1,
+        showIcon: (routeStyleParams as Record<string, unknown>).showIcon ?? true,
+      };
       const body = isRemotion
-        ? { visualRoute: route, content, params: buildParams({ aspectRatio: aspect, keyPointCount: total, clipSeconds, useLlmPlan, remotionStyle }) }
+        ? {
+            visualRoute: route,
+            content,
+            params: buildParams({
+              aspectRatio: aspect,
+              keyPointCount: total,
+              clipSeconds,
+              useLlmPlan,
+              remotionStyle: remotionStyleParams,
+            }),
+          }
         : {
-            visualRoute: route, frameType, coverTitle,
+            visualRoute: route,
+            frameType,
+            coverTitle,
             shot: { headline, display, emphasisTerms: emphasis.split(/[,，]/).map((s) => s.trim()).filter(Boolean) },
-            params: buildParams({ aspectRatio: aspect, index, total, category, imageStyle, clipSeconds, ...styleParams }),
+            params: buildParams({
+              aspectRatio: aspect,
+              index,
+              total,
+              category,
+              imageStyle,
+              clipSeconds,
+              ...routeStyleParams,
+            }),
           };
       const resp = await fetch(`${API_BASE}/clip-preview`, {
         method: "POST",
@@ -179,7 +218,7 @@ export default function FramePreviewPage() {
           <div style={{ display: "flex", gap: "1rem" }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>技术路线</label>
-              <select value={route} onChange={(e) => setRoute(e.target.value)} style={inputStyle}>
+              <select value={route} onChange={(e) => handleRouteChange(e.target.value)} style={inputStyle}>
                 {routes.map((r) => (
                   <option key={r.routeId} value={r.routeId} disabled={!r.available}>
                     {r.displayName}{r.available ? "" : "（不可用）"}
@@ -227,23 +266,13 @@ export default function FramePreviewPage() {
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", color: "#475569" }}>
                 <input type="checkbox" checked={useLlmPlan} onChange={(e) => setUseLlmPlan(e.target.checked)} /> 用大模型规划内容（关闭则用确定性切分，更快）
               </label>
-              {/* Remotion 样式（对应 AI 建议：配色/排版/视觉元素） */}
-              <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "0.6rem" }}>
-                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#8b5cf6", marginBottom: "0.4rem" }}>Remotion 样式（对应 AI 建议）</div>
-                <div style={{ display: "flex", gap: "0.9rem", alignItems: "center", flexWrap: "wrap" }}>
-                  <label style={{ fontSize: "0.72rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
-                    主题色 <input type="color" value={accentColor} onChange={(e) => setAccentColor(e.target.value)} style={{ width: 28, height: 24, padding: 0, border: "none" }} />
-                  </label>
-                  <label style={{ fontSize: "0.72rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
-                    高亮 <input type="color" value={highlightColor} onChange={(e) => setHighlightColor(e.target.value)} style={{ width: 28, height: 24, padding: 0, border: "none" }} />
-                  </label>
-                  <label style={{ fontSize: "0.72rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
-                    字号 ×<input type="number" step="0.05" min="0.8" max="1.5" value={fontScale} onChange={(e) => setFontScale(Number(e.target.value))} style={{ width: 52, fontSize: "0.75rem", borderRadius: 4, border: "1px solid #e2e8f0", padding: "2px 4px" }} />
-                  </label>
-                  <label style={{ fontSize: "0.72rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
-                    <input type="checkbox" checked={showIcon} onChange={(e) => setShowIcon(e.target.checked)} /> 视觉图标
-                  </label>
-                </div>
+              {/* V0.3.7: Remotion 路线专属参数（来自 RouteConfigPanel） */}
+              <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "0.75rem" }}>
+                <RouteConfigPanel
+                  routeId={route}
+                  initialParams={routeStyleParams}
+                  onParamsChange={(params) => setRouteStyleParams(params)}
+                />
               </div>
               <details>
                 <summary style={{ cursor: "pointer", fontSize: "0.74rem", color: "#64748b" }}>高级：其他参数 (JSON)</summary>
@@ -302,62 +331,26 @@ export default function FramePreviewPage() {
                 </div>
               </div>
 
-              {/* 渲染参数面板 */}
+              {/* V0.3.7: 路线专属参数（来自 RouteConfigPanel） */}
               <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "0.75rem" }}>
-                <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#0ea5e9", marginBottom: "0.5rem" }}>渲染参数</div>
-                {frameType === "keypoint" && (
-                  <div style={{ marginBottom: "0.6rem" }}>
-                    <label style={labelStyle}>分类标签 category（留空则隐藏）</label>
-                    <input value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle} placeholder="如：安全 / 评测 / 落地" />
-                  </div>
-                )}
-                {isAiAsset && (
-                  <div style={{ marginBottom: "0.6rem" }}>
-                    <label style={labelStyle}>AI 背景风格提示词 imageStyle</label>
-                    <textarea value={imageStyle} onChange={(e) => setImageStyle(e.target.value)} rows={2} style={inputStyle} />
-                  </div>
-                )}
-                {frameType === "keypoint" && (
-                  <div style={{ marginBottom: "0.6rem" }}>
-                    <label style={labelStyle}>样式（对应 AI 建议：配色区分 / 留白）</label>
-                    <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
-                      <label style={{ fontSize: "0.72rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
-                        标题 <input type="color" value={titleColor} onChange={(e) => setTitleColor(e.target.value)} style={{ width: 28, height: 24, padding: 0, border: "none" }} />
-                      </label>
-                      <label style={{ fontSize: "0.72rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
-                        正文 <input type="color" value={bodyColor} onChange={(e) => setBodyColor(e.target.value)} style={{ width: 28, height: 24, padding: 0, border: "none" }} />
-                      </label>
-                      <label style={{ fontSize: "0.72rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
-                        重点 <input type="color" value={highlightColor} onChange={(e) => setHighlightColor(e.target.value)} style={{ width: 28, height: 24, padding: 0, border: "none" }} />
-                      </label>
-                      <label style={{ fontSize: "0.72rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
-                        对齐
-                        <select value={contentAlign} onChange={(e) => setContentAlign(e.target.value as "top" | "center")} style={{ fontSize: "0.75rem", borderRadius: 4, border: "1px solid #e2e8f0", padding: "2px 4px" }}>
-                          <option value="top">顶部</option>
-                          <option value="center">居中</option>
-                        </select>
-                      </label>
-                      <label style={{ fontSize: "0.72rem", color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}>
-                        图标
-                        <select value={icon} onChange={(e) => setIcon(e.target.value)} style={{ fontSize: "0.75rem", borderRadius: 4, border: "1px solid #e2e8f0", padding: "2px 4px" }}>
-                          <option value="none">无</option>
-                          <option value="bars">数据条</option>
-                          <option value="arrow">上升箭头</option>
-                          <option value="ring">圆环</option>
-                          <option value="spark">星亮</option>
-                          <option value="dots">圆点</option>
-                        </select>
-                      </label>
-                    </div>
-                    <div style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: 4 }}>图标显示在卡片右上（无分类标签时）。</div>
-                  </div>
-                )}
-                <details>
-                  <summary style={{ cursor: "pointer", fontSize: "0.74rem", color: "#64748b" }}>高级：其他参数 (JSON)</summary>
-                  <textarea value={advancedJson} onChange={(e) => setAdvancedJson(e.target.value)} rows={2}
-                    placeholder='{"subtitle": "..."}' style={{ ...inputStyle, marginTop: "0.4rem", fontFamily: "monospace", fontSize: "0.75rem" }} />
-                </details>
+                <RouteConfigPanel
+                  routeId={route}
+                  initialParams={routeStyleParams}
+                  onParamsChange={(params) => setRouteStyleParams(params)}
+                />
               </div>
+              {/* AI 背景提示词（AI Asset 特有） */}
+              {isAiAsset && (
+                <div style={{ marginTop: "0.5rem" }}>
+                  <label style={labelStyle}>AI 背景风格提示词 imageStyle</label>
+                  <textarea value={imageStyle} onChange={(e) => setImageStyle(e.target.value)} rows={2} style={inputStyle} />
+                </div>
+              )}
+              <details>
+                <summary style={{ cursor: "pointer", fontSize: "0.74rem", color: "#64748b" }}>高级：其他参数 (JSON)</summary>
+                <textarea value={advancedJson} onChange={(e) => setAdvancedJson(e.target.value)} rows={2}
+                  placeholder='{"subtitle": "..."}' style={{ ...inputStyle, marginTop: "0.4rem", fontFamily: "monospace", fontSize: "0.75rem" }} />
+              </details>
 
               <div style={{ display: "flex", gap: "0.6rem", marginTop: "0.25rem" }}>
                 <button onClick={render} disabled={loading}

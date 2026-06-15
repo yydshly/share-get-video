@@ -164,3 +164,47 @@ class CreateChainBenchmarkRequest(BaseModel):
             }
         }
     }
+
+
+# ─── Style Sample Gallery ─────────────────────────────────────────────────────
+
+class StyleSampleGenerateRequest(BaseModel):
+    """JSON body for POST /video-lab/style-samples/generate"""
+
+    style_name: str = Field(..., min_length=1, description="风格名称，如「动态数据栏目」")
+    description: str = Field(default="", description="风格描述")
+    route_id: str = Field(..., min_length=1, description="视觉路线 routeId")
+    content: str = Field(default="", description="生成用的报告原文（可短，30字以上）")
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="生成参数（targetDuration, aspectRatio, keyPointCount 等）",
+    )
+    tags: list[str] = Field(default_factory=list, description="标签列表")
+
+
+class StyleSampleSaveRequest(BaseModel):
+    """JSON body for POST /video-lab/style-samples（保存已生成的样片记录）"""
+
+    id: str = Field(..., min_length=1, description="样片 ID")
+    route_id: str = Field(..., min_length=1)
+    route_name: str = Field(..., min_length=1)
+    style_name: str = Field(..., min_length=1)
+    description: str = Field(default="")
+    status: str = Field(default="candidate")
+    params: dict[str, Any] = Field(default_factory=dict)
+    output_type: str = Field(default="mp4")
+    output_path: str = Field(default="")
+    poster_path: str = Field(default="")
+    audio_url: str = Field(default="")
+    srt_url: str = Field(default="")
+    manifest_url: str = Field(default="")
+    content_preview: str = Field(default="")
+    duration_sec: float = Field(default=0.0)
+    audio_duration_sec: float = Field(default=0.0)
+    tags: list[str] = Field(default_factory=list)
+    evaluation_readability: int | None = Field(default=None, ge=1, le=5)
+    evaluation_motion: int | None = Field(default=None, ge=1, le=5)
+    evaluation_visual_impact: int | None = Field(default=None, ge=1, le=5)
+    evaluation_stability: int | None = Field(default=None, ge=1, le=5)
+    evaluation_cost: int | None = Field(default=None, ge=1, le=5)
+    evaluation_notes: str = Field(default="")

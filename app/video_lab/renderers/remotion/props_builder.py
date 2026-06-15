@@ -96,6 +96,7 @@ def build_remotion_props(
         props["segmentDurations"] = segment_durations_prop
 
     # 可调样式（对应调试台旋钮：配色/字号/图标）
+    # V0.3.7: remotionStyle takes priority; top-level params also accepted
     rstyle = params.get("remotionStyle") if isinstance(params.get("remotionStyle"), dict) else {}
     style: dict[str, Any] = {}
     accent = rstyle.get("accentColor") or params.get("accentColor")
@@ -113,6 +114,24 @@ def build_remotion_props(
             pass
     if show_icon is not None:
         style["showIcon"] = bool(show_icon)
+
+    # V0.3.7: Additional Remotion style params
+    motion_intensity = rstyle.get("motionIntensity") or params.get("motionIntensity")
+    if motion_intensity:
+        style["motionIntensity"] = motion_intensity
+    cover_style = rstyle.get("coverStyle") or params.get("coverStyle")
+    if cover_style:
+        style["coverStyle"] = cover_style
+    overview_style = rstyle.get("overviewStyle") or params.get("overviewStyle")
+    if overview_style:
+        style["overviewStyle"] = overview_style
+    metric_animation = rstyle.get("metricAnimation") or params.get("metricAnimation")
+    if metric_animation:
+        style["metricAnimation"] = metric_animation
+    transition_style = rstyle.get("transitionStyle") or params.get("transitionStyle")
+    if transition_style:
+        style["transitionStyle"] = transition_style
+
     if style:
         props["style"] = style
 

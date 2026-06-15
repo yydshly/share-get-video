@@ -1,7 +1,6 @@
 """
-Render Parameters - Parameterized template configuration for local_frame_compose
-V0.2.5: Template parameterization support
-V0.2.5.1: Fix aspectRatio resolution mapping and warning messages
+Render Parameters - Parameterized template configuration for all visual routes
+V0.3.7: Route-specific config — Pillow / Remotion / AI Asset each have own param set
 """
 
 from dataclasses import dataclass, field
@@ -17,10 +16,26 @@ VALID_HIGHLIGHT_MODES = {"auto", "numbers", "none"}
 # Valid aspect ratios
 VALID_ASPECT_RATIOS = {"9:16", "16:9", "1:1"}
 
+# Valid motion intensity
+VALID_MOTION_INTENSITIES = {"low", "medium", "high"}
+
+# Valid cover styles
+VALID_COVER_STYLES = {"editorial", "cinematic", "minimal"}
+
+# Valid overview styles
+VALID_OVERVIEW_STYLES = {"timeline", "grid", "clean"}
+
+# Valid metric animations
+VALID_METRIC_ANIMATIONS = {"countup_bar", "countup_number", "none"}
+
+# Valid transition styles
+VALID_TRANSITION_STYLES = {"slide_fade", "fade", "slide"}
+
 
 @dataclass
 class LocalFrameRenderParams:
-    """Parameters for local_frame_compose template rendering."""
+    """Parameters for Pillow local_frame_compose template rendering.
+    V0.3.7: Extended with route-specific appearance params."""
 
     # Style and appearance
     style_preset: str = "ai_frontier_dark"
@@ -43,6 +58,14 @@ class LocalFrameRenderParams:
     include_overview: bool = True
     include_summary: bool = True
 
+    # V0.3.7: Route-specific appearance
+    show_data_viz: bool = True
+    title_color: str = "#f8fafc"
+    body_color: str = "#94a3b8"
+    highlight_color: str = "#f59e0b"
+    content_align: str = "top"  # top / center
+    theme_adaptive: bool = True
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -55,6 +78,12 @@ class LocalFrameRenderParams:
             "transitionFrames": self.transition_frames,
             "includeOverview": self.include_overview,
             "includeSummary": self.include_summary,
+            "showDataViz": self.show_data_viz,
+            "titleColor": self.title_color,
+            "bodyColor": self.body_color,
+            "highlightColor": self.highlight_color,
+            "contentAlign": self.content_align,
+            "themeAdaptive": self.theme_adaptive,
         }
 
 
@@ -214,6 +243,25 @@ def parse_local_frame_params(params: dict) -> ParseResult:
         else:
             include_summary = bool(include_summary)
 
+    # V0.3.7: Parse route-specific appearance params (all routes share same parser)
+    show_data_viz = params.get("showDataViz", True) not in (False, "false", "False", 0)
+    title_color = params.get("titleColor", "#f8fafc") or "#f8fafc"
+    body_color = params.get("bodyColor", "#94a3b8") or "#94a3b8"
+    highlight_color = params.get("highlightColor", "#f59e0b") or "#f59e0b"
+    content_align = params.get("contentAlign", "top")
+    if content_align not in ("top", "center"):
+        content_align = "top"
+    theme_adaptive = params.get("themeAdaptive", True) not in (False, "false", "False", 0)
+
+    # V0.3.7: Remotion-specific params (read directly by props_builder)
+    # accentColor, fontScale, showIcon, motionIntensity, coverStyle,
+    # overviewStyle, metricAnimation, transitionStyle
+    # No validation needed here; props_builder reads raw values with defaults.
+
+    # V0.3.7: AI Asset-specific params
+    # imageStyle, backgroundDarken, cardOpacity, cardBlur, kenBurns
+    # No validation needed here; ai_asset_renderer reads raw values with defaults.
+
     return ParseResult(
         params=LocalFrameRenderParams(
             style_preset=style_preset,
@@ -225,6 +273,12 @@ def parse_local_frame_params(params: dict) -> ParseResult:
             transition_frames=transition_frames,
             include_overview=include_overview,
             include_summary=include_summary,
+            show_data_viz=show_data_viz,
+            title_color=title_color,
+            body_color=body_color,
+            highlight_color=highlight_color,
+            content_align=content_align,
+            theme_adaptive=theme_adaptive,
         ),
         warnings=warnings,
     )

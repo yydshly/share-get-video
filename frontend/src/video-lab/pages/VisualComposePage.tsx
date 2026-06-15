@@ -1,8 +1,11 @@
 // VisualComposePage - 视频生成路线对比（投报告 → 多路线各出片 → 质量分对比）
 // Path: /video-lab/visual-compose
+// V0.3.7: Route-specific config - 每条路线独立参数、独立 preset
 
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import RouteConfigPanel from "../components/RouteConfigPanel";
+import { VIDEO_ROUTE_PRESETS, getPresetForRoute, ROUTE_TAGLINES, isPillowRoute, isRemotionRoute, isAiAssetRoute } from "../presets/videoRoutePresets";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -84,6 +87,8 @@ export default function VisualComposePage() {
   const [useLlmPlan, setUseLlmPlan] = useState(true);
   const [styleJson, setStyleJson] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  // V0.3.7: 每条路线的独立配置参数
+  const [routeParams, setRouteParams] = useState<Record<string, Record<string, unknown>>>({});
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<Record<string, RouteResult>>({});
   const [judges, setJudges] = useState<Record<string, { loading?: boolean; success?: boolean; overall?: number; scores?: Record<string, number>; suggestions?: string[]; message?: string }>>({});
@@ -95,6 +100,15 @@ export default function VisualComposePage() {
       .then((data: VisualRoute[]) => {
         setRoutes(data);
         setSelected(data.filter((d) => d.available).map((d) => d.routeId));
+        // V0.3.7: 初始化每条路线的默认参数（来自 preset）
+        const initialRouteParams: Record<string, Record<string, unknown>> = {};
+        for (const route of data) {
+          const preset = getPresetForRoute(route.routeId);
+          if (preset) {
+            initialRouteParams[route.routeId] = { ...preset.params };
+          }
+        }
+        setRouteParams(initialRouteParams);
       })
       .catch((e) => setError("加载视觉路线失败：" + String(e)));
   }, []);
@@ -115,6 +129,7 @@ export default function VisualComposePage() {
     setRunning(true);
     setResults(Object.fromEntries(selected.map((r) => [r, { visualRoute: r, _pending: true } as RouteResult])));
 
+    // 旧版 styleJson 兼容：用户可以直接粘贴 JSON 覆盖路线参数
     let parsedStyle: Record<string, unknown> = {};
     if (styleJson.trim()) {
       try { parsedStyle = JSON.parse(styleJson); } catch { setError("样式参数 JSON 格式错误，已忽略"); }
@@ -122,13 +137,32 @@ export default function VisualComposePage() {
 
     for (const route of selected) {
       try {
+        // V0.3.7: 合并路线专属参数 + styleJson 覆盖
+        const routeSpecificParams = routeParams[route] ?? {};
+        // 对于 Remotion，把 top-level 样式参数归入 remotionStyle
+        const paramsForRoute = { ...routeSpecificParams, ...parsedStyle };
+        if (isRemotionRoute(route)) {
+          paramsForRoute.remotionStyle = {
+            accentColor: paramsForRoute.accentColor ?? "#3b82f6",
+            highlightColor: paramsForRoute.highlightColor ?? "#f59e0b",
+            fontScale: paramsForRoute.fontScale ?? 1,
+            showIcon: paramsForRoute.showIcon ?? true,
+          };
+        }
+
         const resp = await fetch(`${API_BASE}/visual-compose`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             content,
             visualRoute: route,
-            params: { targetDuration: duration, aspectRatio: "9:16", keyPointCount, useLlmPlan, ...parsedStyle },
+            params: {
+              targetDuration: duration,
+              aspectRatio: "9:16",
+              keyPointCount,
+              useLlmPlan,
+              ...paramsForRoute,
+            },
           }),
         });
         const data = await resp.json();
@@ -213,6 +247,7 @@ export default function VisualComposePage() {
           {routes.map((r) => {
             const checked = selected.includes(r.routeId);
             const color = r.available ? "#10b981" : "#94a3b8";
+            const tagline = ROUTE_TAGLINES[r.routeId as keyof typeof ROUTE_TAGLINES] ?? "";
             return (
               <div key={r.routeId} onClick={() => r.available && toggle(r.routeId)}
                 style={{ border: `2px solid ${checked ? color : "#e2e8f0"}`, borderRadius: 10, padding: "0.9rem", cursor: r.available ? "pointer" : "not-allowed", background: checked ? `${color}08` : "white", opacity: r.available ? 1 : 0.6 }}>
@@ -224,6 +259,7 @@ export default function VisualComposePage() {
                 <div style={{ fontSize: "0.72rem", color: r.available ? "#10b981" : "#ef4444", marginTop: 4 }}>
                   {r.available ? "✓ 可用" : "✗ " + r.availabilityMessage}
                 </div>
+                {checked && <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: 4, fontStyle: "italic" }}>{tagline}</div>}
               </div>
             );
           })}
@@ -235,6 +271,23 @@ export default function VisualComposePage() {
             本次会调用 MiniMax 大模型（LLM 规划 / TTS / 文生图），可能产生 API 成本，且渲染需要一定时间。确认运行。
           </label>
         </div>
+
+        {/* V0.3.7: 路线配置区域 - 只显示当前选中路线的参数 */}
+        {selected.length > 0 && (
+          <div style={{ marginBottom: "1rem" }}>
+            {selected.length === 1 ? (
+              <RouteConfigPanel
+                routeId={selected[0]}
+                initialParams={routeParams[selected[0]]}
+                onParamsChange={(params) => setRouteParams((prev) => ({ ...prev, [selected[0]]: params }))}
+              />
+            ) : (
+              <div style={{ fontSize: "0.78rem", color: "#64748b", background: "#f8fafc", borderRadius: 8, padding: "0.75rem" }}>
+                多路线同时生成时，各路线使用各自默认 preset 参数。点击单条路线卡片可单独配置。
+              </div>
+            )}
+          </div>
+        )}
 
         <button onClick={runAll} disabled={running}
           style={{ background: running ? "#93c5fd" : "#3b82f6", color: "white", border: "none", borderRadius: 8, padding: "0.6rem 1.5rem", fontSize: "0.9rem", cursor: running ? "wait" : "pointer" }}>

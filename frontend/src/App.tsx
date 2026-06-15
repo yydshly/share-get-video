@@ -13,6 +13,7 @@ import RoutePlaygroundPage from "./video-lab/pages/RoutePlaygroundPage";
 import VisualComposePage from "./video-lab/pages/VisualComposePage";
 import FramePreviewPage from "./video-lab/pages/FramePreviewPage";
 import QualityHistoryPage from "./video-lab/pages/QualityHistoryPage";
+import StyleGalleryPage from "./video-lab/pages/StyleGalleryPage";
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/video-lab/visual-compose" element={<VisualComposePage />} />
         <Route path="/video-lab/frame-preview" element={<FramePreviewPage />} />
         <Route path="/video-lab/quality-history" element={<QualityHistoryPage />} />
+        <Route path="/video-lab/style-gallery" element={<StyleGalleryPage />} />
         <Route path="/" element={<Navigate to="/video-lab" replace />} />
       </Routes>
     </BrowserRouter>
