@@ -549,12 +549,16 @@ const KeyPointCard: React.FC<{
           background: C.card,
           borderRadius: 24,
           border: `2px solid ${C.border}`,
-          padding: "50px 44px",
+          padding: "56px 44px",
           position: "relative",
           opacity: cardOpacity,
           transform: `translateY(${cardY}px)`,
           boxShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
-          minHeight: 1100,
+          // V0.5.5: 内容垂直居中 + 贴合内容的高度下限，消除卡片下半固定留白
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          minHeight: 760,
         }}
       >
         {/* Accent glow */}
