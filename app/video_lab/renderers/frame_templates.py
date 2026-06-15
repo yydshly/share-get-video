@@ -563,10 +563,10 @@ def _draw_metrics_card(
     is_range = mn is not None and mx is not None
 
     # Layout constants
-    gap = int(12 * scale)
+    gap = int(16 * scale)      # increased from 12 for more breathing room
     inner_pad = int(24 * scale)
     bar_h = int(12 * scale)
-    max_h = int(180 * scale)
+    max_h = int(220 * scale)   # increased from 180 to give range cards more space
 
     # Determine bar width and big number font size
     bar_total_w = max_width - inner_pad * 2
@@ -580,9 +580,15 @@ def _draw_metrics_card(
 
     # Value string
     if is_range:
-        val_str = f"{int(float(mx))}{unit}"
+        # Range: show max value prominently; use 0 decimals for %, 2 for others
+        decimals = 0 if unit == "%" else 2
+        val_str = f"{float(mx):.{decimals}f}{unit}"
     else:
-        decimals = 0 if value == int(value) else 1
+        # Non-range: 0 decimals for integer %, 2 decimals for non-% (e.g. F1=0.84)
+        if unit == "%":
+            decimals = 0 if value == int(value) else 1
+        else:
+            decimals = 2  # Non-% metrics like F1=0.84 always show 2 decimals
         val_str = f"{value:.{decimals}f}{unit}"
 
     # Draw background card
@@ -628,7 +634,8 @@ def _draw_metrics_card(
         # Range: show a dual-bar showing min..max
         min_val = float(mn)
         max_val = float(mx)
-        range_label = f"{int(min_val)}{unit} – {int(max_val)}{unit}"
+        decimals = 0 if unit == "%" else 2
+        range_label = f"{min_val:.{decimals}f}{unit} – {max_val:.{decimals}f}{unit}"
         bbox = draw.textbbox((0, 0), range_label, font=font_unit)
         rng_h = bbox[3] - bbox[1]
         draw.text((content_x, cur_y), range_label, font=font_unit, fill=hl_color)
@@ -731,6 +738,8 @@ def render_keypoint_template(
     inner_w = (card_x2 - card_x1) - 100
 
     # Header: big index + " / total"
+    # Defensive: ensure total is at least index (prevents "04 / 03" display issues)
+    display_total = max(total, index)
     header_y = card_y1 + 50
     big_idx_text = f"{index:02d}"
     big_idx_font_size = int(FONT_SIZES["highlight_large"] * scale)
@@ -738,7 +747,7 @@ def render_keypoint_template(
     warnings.extend(_w_big)
     draw.text((inner_x, header_y), big_idx_text, font=big_idx_font, fill=COLORS["accent_blue"])
     idx_w = draw.textbbox((0, 0), big_idx_text, font=big_idx_font)[2]
-    draw.text((inner_x + idx_w + 12, header_y + 34), f"/ {total:02d}", font=font_index, fill=COLORS["text_tertiary"])
+    draw.text((inner_x + idx_w + 12, header_y + 34), f"/ {display_total:02d}", font=font_index, fill=COLORS["text_tertiary"])
 
     # Category tag — only when meaningful
     show_category = bool(category) and category not in ("默认", "default", "")
@@ -780,9 +789,9 @@ def render_keypoint_template(
     accent = COLORS["accent_blue"]
 
     # Reserve space for metrics card (bottom of content area)
-    # Metrics card area: ~180 * scale height, plus gap
-    metrics_reserve_h = int(200 * scale) if has_metrics else 0
-    metrics_gap = int(24 * scale) if has_metrics else 0
+    # Metrics card area: ~220 * scale height, plus gap
+    metrics_reserve_h = int(230 * scale) if has_metrics else 0
+    metrics_gap = int(28 * scale) if has_metrics else 0
     effective_content_h = content_h - metrics_reserve_h - metrics_gap
 
     # Allocate vertical space: headline gets up to ~45% when detail exists

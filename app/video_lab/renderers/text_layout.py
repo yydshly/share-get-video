@@ -27,6 +27,9 @@ FONT_CANDIDATES = [
 
 # Highlight patterns for extracting key numbers/keywords
 HIGHLIGHT_PATTERNS = [
+    # Model names with version: F1, F2, GPT-5, Claude 4, Gemini 2, Llama 3
+    (r'(?:GPT|Claude|Gemini|Llama|Mistral)[\s-]?\d+(?:\.\d+)?', 'model_name'),
+    (r'(?:F[12]|AlphaFold|Sora|o1|o3|o4)[^a-zA-Z0-9]?', 'model_name'),
     # Percentages: 88.9%, 72%, 16%
     (r'\d+\.?\d*%', 'percentage'),
     # Multipliers: 10倍, 5x, 3X
@@ -94,7 +97,64 @@ def wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: Ima
     if not lines:
         lines = [text]
 
+    # Post-process: merge orphan punctuation at end of lines
+    lines = _merge_orphan_punctuation(lines, font, max_width, draw)
+
     return lines
+
+
+# ─── Punctuation helpers for line merging ────────────────────────────────────────
+
+def _is_terminal_punctuation(c: str) -> bool:
+    """Check if character is terminal punctuation that shouldn't be alone on a line."""
+    return c in '。，、；：？！""''．'
+
+
+def _is_hyphen_like(c: str) -> bool:
+    """Check if character is punctuation that shouldn't start a line."""
+    return c in '-—–_.,;:?!'
+
+
+def _merge_orphan_punctuation(
+    lines: List[str],
+    font: ImageFont.FreeTypeFont,
+    max_width: int,
+    draw: ImageDraw.ImageDraw,
+) -> List[str]:
+    """
+    Post-process wrapped lines to avoid orphaned punctuation at line ends.
+    E.g., avoid: "ProReviewer系统在五个质量维度" + "。" where "." is orphaned.
+    Also merges hyphen-like chars that start a line back to previous line.
+    """
+    if len(lines) <= 1:
+        return lines
+
+    result = []
+    for i, line in enumerate(lines):
+        if not line:
+            continue
+
+        # Rule 1: If line ends with terminal punctuation AND next line exists AND next line is short, merge
+        if i < len(lines) - 1 and line and _is_terminal_punctuation(line[-1]):
+            next_line = lines[i + 1]
+            if next_line and len(next_line) < 6:
+                merged = line + next_line
+                bbox = draw.textbbox((0, 0), merged, font=font)
+                if bbox[2] - bbox[0] <= max_width:
+                    result.append(merged)
+                    continue
+
+        # Rule 2: If line starts with hyphen-like char, try to merge with previous
+        if i > 0 and line and _is_hyphen_like(line[0]) and result:
+            merged = result[-1] + line
+            bbox = draw.textbbox((0, 0), merged, font=font)
+            if bbox[2] - bbox[0] <= max_width:
+                result[-1] = merged
+                continue
+
+        result.append(line)
+
+    return result
 
 
 def truncate_text(text: str, max_chars: int) -> str:
