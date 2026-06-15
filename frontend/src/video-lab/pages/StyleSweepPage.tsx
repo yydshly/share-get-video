@@ -45,6 +45,10 @@ const ISSUE_OPTIONS = [
   { id: "content_missing", label: "内容遗漏" },
   { id: "style_too_similar", label: "样式差异小" },
   { id: "style_not_suitable", label: "风格不适合" },
+  // V0.8.4: explicit "render failed" tag — surfaces in stats so a failed
+  // style can't hide inside the "可用=0, 各类问题=0" trap when user only
+  // typed a note. Mutually exclusive with "ok" via the existing toggle logic.
+  { id: "render_failed", label: "生成失败" },
 ];
 
 interface Quality { overallScore?: number }
@@ -91,6 +95,31 @@ interface IssueMark {
 
 // 复制反馈
 type CopyState = "" | "copied" | "failed";
+
+// V0.8.4: 备注关键词 → 建议问题标签。仅做提示，不自动写入用户标注。
+// 返回 id 数组（与 ISSUE_OPTIONS 中的 id 对齐），不含 "ok" / "render_failed"。
+function inferIssueHintsFromNote(note: string, status?: string): string[] {
+  const text = note || "";
+  const hints: string[] = [];
+
+  // status === failed 时强烈建议"生成失败"，同时备注里包含"失败"也建议
+  if (status === "failed" || text.includes("失败")) hints.push("render_failed");
+  if (text.includes("黑屏") || text.includes("缺少") || text.includes("缺图") || text.includes("图片有问题") || text.includes("没出图")) hints.push("missing_visual");
+  // "音画不对应" 同时出现 "音画"/"音频"+"图片"/"画面"
+  if (text.includes("音画") || (text.includes("音频") && (text.includes("图片") || text.includes("画面")))) hints.push("audio_visual_mismatch");
+  if (text.includes("字幕") && (text.includes("截断") || text.includes("缺失") || text.includes("不同步") || text.includes("丢失"))) hints.push("subtitle_mismatch");
+  if (text.includes("最后一句") || text.includes("内容遗漏") || text.includes("内容缺失")) hints.push("content_missing");
+  if ((text.includes("文字") || text.includes("文本")) && (text.includes("重叠") || text.includes("溢出"))) hints.push("text_overflow");
+
+  return [...new Set(hints)];
+}
+
+// 把 id 列表翻译成人类可读 label（用于提示文案）
+function hintsToLabels(ids: string[]): string[] {
+  return ids
+    .map((id) => ISSUE_OPTIONS.find((o) => o.id === id)?.label ?? id)
+    .filter(Boolean);
+}
 
 export default function StyleSweepPage() {
   const [routeId, setRouteId] = useState(ROUTES[0].id);
@@ -179,11 +208,20 @@ export default function StyleSweepPage() {
   // V0.8.2: enrich with manifestUrl / audioDurationSec / subtitleCount /
   // warnings / steps / params / logsTail (last 30 lines of logs only) so
   // the inspection report can carry forward the cheap diagnostic surface.
+  // V0.8.4: also include suggestedIssues (from note keyword hints) +
+  // markingWarning ("备注中包含问题描述，但人工问题标签为空" / "样式生成失败，但未标记生成失败").
   const buildCheckJson = (s: StyleResult) => {
     const r = s.result;
     const mark = issueMarks[s.styleId] ?? { issues: [], note: "" };
     const fullLogs = Array.isArray(r.logs) ? r.logs : [];
     const logsTail = fullLogs.slice(-30);
+    const suggestedIssues = inferIssueHintsFromNote(mark.note, r.status);
+    let markingWarning = "";
+    if (mark.note.trim() && mark.issues.length === 0) {
+      markingWarning = "备注中包含问题描述，但人工问题标签为空";
+    } else if (r.status === "failed" && !mark.issues.includes("render_failed")) {
+      markingWarning = "样式生成失败，但未标记生成失败";
+    }
     return {
       routeId: data?.routeId,
       routeName: data?.routeName,
@@ -209,6 +247,8 @@ export default function StyleSweepPage() {
       quality: { overallScore: r.quality?.overallScore },
       manualIssues: mark.issues,
       manualNote: mark.note,
+      suggestedIssues,
+      markingWarning,
     };
   };
 
@@ -246,6 +286,29 @@ export default function StyleSweepPage() {
 
   const hasAnyMark = Object.keys(issueMarks).length > 0;
 
+  // V0.8.4: 标注完整性检查。统计 3 类问题：
+  // 1. 有备注但 issues 为空（用户写了"字幕截断"等但没勾任何标签）
+  // 2. status === failed 但没勾 "生成失败"
+  // 3. 备注关键词推断出建议标签但用户一个都没勾
+  const integrityStats = useMemo(() => {
+    let noteButNoTag = 0;
+    let failedButNotMarked = 0;
+    let hasSuggested = 0;
+    if (data) {
+      for (const s of data.results) {
+        const r = s.result;
+        const mark = issueMarks[s.styleId] ?? { issues: [], note: "" };
+        const suggested = inferIssueHintsFromNote(mark.note, r.status);
+        const noteNonEmpty = mark.note.trim().length > 0;
+        if (noteNonEmpty && mark.issues.length === 0) noteButNoTag += 1;
+        if (r.status === "failed" && !mark.issues.includes("render_failed")) failedButNotMarked += 1;
+        if (suggested.length > 0 && mark.issues.length === 0) hasSuggested += 1;
+      }
+    }
+    return { noteButNoTag, failedButNotMarked, hasSuggested };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issueMarks, data]);
+
   // 复制本轮 Markdown 排查报告
   // V0.8.2: enrich per-style section with manifestUrl / audioDurationSec /
   // subtitleCount / warnings / steps / params; add "如何继续排查" section.
@@ -282,6 +345,47 @@ export default function StyleSweepPage() {
     ISSUE_OPTIONS.forEach((opt) => {
       lines.push(`- ${opt.label}：${stats[opt.id]}`);
     });
+    lines.push("");
+    // V0.8.4: 标注完整性检查（先于样式明细，方便用户一眼看到）
+    lines.push("## 标注完整性检查");
+    lines.push("");
+    lines.push(`- 有备注但未勾标签：${integrityStats.noteButNoTag}`);
+    lines.push(`- 失败但未标生成失败：${integrityStats.failedButNotMarked}`);
+    lines.push(`- 有建议标签待确认：${integrityStats.hasSuggested}`);
+    const needsAttention = data.results
+      .map((s) => {
+        const r = s.result;
+        const mark = issueMarks[s.styleId] ?? { issues: [], note: "" };
+        const suggested = inferIssueHintsFromNote(mark.note, r.status);
+        const noteNonEmpty = mark.note.trim().length > 0;
+        const reasonParts: string[] = [];
+        if (r.status === "failed" && !mark.issues.includes("render_failed")) {
+          reasonParts.push("status=failed，建议标签：生成失败");
+        }
+        if (noteNonEmpty && mark.issues.length === 0) {
+          const labelList = hintsToLabels(suggested.filter((id) => id !== "render_failed" || r.status === "failed"));
+          reasonParts.push(
+            labelList.length > 0
+              ? `备注包含问题关键词，建议标签：${labelList.join("、")}`
+              : "备注包含问题描述",
+          );
+        } else if (suggested.length > 0) {
+          // 即使勾了标签，如果建议标签里有未被勾的，也提示
+          const unchosen = suggested.filter((id) => !mark.issues.includes(id));
+          if (unchosen.length > 0) {
+            reasonParts.push(`仍有未勾建议标签：${hintsToLabels(unchosen).join("、")}`);
+          }
+        }
+        return reasonParts.length > 0 ? { name: s.styleName, reasons: reasonParts } : null;
+      })
+      .filter(Boolean) as { name: string; reasons: string[] }[];
+    if (needsAttention.length > 0) {
+      lines.push("");
+      lines.push("### 待补充标注");
+      needsAttention.forEach((n) => {
+        lines.push(`- ${n.name}：${n.reasons.join("；")}`);
+      });
+    }
     lines.push("");
     lines.push("## 样式明细");
     data.results.forEach((s) => {
@@ -322,6 +426,17 @@ export default function StyleSweepPage() {
       const fullLogs = Array.isArray(r.logs) ? r.logs : [];
       const lastLogs = fullLogs.slice(-10);
       lines.push(`- logsTail: ${lastLogs.length > 0 ? lastLogs.join(" | ") : "（无）"}`);
+      // V0.8.4: 备注关键词推断的建议标签 + 标注警告
+      const suggested = inferIssueHintsFromNote(mark.note, r.status);
+      let markingWarning = "";
+      if (mark.note.trim() && mark.issues.length === 0) {
+        markingWarning = "备注中包含问题描述，但人工问题标签为空";
+      } else if (r.status === "failed" && !mark.issues.includes("render_failed")) {
+        markingWarning = "样式生成失败，但未标记生成失败";
+      }
+      const suggestedLabels = hintsToLabels(suggested).join("、") || "（无）";
+      lines.push(`- suggestedIssues: ${suggestedLabels}`);
+      lines.push(`- markingWarning: ${markingWarning || "（无）"}`);
     });
     lines.push("");
     try {
@@ -458,6 +573,19 @@ export default function StyleSweepPage() {
                   ))}
                 </div>
               )}
+              {/* V0.8.4: 标注完整性检查 */}
+              {hasAnyMark && (
+                <div style={{ marginTop: "0.6rem", paddingTop: "0.6rem", borderTop: "1px dashed #cbd5e1" }}>
+                  <div style={{ fontWeight: 600, fontSize: "0.78rem", marginBottom: "0.3rem", color: "#334155" }}>
+                    标注完整性检查：
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.25rem 0.8rem", fontSize: "0.75rem", color: "#475569" }}>
+                    <div>有备注但未勾标签：<strong style={{ color: integrityStats.noteButNoTag > 0 ? "#dc2626" : "#16a34a" }}>{integrityStats.noteButNoTag}</strong></div>
+                    <div>失败但未标生成失败：<strong style={{ color: integrityStats.failedButNotMarked > 0 ? "#dc2626" : "#16a34a" }}>{integrityStats.failedButNotMarked}</strong></div>
+                    <div>有建议标签待确认：<strong style={{ color: integrityStats.hasSuggested > 0 ? "#d97706" : "#16a34a" }}>{integrityStats.hasSuggested}</strong></div>
+                  </div>
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               {reportCopyState === "copied" && (
@@ -515,6 +643,42 @@ export default function StyleSweepPage() {
                       ❌ {r.status}<br />{r.failedReason}
                     </div>
                   )}
+
+                  {/* V0.8.4: 标注提醒块 —— 备注/失败 → 建议标签 */}
+                  {(() => {
+                    const noteNonEmpty = mark.note.trim().length > 0;
+                    const isFailed = r.status === "failed";
+                    const noteButNoTag = noteNonEmpty && mark.issues.length === 0;
+                    const failedNotMarked = isFailed && !mark.issues.includes("render_failed");
+                    const suggested = inferIssueHintsFromNote(mark.note, r.status);
+                    const suggestedLabels = hintsToLabels(suggested.filter((id) => id !== "render_failed"));
+                    if (!noteButNoTag && !failedNotMarked) return null;
+                    return (
+                      <div style={{
+                        marginTop: "0.75rem",
+                        background: noteButNoTag ? "#fff7ed" : "#fef2f2",
+                        border: noteButNoTag ? "1px solid #fdba74" : "1px solid #fca5a5",
+                        borderRadius: 8,
+                        padding: "0.55rem 0.7rem",
+                        fontSize: "0.74rem",
+                        color: noteButNoTag ? "#9a3412" : "#991b1b",
+                      }}>
+                        {failedNotMarked && (
+                          <div style={{ marginBottom: noteButNoTag ? "0.35rem" : 0 }}>
+                            ⚠️ 该样式生成失败，建议勾选「<strong>生成失败</strong>」，并查看 <code>failedReason</code> / <code>logsTail</code>。
+                          </div>
+                        )}
+                        {noteButNoTag && (
+                          <div>
+                            🟠 检测到备注中可能包含问题，但尚未勾选标签。
+                            {suggestedLabels.length > 0 && (
+                              <> 建议补充：<strong>{suggestedLabels.join("、")}</strong>。</>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* 任务一：人工问题标签 */}
                   <div style={{ marginTop: "0.85rem" }}>
