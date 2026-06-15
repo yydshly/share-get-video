@@ -71,11 +71,11 @@ class TestRuntimeUrlToPath:
         assert p.as_posix().startswith(str(RUNTIME_DIR).replace("\\", "/"))
 
     def test_strip_custom_prefix_assets(self):
-        """URLs under /assets/ map to RUNTIME_DIR/assets/... when prefix=/assets."""
+        """URLs under /assets/ map to RUNTIME_DIR/video_lab/... (assets is a prefix, not a dir)."""
         from app.video_lab.path_contract import runtime_url_to_path
         from app.video_lab.config import RUNTIME_DIR
         p = runtime_url_to_path("/assets/video_lab/experiments/exp_a/final.mp4")
-        assert p.as_posix().endswith("assets/video_lab/experiments/exp_a/final.mp4")
+        assert p.as_posix().endswith("video_lab/experiments/exp_a/final.mp4")
         assert p.as_posix().startswith(str(RUNTIME_DIR).replace("\\", "/"))
 
     def test_bare_video_lab_path(self):
@@ -103,17 +103,40 @@ class TestRuntimeUrlToPath:
         assert p.as_posix().startswith(str(RUNTIME_DIR).replace("\\", "/"))
 
     def test_full_url_with_assets_prefix(self):
-        """Full http:// URL with /assets/ maps to RUNTIME_DIR/assets/..."""
+        """Full http:// URL with /assets/ maps to RUNTIME_DIR/video_lab/... (prefix stripped)."""
         from app.video_lab.path_contract import runtime_url_to_path
         from app.video_lab.config import RUNTIME_DIR
         p = runtime_url_to_path("http://localhost:8000/assets/video_lab/x.mp4")
-        assert p.as_posix().endswith("assets/video_lab/x.mp4")
+        assert p.as_posix().endswith("video_lab/x.mp4")
         assert p.as_posix().startswith(str(RUNTIME_DIR).replace("\\", "/"))
 
     def test_empty_string(self):
         from app.video_lab.path_contract import runtime_url_to_path
         p = runtime_url_to_path("")
         assert p == Path()
+
+    def test_historical_runtime_url_under_custom_assets_prefix(self, monkeypatch):
+        """Historical /runtime/... stored URLs are resolved even when prefix=/assets."""
+        import importlib
+        import app.video_lab.config as config_module
+        import app.video_lab.path_contract as path_contract_module
+
+        monkeypatch.setenv("PUBLIC_RUNTIME_URL_PREFIX", "/assets")
+        importlib.reload(config_module)
+        importlib.reload(path_contract_module)
+
+        from app.video_lab.config import RUNTIME_DIR
+        from app.video_lab.path_contract import runtime_url_to_path
+
+        p = runtime_url_to_path("/runtime/video_lab/experiments/exp_a/final.mp4")
+
+        assert p.as_posix().endswith("video_lab/experiments/exp_a/final.mp4")
+        assert p.as_posix().startswith(str(RUNTIME_DIR).replace("\\", "/"))
+        assert "/runtime/runtime/" not in p.as_posix().replace("\\", "/")
+
+        monkeypatch.delenv("PUBLIC_RUNTIME_URL_PREFIX", raising=False)
+        importlib.reload(config_module)
+        importlib.reload(path_contract_module)
 
 
 class TestPathToRuntimeUrl:

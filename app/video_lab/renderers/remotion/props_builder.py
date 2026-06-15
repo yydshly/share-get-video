@@ -146,6 +146,11 @@ def build_remotion_props(
     if style:
         props["style"] = style
 
+    # V0.6.2: Remotion family — selects presentation paradigm (data_news | card_stack | timeline_news)
+    remotion_family = params.get("remotionFamily")
+    if remotion_family in ("data_news", "card_stack", "timeline_news"):
+        props["remotionFamily"] = remotion_family
+
     # V0.8.2: contentDebug snapshot for cheap post-hoc inspection.
     # Mirrors the content the Remotion template will render so users can
     # diff "what we said the title was" vs "what came out". Includes per-KP
@@ -170,11 +175,6 @@ def build_remotion_props(
         "style": style,
         "remotionFamily": props.get("remotionFamily", "data_news"),
     }
-
-    # V0.6.2: Remotion family — selects presentation paradigm (data_news | card_stack)
-    remotion_family = params.get("remotionFamily")
-    if remotion_family in ("data_news", "card_stack"):
-        props["remotionFamily"] = remotion_family
 
     # Write props to runtime directory
     props_path = _write_props_json(experiment_id, props)

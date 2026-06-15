@@ -66,17 +66,24 @@ class TestStyleResolution:
         assert "contentDebug" in props
 
     def test_remotion_family_timeline_news(self):
-        """remotionFamily=timeline_news builds valid props (V0.8.9)."""
+        """remotionFamily=timeline_news is preserved in props (V0.8.9)."""
         structured = {"lead": "测试", "subtitle": "AI"}
         key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
         params = {"remotionFamily": "timeline_news"}
         props = _build_props(structured, key_points, params)
-        # timeline_news is not in the allowlist so remotionFamily key should not be set
-        assert "remotionFamily" not in props or props.get("remotionFamily") in (
-            "data_news",
-            "card_stack",
-        )
+        assert props.get("remotionFamily") == "timeline_news"
         assert "contentDebug" in props
+        assert props["contentDebug"].get("remotionFamily") == "timeline_news"
+
+    def test_unknown_remotion_family_fallback_no_error(self):
+        """Unknown remotionFamily is silently ignored (no exception)."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {"remotionFamily": "unknown_family"}
+        props = _build_props(structured, key_points, params)
+        assert props.get("remotionFamily") is None
+        assert "contentDebug" in props
+        assert props["contentDebug"].get("remotionFamily") == "data_news"
 
     def test_remotion_family_missing_fallback(self):
         """remotionFamily missing defaults to data_news in contentDebug."""
