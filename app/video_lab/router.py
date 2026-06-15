@@ -853,8 +853,8 @@ def list_preset_styles() -> list[dict[str, Any]]:
             "style_id": "remotion_metric_motion",
             "style_name": "动态数据栏目",
             "description": "数字滚动 + 进度条生长，展示 Remotion 时间轴动画能力，适合数据驱动内容",
-            "capabilities": ["数字滚动", "进度条生长", "卡片入场", "页面转场", "栏目包装感"],
-            "tags": ["动态", "数据", "栏目包装"],
+            "capabilities": ["数字滚动", "进度条生长", "卡片入场", "页面转场", "栏目包装感", "轻背景音"],
+            "tags": ["动态", "数据", "栏目包装", "BGM"],
             "params": {
                 "showDataViz": True,
                 "accentColor": "#3b82f6",
@@ -866,6 +866,12 @@ def list_preset_styles() -> list[dict[str, Any]]:
                 "overviewStyle": "timeline",
                 "metricAnimation": "countup_bar",
                 "transitionStyle": "slide_fade",
+                "bgm": {
+                    "mode": "generated_ambient",
+                    "volume": 0.06,
+                    "fadeIn": 1.2,
+                    "fadeOut": 1.5,
+                },
             },
         },
         {
@@ -896,8 +902,8 @@ def list_preset_styles() -> list[dict[str, Any]]:
             "style_id": "ai_asset_tech_mood",
             "style_name": "深蓝科技氛围",
             "description": "AI 生成深蓝科技背景 + 信息卡融合，传播型视觉，适合前沿资讯",
-            "capabilities": ["AI 背景", "科技感氛围", "封面感", "背景+信息卡融合", "传播型视觉"],
-            "tags": ["科技", "氛围", "传播"],
+            "capabilities": ["AI 背景", "科技感氛围", "封面感", "背景+信息卡融合", "传播型视觉", "轻背景音"],
+            "tags": ["科技", "氛围", "传播", "BGM"],
             "params": {
                 "showDataViz": True,
                 "imageStyle": "深蓝科技数据可视化背景，未来感，抽象光线，电影质感，无文字，无文本，柔和景深",
@@ -907,6 +913,12 @@ def list_preset_styles() -> list[dict[str, Any]]:
                 "highlightColor": "#f59e0b",
                 "contentAlign": "top",
                 "kenBurns": True,
+                "bgm": {
+                    "mode": "generated_ambient",
+                    "volume": 0.06,
+                    "fadeIn": 1.2,
+                    "fadeOut": 1.5,
+                },
             },
         },
         {

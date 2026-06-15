@@ -91,6 +91,31 @@ interface GenerateResult {
 const resolveUrl = (u: string) =>
   u && u.startsWith("/runtime/") ? `${API_BASE.replace(/\/video-lab$/, "")}${u}` : u;
 
+interface BgmInfo {
+  enabled: boolean;
+  mode: string;
+  volume: number;
+}
+
+const getBgmInfo = (params: Record<string, unknown>): BgmInfo => {
+  const bgm = params.bgm as Record<string, unknown> | undefined;
+  if (bgm && typeof bgm === "object") {
+    const mode = String(bgm.mode || "none");
+    return {
+      enabled: mode !== "none",
+      mode,
+      volume: Number(bgm.volume || 0.06),
+    };
+  }
+  // Flat format compatibility
+  const mode = String(params.bgmMode || "none");
+  return {
+    enabled: mode !== "none",
+    mode,
+    volume: Number(params.bgmVolume || 0.06),
+  };
+};
+
 const ROUTE_COLORS: Record<string, string> = {
   local_frame_compose: "#0ea5e9",
   template_programmatic_render: "#8b5cf6",
@@ -332,7 +357,7 @@ function SampleCard({
       </div>
 
       {/* 标签 */}
-      {sample.tags.length > 0 && (
+      {(sample.tags.length > 0 || (() => { const b = getBgmInfo(sample.params); return b.enabled; })()) && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
           {sample.tags.map((t) => (
             <span key={t} style={{
@@ -345,6 +370,17 @@ function SampleCard({
               #{t}
             </span>
           ))}
+          {(() => { const b = getBgmInfo(sample.params); return b.enabled ? (
+            <span style={{
+              fontSize: "0.62rem",
+              background: "#f0fdf4",
+              color: "#16a34a",
+              borderRadius: 6,
+              padding: "1px 6px",
+            }}>
+              🎵 BGM · {b.mode === "generated_ambient" ? "环境音" : b.mode}
+            </span>
+          ) : null; })()}
         </div>
       )}
 

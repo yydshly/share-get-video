@@ -535,6 +535,7 @@ def run_tts_subtitle_compose(
         resolution=resolution,
         burn_in=render_params.burn_in if hasattr(render_params, "burn_in") else True,
         timeout=300,
+        bgm_params=params,  # BGM params from top-level params dict (V0.3.8)
     )
 
     if not av_result.get("success"):
@@ -546,6 +547,7 @@ def run_tts_subtitle_compose(
             output_path=final_output,
             resolution=resolution,
             timeout=300,
+            bgm_params=params,  # BGM params from top-level params dict (V0.3.8)
         )
         subtitle_fallback = True
         if av_result.get("success"):
@@ -650,6 +652,11 @@ def run_tts_subtitle_compose(
         "manifestUrl": manifest_url,
         "warnings": all_warnings,
         "quality": quality_dict,
+        "bgm": {
+            "enabled": av_result.get("bgm_enabled", False),
+            "mode": av_result.get("bgm_mode", "none"),
+            "volume": av_result.get("bgm_volume", 0.0),
+        },
     }
     write_manifest(experiment_id, manifest)
 
@@ -678,6 +685,8 @@ def run_tts_subtitle_compose(
         "subtitleCount": len(srt_result.get("subtitles", [])),
         "subtitleBurned": subtitle_burned,
         "subtitleFallback": subtitle_fallback,
+        "bgmEnabled": av_result.get("bgm_enabled", False),
+        "bgmMode": av_result.get("bgm_mode", "none"),
         "warnings": all_warnings,
     }
 
@@ -725,6 +734,9 @@ def run_tts_subtitle_compose(
             "subtitleFallback": subtitle_fallback,
             "subtitleRenderer": av_result.get("subtitle_renderer", "none"),
             "subtitleStyle": av_result.get("subtitle_style", {}),
+            "bgmEnabled": av_result.get("bgm_enabled", False),
+            "bgmMode": av_result.get("bgm_mode", "none"),
+            "bgmVolume": av_result.get("bgm_volume", 0.0),
             "format": "mp4",
             "qualityScore": quality_dict["overallScore"],
             "qualityDimensions": quality_dict["dimensionScores"],
