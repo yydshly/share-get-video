@@ -78,6 +78,54 @@ def test_run_probe_isolates_per_route_exception():
     assert out["recommendedRoute"] in ("local_frame_compose", "ai_asset_then_compose")
 
 
+def test_visual_score_breaks_structural_tie():
+    """结构分几乎打平时，视觉分应拉开差距并可改变名次。"""
+    results = [
+        {"visualRoute": "a", "status": "succeeded", "quality": {"overallScore": 5.0}, "visualScore": 60},
+        {"visualRoute": "b", "status": "succeeded", "quality": {"overallScore": 4.8}, "visualScore": 95},
+    ]
+    ranking = rank_probe_results(results)
+    # a: 0.5*100+0.5*60=80 ; b: 0.5*96+0.5*95=95.5 → b 胜出（视觉翻盘）
+    assert ranking[0]["visualRoute"] == "b"
+    assert ranking[0]["combinedScore"] == 95.5
+    assert ranking[0]["visualScore"] == 95
+    # 结构分(0-5)仍保留给 UI
+    assert ranking[1]["score"] == 5.0
+
+
+def test_combined_falls_back_to_structural_without_visual():
+    """没有视觉分时综合分=结构分×20，仍可排名。"""
+    results = [{"visualRoute": "a", "status": "succeeded", "quality": {"overallScore": 4.0}}]
+    ranking = rank_probe_results(results)
+    assert ranking[0]["combinedScore"] == 80.0
+    assert ranking[0]["visualScore"] is None
+
+
+def test_judge_fn_attaches_visual_score_and_affects_recommendation():
+    base = {
+        "local_frame_compose": {"visualRoute": "local_frame_compose", "status": "succeeded", "quality": {"overallScore": 5.0}},
+        "template_programmatic_render": {"visualRoute": "template_programmatic_render", "status": "succeeded", "quality": {"overallScore": 4.8}},
+        "ai_asset_then_compose": {"visualRoute": "ai_asset_then_compose", "status": "succeeded", "quality": {"overallScore": 5.0}},
+    }
+
+    def fake_compose(content, route, params):
+        return dict(base[route])
+
+    # 让 Remotion 视觉分最高 → 应被推荐，尽管结构分略低
+    visual_by_route = {
+        "local_frame_compose": 50,
+        "template_programmatic_render": 98,
+        "ai_asset_then_compose": 55,
+    }
+
+    def fake_judge(result):
+        return {"visualScore": visual_by_route[result["visualRoute"]], "visualDimensions": {}}
+
+    out = run_technique_probe("内容", None, {}, fake_compose, judge_fn=fake_judge)
+    assert out["recommendedRoute"] == "template_programmatic_render"
+    assert out["ranking"][0]["visualScore"] == 98
+
+
 def test_run_probe_respects_explicit_routes():
     def fake_compose(content, route, params):
         return _r(route, score=10)

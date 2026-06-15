@@ -569,9 +569,32 @@ def technique_probe(request: TechniqueProbeRequest) -> dict[str, Any]:
             routes=request.routes or None,
             params=request.params,
             compose_fn=_run_visual_compose,
+            judge_fn=_judge_probe_result,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _judge_probe_result(result: dict[str, Any]) -> dict[str, Any] | None:
+    """对一条路线的成片抽帧做视觉感知评分，供探测综合排名用。
+
+    成片是 mp4 → 先抽一帧再评分（assess_visual_quality 接受图片帧）。
+    任何失败返回 None（该路线退化为纯结构分排名，不中断探测）。
+    """
+    from app.video_lab.quality.visual_judge import assess_visual_quality
+
+    url = result.get("finalVideoUrl") or result.get("coverUrl") or ""
+    if not url:
+        return None
+    # /runtime/... URL → 项目根下相对路径（runtime 由根目录提供）
+    fs_path = url[1:] if url.startswith("/") else url
+    frame = _extract_video_frame(fs_path) if fs_path.endswith(".mp4") else fs_path
+    if not frame:
+        return None
+    j = assess_visual_quality(frame)
+    if not j.get("success"):
+        return None
+    return {"visualScore": j.get("overall"), "visualDimensions": j.get("scores", {})}
 
 
 # ─────────────────────────────────────────────

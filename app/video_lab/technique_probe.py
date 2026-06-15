@@ -25,8 +25,14 @@ ROUTE_DISPLAY_NAMES = {
 }
 
 
-def _score_of(result: dict) -> float:
-    """取一次出片的总质量分；未成功记 -1，确保排到末尾。"""
+# 结构分(确定性)在总分里的权重；其余给视觉感知分。
+# 结构分容易顶到满分、区分度低，所以让视觉分占一半来拉开差距。
+STRUCTURAL_WEIGHT = 0.5
+VISUAL_WEIGHT = 0.5
+
+
+def _structural_score(result: dict) -> float:
+    """结构分(0-5)；未成功记 -1。"""
     if result.get("status") != "succeeded":
         return -1.0
     quality = result.get("quality") or {}
@@ -36,19 +42,45 @@ def _score_of(result: dict) -> float:
         return 0.0
 
 
+def _visual_score(result: dict) -> float | None:
+    """视觉感知分(0-100)；缺失返回 None。"""
+    v = result.get("visualScore")
+    if isinstance(v, (int, float)):
+        return float(v)
+    return None
+
+
+def _combined_score(result: dict) -> float:
+    """综合分(0-100)：结构分×20 归一后与视觉分加权；失败记 -1 排末尾。
+
+    有视觉分 → 加权；无视觉分 → 退化为纯结构分(0-100)，保证仍可排名。
+    """
+    st = _structural_score(result)
+    if st < 0:
+        return -1.0
+    st100 = st * 20.0
+    vis = _visual_score(result)
+    if vis is None:
+        return round(st100, 2)
+    return round(STRUCTURAL_WEIGHT * st100 + VISUAL_WEIGHT * vis, 2)
+
+
 def rank_probe_results(results: list[dict]) -> list[dict]:
-    """按总质量分降序排名；失败路线排末尾。返回供 UI 直接渲染的精简条目。"""
-    ordered = sorted(results, key=_score_of, reverse=True)
+    """按综合分降序排名；失败路线排末尾。返回供 UI 直接渲染的精简条目。"""
+    ordered = sorted(results, key=_combined_score, reverse=True)
     ranked: list[dict] = []
     for i, r in enumerate(ordered, 1):
-        s = _score_of(r)
+        st = _structural_score(r)
+        combined = _combined_score(r)
         route = r.get("visualRoute", "")
         ranked.append({
             "rank": i,
             "visualRoute": route,
             "displayName": ROUTE_DISPLAY_NAMES.get(route, route),
             "status": r.get("status", "unknown"),
-            "score": s if s >= 0 else None,
+            "score": st if st >= 0 else None,            # 结构分(0-5)，UI 既有展示
+            "visualScore": _visual_score(r),             # 视觉感知分(0-100) 或 None
+            "combinedScore": combined if combined >= 0 else None,  # 综合分(0-100)
             "finalVideoUrl": r.get("finalVideoUrl", ""),
             "coverUrl": r.get("coverUrl", ""),
             "failedReason": r.get("failedReason", ""),
@@ -61,22 +93,38 @@ def run_technique_probe(
     routes: list[str] | None,
     params: dict[str, Any] | None,
     compose_fn: Callable[[str, str, dict], dict],
+    judge_fn: Callable[[dict], dict | None] | None = None,
 ) -> dict[str, Any]:
-    """对每条路线各出一片 → 排名 → 推荐。compose_fn(content, route, params)->result dict。"""
+    """对每条路线各出一片 → (可选)视觉评分 → 排名 → 推荐。
+
+    compose_fn(content, route, params) -> result dict（含 finalVideoUrl/quality/...）。
+    judge_fn(result) -> {"visualScore": 0-100, "visualDimensions": {...}} 或 None；
+        传入则对成功出片做视觉感知评分并并入综合分（让排名有区分度、推荐可信）。
+    """
     routes = routes or DEFAULT_PROBE_ROUTES
     params = params or {}
 
     results: list[dict] = []
     for route in routes:
         try:
-            results.append(compose_fn(content, route, params))
+            result = compose_fn(content, route, params)
         except Exception as e:  # 单路线异常不应中断整个探测
-            results.append({
+            result = {
                 "visualRoute": route,
                 "status": "failed",
                 "failedReason": f"compose error: {e}",
                 "quality": {},
-            })
+            }
+        # 视觉感知评分（仅对成功出片；评分失败不影响该路线仍按结构分排名）
+        if judge_fn and result.get("status") == "succeeded":
+            try:
+                judged = judge_fn(result)
+                if judged:
+                    result["visualScore"] = judged.get("visualScore")
+                    result["visualDimensions"] = judged.get("visualDimensions", {})
+            except Exception:
+                pass
+        results.append(result)
 
     ranking = rank_probe_results(results)
     succeeded = [r for r in ranking if r["status"] == "succeeded"]

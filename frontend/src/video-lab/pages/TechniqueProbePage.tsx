@@ -25,6 +25,8 @@ interface RankItem {
   displayName: string;
   status: string;
   score: number | null;
+  visualScore: number | null;
+  combinedScore: number | null;
   finalVideoUrl: string;
   coverUrl: string;
   failedReason: string;
@@ -193,12 +195,18 @@ export default function TechniqueProbePage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "0.75rem" }}>
                     <span style={{ fontSize: "1.2rem" }}>{medal(item.rank)}</span>
                     <strong style={{ fontSize: "0.95rem" }}>{item.displayName}</strong>
-                    {item.score !== null && (
-                      <span style={{ marginLeft: "auto", background: "#1f6feb", color: "white", borderRadius: 10, padding: "2px 10px", fontSize: "0.78rem" }}>
-                        质量 {item.score}/5
+                    {item.combinedScore !== null && (
+                      <span style={{ marginLeft: "auto", background: isTop ? "#059669" : "#1f6feb", color: "white", borderRadius: 10, padding: "2px 10px", fontSize: "0.78rem", fontWeight: 600 }}>
+                        综合 {item.combinedScore}
                       </span>
                     )}
                   </div>
+                  {item.status === "succeeded" && (
+                    <div style={{ fontSize: "0.72rem", color: "#64748b", marginBottom: "0.6rem" }}>
+                      结构 {item.score ?? "—"}/5 · 视觉 {item.visualScore ?? "—"}/100
+                      <span style={{ color: "#94a3b8" }}>（综合 = 结构×20 与视觉 各半）</span>
+                    </div>
+                  )}
 
                   {item.status === "succeeded" && item.finalVideoUrl ? (
                     <>
