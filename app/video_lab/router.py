@@ -944,6 +944,93 @@ def _build_summary(grade: str, scores: dict[str, float], raw_score: float) -> st
     return f"{label}水准（{raw_score}分），{top_name}表现最佳，适合资讯类内容分享。"
 
 
+# ─── V0.4.2: Style Templates ─────────────────────────────────────────────────
+
+@router.post("/style-samples/{sample_id}/promote-template")
+def promote_sample_to_template(
+    sample_id: str,
+    request: dict[str, Any],
+) -> dict[str, Any]:
+    """将样片升级为模板。
+
+    V0.4.2: 从已有样片创建可复用模板记录。
+    """
+    import uuid
+    from datetime import datetime
+    from app.video_lab.style_gallery import store as sg_store
+    from app.video_lab.style_gallery import templates as sg_templates
+    from app.video_lab.style_gallery.models import VisualJudgement
+
+    sample = sg_store.get_sample(sample_id)
+    if not sample:
+        raise HTTPException(status_code=404, detail=f"Sample not found: {sample_id}")
+
+    name = request.get("name") or f"{sample.style_name} 模板"
+
+    # Build visual_judgement dict if present
+    vj_dict = None
+    if sample.visual_judgement:
+        vj_dict = sample.visual_judgement.model_dump(mode="json") if hasattr(sample.visual_judgement, "model_dump") else sample.visual_judgement
+
+    template_id = f"template_{uuid.uuid4().hex[:8]}"
+    template = sg_templates.StyleTemplate(
+        id=template_id,
+        name=name,
+        route_id=sample.route_id,
+        route_name=sample.route_name,
+        style_name=sample.style_name,
+        description=request.get("description", ""),
+        params=sample.params,
+        source_sample_id=sample.id,
+        source_sample_score=sample.visual_judgement.score if sample.visual_judgement else None,
+        visual_judgement=vj_dict,
+        tags=sample.tags,
+        created_at=datetime.utcnow(),
+    )
+
+    sg_templates.save_template(template)
+
+    # Build warnings if any
+    warnings: list[str] = []
+    if not sample.visual_judgement:
+        warnings.append("该样片尚未进行视觉评分，建议先评分后再确定是否适合作为模板。")
+    elif sample.visual_judgement.score < 55:
+        warnings.append("该样片视觉评分偏低（低于55分），作为模板效果可能有限。")
+
+    result = template.to_dict()
+    if warnings:
+        result["warnings"] = warnings
+    return result
+
+
+@router.get("/style-templates")
+def list_style_templates(route_id: str | None = None) -> list[dict[str, Any]]:
+    """列出风格模板，支持按路线过滤。"""
+    from app.video_lab.style_gallery import templates as sg_templates
+    templates = sg_templates.list_templates(route_id=route_id)
+    return [t.to_dict() for t in templates]
+
+
+@router.get("/style-templates/{template_id}")
+def get_style_template(template_id: str) -> dict[str, Any]:
+    """获取单个模板详情。"""
+    from app.video_lab.style_gallery import templates as sg_templates
+    template = sg_templates.get_template(template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")
+    return template.to_dict()
+
+
+@router.delete("/style-templates/{template_id}")
+def delete_style_template(template_id: str) -> dict[str, Any]:
+    """删除一条模板记录（不删除原样片和视频文件）。"""
+    from app.video_lab.style_gallery import templates as sg_templates
+    deleted = sg_templates.delete_template(template_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Template not found: {template_id}")
+    return {"deleted": template_id}
+
+
 @router.get("/style-gallery/preset-styles")
 def list_preset_styles() -> list[dict[str, Any]]:
     """

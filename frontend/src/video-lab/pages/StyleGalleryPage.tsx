@@ -98,6 +98,23 @@ interface GenerateResult {
   failed_reason: string;
 }
 
+// V0.4.2: Style Template
+interface StyleTemplate {
+  id: string;
+  name: string;
+  route_id: string;
+  route_name: string;
+  style_name: string;
+  description: string;
+  params: Record<string, unknown>;
+  source_sample_id: string;
+  source_sample_score: number | null;
+  visual_judgement: VisualJudgement | null;
+  tags: string[];
+  created_at: string;
+  warnings?: string[];
+}
+
 // ─── 工具 ────────────────────────────────────────────────────────────────────
 
 const resolveUrl = (u: string) =>
@@ -310,6 +327,7 @@ function SampleCard({
   selectedForCompare,
   onJudge,
   judging,
+  onPromote,
 }: {
   sample: StyleSample;
   onDelete: (id: string) => void;
@@ -318,6 +336,7 @@ function SampleCard({
   selectedForCompare: boolean;
   onJudge: (id: string) => void;
   judging: boolean;
+  onPromote: (id: string) => void;
 }) {
   const color = ROUTE_COLORS[sample.route_id] ?? "#64748b";
   const statusInfo = STATUS_LABELS[sample.status] ?? STATUS_LABELS.candidate;
@@ -534,6 +553,21 @@ function SampleCard({
         >
           {selectedForCompare ? "✓ 已加入对比" : "⚖ 加入对比"}
         </button>
+        {/* V0.4.2: 升级为模板按钮 */}
+        <button
+          onClick={() => onPromote(sample.id)}
+          style={{
+            background: sample.visual_judgement && sample.visual_judgement.score >= 70 ? "#fef3c7" : "#f1f5f9",
+            color: sample.visual_judgement && sample.visual_judgement.score >= 70 ? "#92400e" : "#475569",
+            border: sample.visual_judgement && sample.visual_judgement.score >= 70 ? "1px solid #f59e0b" : "none",
+            borderRadius: 6,
+            padding: "0.35rem 0.75rem",
+            fontSize: "0.72rem",
+            cursor: "pointer",
+          }}
+        >
+          ⭐ 升级为模板
+        </button>
         <button
           onClick={() => onDelete(sample.id)}
           style={{
@@ -559,10 +593,12 @@ function CompareCard({
   sample,
   onRemove,
   isTopScore,
+  onPromote,
 }: {
   sample: StyleSample;
   onRemove: (id: string) => void;
   isTopScore: boolean;
+  onPromote: (id: string) => void;
 }) {
   const color = ROUTE_COLORS[sample.route_id] ?? "#64748b";
   const videoSrc = resolveUrl(sample.urls.video_url || sample.output.path);
@@ -701,22 +737,40 @@ function CompareCard({
         </span>
       )}
 
-      {/* Remove button */}
-      <button
-        onClick={() => onRemove(sample.id)}
-        style={{
-          background: "#fef2f2",
-          color: "#ef4444",
-          border: "1px solid #fecaca",
-          borderRadius: 6,
-          padding: "0.4rem 0.75rem",
-          fontSize: "0.72rem",
-          cursor: "pointer",
-          marginTop: "auto",
-        }}
-      >
-        移出对比
-      </button>
+      {/* Action buttons */}
+      <div style={{ display: "flex", gap: "0.5rem", marginTop: "auto" }}>
+        {/* V0.4.2: 升级为模板 */}
+        <button
+          onClick={() => onPromote(sample.id)}
+          style={{
+            background: sample.visual_judgement && sample.visual_judgement.score >= 70 ? "#fef3c7" : "#f1f5f9",
+            color: sample.visual_judgement && sample.visual_judgement.score >= 70 ? "#92400e" : "#475569",
+            border: sample.visual_judgement && sample.visual_judgement.score >= 70 ? "1px solid #f59e0b" : "none",
+            borderRadius: 6,
+            padding: "0.35rem 0.75rem",
+            fontSize: "0.72rem",
+            cursor: "pointer",
+            flex: 1,
+          }}
+        >
+          ⭐ 升级为模板
+        </button>
+        <button
+          onClick={() => onRemove(sample.id)}
+          style={{
+            background: "#fef2f2",
+            color: "#ef4444",
+            border: "1px solid #fecaca",
+            borderRadius: 6,
+            padding: "0.35rem 0.75rem",
+            fontSize: "0.72rem",
+            cursor: "pointer",
+            flex: 1,
+          }}
+        >
+          移出对比
+        </button>
+      </div>
     </div>
   );
 }
@@ -726,13 +780,15 @@ function CompareCard({
 export default function StyleGalleryPage() {
   const [presets, setPresets] = useState<PresetStyle[]>([]);
   const [samples, setSamples] = useState<StyleSample[]>([]);
+  const [templates, setTemplates] = useState<StyleTemplate[]>([]);
   const [filterRoute, setFilterRoute] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [generating, setGenerating] = useState<string | null>(null);
   const [compareSet, setCompareSet] = useState<Set<string>>(new Set());
   const [judgingSet, setJudgingSet] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare">("presets");
+  const [successMsg, setSuccessMsg] = useState("");
+  const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare" | "templates">("presets");
 
   const loadPresets = useCallback(async () => {
     try {
@@ -761,8 +817,20 @@ export default function StyleGalleryPage() {
     }
   }, [filterRoute, filterStatus]);
 
+  const loadTemplates = useCallback(async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/style-templates`);
+      if (!resp.ok) throw new Error(`${resp.status}`);
+      const data: StyleTemplate[] = await resp.json();
+      setTemplates(data);
+    } catch (e) {
+      setError("加载模板库失败: " + String(e));
+    }
+  }, []);
+
   useEffect(() => { loadPresets(); }, [loadPresets]);
   useEffect(() => { loadSamples(); }, [loadSamples]);
+  useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
   const handleGenerate = async (preset: PresetStyle) => {
     setGenerating(preset.style_id);
@@ -870,6 +938,44 @@ export default function StyleGalleryPage() {
     }
   };
 
+  // V0.4.2: 升级样片为模板
+  const handlePromote = async (sampleId: string) => {
+    setError("");
+    setSuccessMsg("");
+    try {
+      const resp = await fetch(`${API_BASE}/style-samples/${sampleId}/promote-template`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!resp.ok) {
+        const data = await resp.json();
+        throw new Error(data.detail || `HTTP ${resp.status}`);
+      }
+      const data = await resp.json();
+      if (data.warnings && data.warnings.length > 0) {
+        setSuccessMsg(`已升级为模板（${data.warnings.join(" ")}）`);
+      } else {
+        setSuccessMsg("已升级为模板");
+      }
+      loadTemplates();
+      setActiveTab("templates");
+    } catch (e) {
+      setError("升级失败: " + String(e));
+    }
+  };
+
+  // V0.4.2: 删除模板
+  const handleDeleteTemplate = async (templateId: string) => {
+    if (!confirm("确认删除该模板？原样片不受影响。")) return;
+    try {
+      await fetch(`${API_BASE}/style-templates/${templateId}`, { method: "DELETE" });
+      loadTemplates();
+    } catch (e) {
+      setError("删除模板失败: " + String(e));
+    }
+  };
+
   const routeOptions = [
     { value: "", label: "全部路线" },
     { value: "local_frame_compose", label: "Pillow 信息卡" },
@@ -895,7 +1001,7 @@ export default function StyleGalleryPage() {
       <Link to="/video-lab" style={{ color: "#64748b", fontSize: "0.85rem", textDecoration: "none" }}>← 返回首页</Link>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginTop: "0.5rem" }}>路线风格样片库</h1>
       <p style={{ color: "#64748b", fontSize: "0.9rem", marginTop: "0.25rem" }}>
-        V0.3.7 · 无数据库 · 每条路线独立风格探索 · 暂不升级为模板
+        V0.4.2 · 无数据库 · 风格探索 · 视觉评分 · 对比选优 · 模板沉淀
       </p>
 
       {/* Tab 切换 */}
@@ -942,6 +1048,20 @@ export default function StyleGalleryPage() {
         >
           对比面板 ({compareSet.size})
         </button>
+        <button
+          onClick={() => setActiveTab("templates")}
+          style={{
+            background: activeTab === "templates" ? "#3b82f6" : "#f1f5f9",
+            color: activeTab === "templates" ? "white" : "#475569",
+            border: "none",
+            borderRadius: 8,
+            padding: "0.5rem 1.25rem",
+            fontSize: "0.85rem",
+            cursor: "pointer",
+          }}
+        >
+          模板库 ({templates.length})
+        </button>
       </div>
 
       {/* 筛选 */}
@@ -983,6 +1103,11 @@ export default function StyleGalleryPage() {
       {error && (
         <div style={{ marginTop: "1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "0.75rem", fontSize: "0.82rem", color: "#b91c1c" }}>
           ⚠️ {error}
+        </div>
+      )}
+      {successMsg && (
+        <div style={{ marginTop: "1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem", fontSize: "0.82rem", color: "#166534" }}>
+          ✓ {successMsg}
         </div>
       )}
 
@@ -1035,6 +1160,7 @@ export default function StyleGalleryPage() {
                   selectedForCompare={compareSet.has(s.id)}
                   onJudge={handleJudge}
                   judging={judgingSet.has(s.id)}
+                  onPromote={handlePromote}
                 />
               ))}
             </div>
@@ -1105,10 +1231,133 @@ export default function StyleGalleryPage() {
                         sample={s}
                         onRemove={handleCompare}
                         isTopScore={isTopScore}
+                        onPromote={handlePromote}
                       />
                     );
                   })}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* V0.4.2: 模板库 Tab */}
+      {activeTab === "templates" && (
+        <div style={{ marginTop: "1rem" }}>
+          {templates.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem 0", color: "#94a3b8", fontSize: "0.9rem" }}>
+              暂无模板，请先从高分样片或对比面板中升级
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
+              {templates.map((t) => {
+                const color = ROUTE_COLORS[t.route_id] ?? "#64748b";
+                const keyParams = getKeyParamsSummary(t.params, t.route_id);
+                return (
+                  <div
+                    key={t.id}
+                    style={{
+                      background: "white",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 12,
+                      padding: "1rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem" }}>
+                      <div>
+                        <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b" }}>{t.name}</div>
+                        <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: 2 }}>{t.route_name}</div>
+                      </div>
+                      {t.visual_judgement && (
+                        <span style={{
+                          fontSize: "0.7rem",
+                          fontWeight: 700,
+                          color: t.visual_judgement.score >= 70 ? "#10b981" : t.visual_judgement.score >= 55 ? "#f59e0b" : "#ef4444",
+                        }}>
+                          {t.visual_judgement.score}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Source info */}
+                    <div style={{ fontSize: "0.65rem", color: "#94a3b8" }}>
+                      来源: {t.source_sample_id} {t.source_sample_score !== null ? `(${t.source_sample_score}分)` : ""}
+                    </div>
+
+                    {/* Tags */}
+                    {t.tags.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                        {t.tags.map((tag) => (
+                          <span key={tag} style={{
+                            fontSize: "0.6rem",
+                            background: `${color}10`,
+                            color: color,
+                            borderRadius: 4,
+                            padding: "1px 5px",
+                          }}>
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Key params */}
+                    {keyParams.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                        {keyParams.map((p) => (
+                          <span key={p} style={{
+                            fontSize: "0.6rem",
+                            background: "#f1f5f9",
+                            color: "#475569",
+                            borderRadius: 4,
+                            padding: "1px 5px",
+                          }}>
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "auto" }}>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(JSON.stringify(t.params, null, 2))}
+                        style={{
+                          background: "#f1f5f9",
+                          color: "#475569",
+                          border: "none",
+                          borderRadius: 6,
+                          padding: "0.35rem 0.75rem",
+                          fontSize: "0.72rem",
+                          cursor: "pointer",
+                          flex: 1,
+                        }}
+                      >
+                        📋 复制参数
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTemplate(t.id)}
+                        style={{
+                          background: "#fef2f2",
+                          color: "#ef4444",
+                          border: "1px solid #fecaca",
+                          borderRadius: 6,
+                          padding: "0.35rem 0.75rem",
+                          fontSize: "0.72rem",
+                          cursor: "pointer",
+                          flex: 1,
+                        }}
+                      >
+                        🗑 删除
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
