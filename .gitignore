@@ -8,6 +8,7 @@ __pycache__/
 *.env.local
 *.egg-info/
 .venv/
+.claude/
 runtime/
 *.mp4
 *.mov
