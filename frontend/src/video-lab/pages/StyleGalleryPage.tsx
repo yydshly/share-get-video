@@ -128,6 +128,34 @@ const getBgmInfo = (params: Record<string, unknown>): BgmInfo => {
   };
 };
 
+// V0.4.1: Extract key params summary by route
+function getKeyParamsSummary(params: Record<string, unknown>, routeId: string): string[] {
+  const summaries: string[] = [];
+  if (routeId === "local_frame_compose") {
+    if (params.showDataViz !== undefined) summaries.push(`数据可视化: ${params.showDataViz ? "开" : "关"}`);
+    if (params.highlightMode) summaries.push(`高亮模式: ${params.highlightMode}`);
+    if (params.contentAlign) summaries.push(`内容对齐: ${params.contentAlign}`);
+    if (params.transitionEnabled !== undefined) summaries.push(`转场: ${params.transitionEnabled ? "开" : "关"}`);
+    if (params.themeAdaptive !== undefined) summaries.push(`主题自适应: ${params.themeAdaptive ? "是" : "否"}`);
+  } else if (routeId === "template_programmatic_render") {
+    if (params.motionIntensity) summaries.push(`动效强度: ${params.motionIntensity}`);
+    if (params.coverStyle) summaries.push(`封面风格: ${params.coverStyle}`);
+    if (params.overviewStyle) summaries.push(`概览风格: ${params.overviewStyle}`);
+    if (params.metricAnimation) summaries.push(`指标动画: ${params.metricAnimation}`);
+    if (params.transitionStyle) summaries.push(`转场: ${params.transitionStyle}`);
+    const bgm = getBgmInfo(params);
+    if (bgm.enabled) summaries.push(`BGM: ${bgm.mode}`);
+  } else if (routeId === "ai_asset_then_compose") {
+    if (params.imageStyle) summaries.push(`图像风格: ${params.imageStyle}`);
+    if (params.backgroundDarken !== undefined) summaries.push(`背景减暗: ${params.backgroundDarken}`);
+    if (params.cardOpacity !== undefined) summaries.push(`卡片透明度: ${params.cardOpacity}`);
+    if (params.kenBurns !== undefined) summaries.push(`Ken Burns: ${params.kenBurns ? "开" : "关"}`);
+    const bgm = getBgmInfo(params);
+    if (bgm.enabled) summaries.push(`BGM: ${bgm.mode}`);
+  }
+  return summaries;
+}
+
 const ROUTE_COLORS: Record<string, string> = {
   local_frame_compose: "#0ea5e9",
   template_programmatic_render: "#8b5cf6",
@@ -525,6 +553,174 @@ function SampleCard({
   );
 }
 
+// V0.4.1: Compare Board Card ────────────────────────────────────────────────
+
+function CompareCard({
+  sample,
+  onRemove,
+  isTopScore,
+}: {
+  sample: StyleSample;
+  onRemove: (id: string) => void;
+  isTopScore: boolean;
+}) {
+  const color = ROUTE_COLORS[sample.route_id] ?? "#64748b";
+  const videoSrc = resolveUrl(sample.urls.video_url || sample.output.path);
+  const posterSrc = resolveUrl(sample.urls.poster_url || sample.output.poster);
+  const bgmInfo = getBgmInfo(sample.params);
+  const keyParams = getKeyParamsSummary(sample.params, sample.route_id);
+
+  return (
+    <div
+      style={{
+        background: isTopScore ? "#fffbeb" : "white",
+        border: `2px solid ${isTopScore ? "#f59e0b" : "#e2e8f0"}`,
+        borderRadius: 12,
+        padding: "1rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.6rem",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+        <div>
+          <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>{sample.style_name}</div>
+          <div style={{ fontSize: "0.68rem", color: "#64748b" }}>{sample.route_name}</div>
+        </div>
+        <span style={{
+          fontSize: "0.65rem",
+          background: `${STATUS_LABELS.comparing.color}15`,
+          color: STATUS_LABELS.comparing.color,
+          borderRadius: 10,
+          padding: "2px 8px",
+        }}>
+          {STATUS_LABELS.comparing.label}
+        </span>
+      </div>
+
+      {/* Top score badge */}
+      {isTopScore && (
+        <div style={{
+          background: "#fef3c7",
+          border: "1px solid #f59e0b",
+          borderRadius: 6,
+          padding: "0.3rem 0.6rem",
+          fontSize: "0.72rem",
+          fontWeight: 700,
+          color: "#92400e",
+          textAlign: "center",
+        }}>
+          🏆 当前最高分
+        </div>
+      )}
+
+      {/* Preview */}
+      {videoSrc ? (
+        <div style={{ background: "#0f172a", borderRadius: 8, overflow: "hidden" }}>
+          <video
+            controls
+            playsInline
+            muted
+            src={videoSrc}
+            poster={posterSrc}
+            style={{ width: "100%", display: "block", maxHeight: 180, objectFit: "cover" }}
+          />
+        </div>
+      ) : posterSrc ? (
+        <img src={posterSrc} alt={sample.style_name} style={{ width: "100%", borderRadius: 8 }} />
+      ) : (
+        <div style={{ background: "#f1f5f9", borderRadius: 8, height: 100, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "0.8rem" }}>
+          暂无预览
+        </div>
+      )}
+
+      {/* Visual judgement score */}
+      {sample.visual_judgement ? (
+        <div style={{ background: "#f8fafc", borderRadius: 8, padding: "0.6rem" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.25rem" }}>
+            <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "#475569" }}>视觉评分</span>
+            <span style={{
+              fontSize: "0.8rem",
+              fontWeight: 800,
+              color: sample.visual_judgement.score >= 70 ? "#10b981" : sample.visual_judgement.score >= 55 ? "#f59e0b" : "#ef4444",
+            }}>
+              {sample.visual_judgement.score} / {sample.visual_judgement.grade}
+            </span>
+          </div>
+          <div style={{ fontSize: "0.65rem", color: "#64748b", marginBottom: "0.25rem" }}>
+            {sample.visual_judgement.summary}
+          </div>
+          {sample.visual_judgement.strengths.length > 0 && (
+            <div style={{ fontSize: "0.62rem", color: "#10b981", marginBottom: "0.1rem" }}>
+              ✓ {sample.visual_judgement.strengths.slice(0, 2).join(" · ")}
+            </div>
+          )}
+          {sample.visual_judgement.weaknesses.length > 0 && (
+            <div style={{ fontSize: "0.62rem", color: "#ef4444" }}>
+              ✗ {sample.visual_judgement.weaknesses.slice(0, 2).join(" · ")}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize: "0.68rem", color: "#94a3b8", fontStyle: "italic" }}>
+          暂无视觉评分
+        </div>
+      )}
+
+      {/* Key params summary */}
+      {keyParams.length > 0 ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+          {keyParams.map((p) => (
+            <span key={p} style={{
+              fontSize: "0.6rem",
+              background: `${color}10`,
+              color: color,
+              borderRadius: 4,
+              padding: "1px 5px",
+            }}>
+              {p}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div style={{ fontSize: "0.65rem", color: "#94a3b8" }}>暂无关键参数</div>
+      )}
+
+      {/* BGM badge */}
+      {bgmInfo.enabled && (
+        <span style={{
+          fontSize: "0.62rem",
+          background: "#f0fdf4",
+          color: "#16a34a",
+          borderRadius: 6,
+          padding: "1px 6px",
+          width: "fit-content",
+        }}>
+          🎵 BGM · {bgmInfo.mode === "generated_ambient" ? "环境音" : bgmInfo.mode}
+        </span>
+      )}
+
+      {/* Remove button */}
+      <button
+        onClick={() => onRemove(sample.id)}
+        style={{
+          background: "#fef2f2",
+          color: "#ef4444",
+          border: "1px solid #fecaca",
+          borderRadius: 6,
+          padding: "0.4rem 0.75rem",
+          fontSize: "0.72rem",
+          cursor: "pointer",
+          marginTop: "auto",
+        }}
+      >
+        移出对比
+      </button>
+    </div>
+  );
+}
+
 // ─── 主页面 ──────────────────────────────────────────────────────────────────
 
 export default function StyleGalleryPage() {
@@ -536,7 +732,7 @@ export default function StyleGalleryPage() {
   const [compareSet, setCompareSet] = useState<Set<string>>(new Set());
   const [judgingSet, setJudgingSet] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"presets" | "gallery">("presets");
+  const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare">("presets");
 
   const loadPresets = useCallback(async () => {
     try {
@@ -732,6 +928,20 @@ export default function StyleGalleryPage() {
         >
           样片库 ({samples.length})
         </button>
+        <button
+          onClick={() => setActiveTab("compare")}
+          style={{
+            background: activeTab === "compare" ? "#3b82f6" : "#f1f5f9",
+            color: activeTab === "compare" ? "white" : "#475569",
+            border: "none",
+            borderRadius: 8,
+            padding: "0.5rem 1.25rem",
+            fontSize: "0.85rem",
+            cursor: "pointer",
+          }}
+        >
+          对比面板 ({compareSet.size})
+        </button>
       </div>
 
       {/* 筛选 */}
@@ -827,6 +1037,78 @@ export default function StyleGalleryPage() {
                   judging={judgingSet.has(s.id)}
                 />
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* V0.4.1: 对比面板 Tab */}
+      {activeTab === "compare" && (
+        <div style={{ marginTop: "1rem" }}>
+          {compareSet.size === 0 ? (
+            <div style={{ textAlign: "center", padding: "3rem 0", color: "#94a3b8", fontSize: "0.9rem" }}>
+              <div style={{ marginBottom: "1rem" }}>暂无对比样片，请先在样片库中点击「加入对比」</div>
+              <button
+                onClick={() => setActiveTab("gallery")}
+                style={{
+                  background: "#3b82f6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                }}
+              >
+                去样片库
+              </button>
+            </div>
+          ) : (
+            <div>
+              {/* No score warning */}
+              {samples.filter(s => s.status === "comparing" && !s.visual_judgement).length > 0 && (
+                <div style={{
+                  background: "#fef3c7",
+                  border: "1px solid #f59e0b",
+                  borderRadius: 8,
+                  padding: "0.6rem 1rem",
+                  fontSize: "0.78rem",
+                  color: "#92400e",
+                  marginBottom: "1rem",
+                }}>
+                  ⚠️ 暂无视觉评分，请先对样片进行评分后再比较。
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
+                {samples
+                  .filter((s) => s.status === "comparing")
+                  .sort((a, b) => {
+                    // Has score first
+                    if (a.visual_judgement && !b.visual_judgement) return -1;
+                    if (!a.visual_judgement && b.visual_judgement) return 1;
+                    // Higher score first
+                    if (a.visual_judgement && b.visual_judgement) {
+                      return b.visual_judgement.score - a.visual_judgement.score;
+                    }
+                    // No score: newer first
+                    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                  })
+                  .map((s) => {
+                    const comparingSamples = samples.filter(s => s.status === "comparing" && s.visual_judgement);
+                    const maxScore = comparingSamples.length > 0
+                      ? Math.max(...comparingSamples.map(cs => cs.visual_judgement!.score))
+                      : -1;
+                    const isTopScore = !!s.visual_judgement && s.visual_judgement.score >= maxScore;
+                    return (
+                      <CompareCard
+                        key={s.id}
+                        sample={s}
+                        onRemove={handleCompare}
+                        isTopScore={isTopScore}
+                      />
+                    );
+                  })}
+              </div>
             </div>
           )}
         </div>
