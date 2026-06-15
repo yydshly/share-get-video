@@ -888,10 +888,14 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
     judge_result = assess_visual_quality(image_path)
 
     if not judge_result.get("success"):
-        raise HTTPException(
-            status_code=500,
-            detail=f"Visual judge failed: {judge_result.get('message', 'unknown error')}",
-        )
+        msg = judge_result.get("message", "unknown error")
+        # V0.4.8: 缺 API Key 是配置问题，返回 503 + 明确提示（避免误以为是本地能力）
+        if "MINIMAX_API_KEY" in msg or "not configured" in msg.lower():
+            raise HTTPException(
+                status_code=503,
+                detail="视觉评分依赖 MiniMax 多模态模型，需配置 MINIMAX_API_KEY 后才可用（非本地能力）。",
+            )
+        raise HTTPException(status_code=500, detail=f"Visual judge failed: {msg}")
 
     scores = judge_result.get("scores", {})
     overall_1to5 = judge_result.get("overall", 3.0)
@@ -950,6 +954,20 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
     d = sample.to_dict()
     d["urls"] = sg_store.resolve_sample_urls(sample)
     return d
+
+
+@router.get("/style-gallery/judge-availability")
+def judge_availability() -> dict[str, Any]:
+    """视觉评分是否可用（依赖 MiniMax 多模态模型 / MINIMAX_API_KEY）。
+
+    供前端在评分前提示用户：评分是云端能力，需配置 Key。
+    """
+    from app.video_lab.providers.minimax import MiniMaxChatClient
+    available = MiniMaxChatClient().is_configured()
+    return {
+        "available": available,
+        "message": "" if available else "视觉评分需配置 MINIMAX_API_KEY（云端多模态模型，非本地能力）。",
+    }
 
 
 @router.get("/style-gallery/score-history")

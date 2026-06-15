@@ -799,6 +799,8 @@ export default function StyleGalleryPage() {
   const [successMsg, setSuccessMsg] = useState("");
   const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare" | "templates">("presets");
   const [scoreSummary, setScoreSummary] = useState<Record<string, RouteScoreSummary>>({});
+  const [judgeAvailable, setJudgeAvailable] = useState<boolean>(true);
+  const [judgeUnavailableMsg, setJudgeUnavailableMsg] = useState<string>("");
 
   const loadPresets = useCallback(async () => {
     try {
@@ -827,6 +829,15 @@ export default function StyleGalleryPage() {
     }
   }, [filterRoute, filterStatus]);
 
+  const loadJudgeAvailability = useCallback(async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/style-gallery/judge-availability`);
+      const data = await resp.json();
+      setJudgeAvailable(!!data.available);
+      setJudgeUnavailableMsg(data.message || "");
+    } catch { /* ignore */ }
+  }, []);
+
   const loadScoreHistory = useCallback(async () => {
     try {
       const resp = await fetch(`${API_BASE}/style-gallery/score-history`);
@@ -850,6 +861,7 @@ export default function StyleGalleryPage() {
   useEffect(() => { loadSamples(); }, [loadSamples]);
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
   useEffect(() => { loadScoreHistory(); }, [loadScoreHistory]);
+  useEffect(() => { loadJudgeAvailability(); }, [loadJudgeAvailability]);
 
   // 通用：生成一条样片并自动保存到样片库（预置风格 / 模板复用共用，避免复制粘贴）
   const generateAndSaveSample = async (opts: {
@@ -986,7 +998,14 @@ export default function StyleGalleryPage() {
       loadSamples();
       loadScoreHistory();
     } catch (e) {
-      setError("评分失败: " + String(e));
+      const msg = String(e).replace(/^Error:\s*/, "");
+      if (msg.includes("MINIMAX_API_KEY") || msg.includes("视觉评分")) {
+        setJudgeAvailable(false);
+        setJudgeUnavailableMsg(msg);
+        setError("");
+      } else {
+        setError("评分失败: " + msg);
+      }
     } finally {
       setJudgingSet((prev) => {
         const next = new Set(prev);
@@ -1167,6 +1186,11 @@ export default function StyleGalleryPage() {
       {successMsg && (
         <div style={{ marginTop: "1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "0.75rem", fontSize: "0.82rem", color: "#166534" }}>
           ✓ {successMsg}
+        </div>
+      )}
+      {!judgeAvailable && (
+        <div style={{ marginTop: "1rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "0.75rem", fontSize: "0.82rem", color: "#92400e" }}>
+          🔑 {judgeUnavailableMsg || "视觉评分需配置 MINIMAX_API_KEY（云端能力，非本地）。"}
         </div>
       )}
 

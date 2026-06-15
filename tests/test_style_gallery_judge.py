@@ -360,3 +360,47 @@ class TestJudgeEndpoint:
                     f.unlink()
                 except OSError:
                     pass
+
+    def test_judge_returns_503_when_api_key_missing(self):
+        """V0.4.8: 缺 MINIMAX_API_KEY 时返回 503 + 明确提示（非 500）。"""
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.video_lab.style_gallery.models import StyleSample, StyleSampleOutput, SampleStatus
+        from app.video_lab.style_gallery import store as sg_store
+        from pathlib import Path
+
+        out = StyleSampleOutput(type="mp4", path="", poster="style_gallery/test/nokey.jpg")
+        sample = StyleSample(
+            id="sample_nokey", route_id="local_frame_compose", route_name="T",
+            style_name="T", status=SampleStatus.CANDIDATE, params={}, output=out, tags=[],
+        )
+        sg_store.save_sample(sample)
+        poster_file = Path(__file__).parent.parent / "runtime" / "style_gallery" / "style_gallery" / "test" / "nokey.jpg"
+        poster_file.parent.mkdir(parents=True, exist_ok=True)
+        poster_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"x" * 50)
+
+        def mock_no_key(path):
+            return {"success": False, "message": "MINIMAX_API_KEY not configured"}
+
+        try:
+            with patch("app.video_lab.quality.visual_judge.assess_visual_quality", mock_no_key):
+                client = TestClient(app)
+                resp = client.post("/video-lab/style-samples/sample_nokey/judge")
+                assert resp.status_code == 503, resp.text
+                assert "MINIMAX_API_KEY" in resp.json()["detail"]
+        finally:
+            sg_store.delete_sample("sample_nokey")
+            if poster_file.exists():
+                poster_file.unlink()
+
+    def test_judge_availability_endpoint(self):
+        """可用性端点返回 available + message。"""
+        from fastapi.testclient import TestClient
+        from app.main import app
+
+        client = TestClient(app)
+        resp = client.get("/video-lab/style-gallery/judge-availability")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "available" in data and isinstance(data["available"], bool)
+        assert "message" in data
