@@ -42,6 +42,21 @@ def _resolve_image_style(params: dict) -> str:
     return _STYLE
 
 
+def _generate_image_with_retry(client, prompt: str, path, aspect_ratio: str, attempts: int = 2) -> dict:
+    """生成单张背景图，瞬时失败时重试。
+
+    AI素材路线一次要连发多张图（封面+每条要点），实测连发时偶有个别超时/限流，
+    单独重试即可成功；不重试会无谓回退渐变、拉低该路线在探测里的真实表现。
+    返回最后一次的结果 dict（含 success/providerMessage）。
+    """
+    result = {"success": False, "providerMessage": "not attempted"}
+    for i in range(max(1, attempts)):
+        result = client.generate(prompt, path, aspect_ratio=aspect_ratio)
+        if result.get("success"):
+            return result
+    return result
+
+
 class AiAssetVisualRenderer(VisualRenderer):
     route_id = "ai_asset_then_compose"
     display_name = "AI 素材 + 程序化合成"
@@ -85,7 +100,7 @@ class AiAssetVisualRenderer(VisualRenderer):
         cover_topic = (request.structured.get("lead") or "AI 前沿").strip()
         cover_prompt = f"{cover_topic}；{effective_style}"
         cover_path = bg_dir / "cover_bg.png"
-        res = img_client.generate(cover_prompt, cover_path, aspect_ratio=aspect)
+        res = _generate_image_with_retry(img_client, cover_prompt, cover_path, aspect)
         if res.get("success"):
             backgrounds["cover"] = str(cover_path)
         else:
@@ -95,7 +110,7 @@ class AiAssetVisualRenderer(VisualRenderer):
             topic = (kp.get("headline") or kp.get("title") or "").strip()
             prompt = f"{topic}；{effective_style}"
             p = bg_dir / f"kp_{i}_bg.png"
-            r = img_client.generate(prompt, p, aspect_ratio=aspect)
+            r = _generate_image_with_retry(img_client, prompt, p, aspect)
             if r.get("success"):
                 backgrounds[i] = str(p)
             else:
