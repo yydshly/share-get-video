@@ -838,21 +838,21 @@ const CardStackLayer: React.FC<{
   let scale: number, opacity: number, offsetX: number, offsetY: number;
 
   if (isPrev) {
-    // V0.6.5: Strengthened — prev card now slides to top-right corner and is much more visible
+    // V0.6.5.2: Further strengthened — prev card visible at top-right corner
     const progress = Math.min(1, localFrame / entryDuration);
     const eased = 1 - Math.pow(1 - progress, 2);
-    scale = 1.0 - 0.16 * eased;    // 1.0 → 0.84 (smaller = further away)
-    opacity = 1.0 - 0.35 * eased;   // 1.0 → 0.65 (more visible than V0.6.4's 0.5)
-    offsetX = 140 * eased;           // slides right much more (was 60)
-    offsetY = -80 * eased;          // slides up much more (was -40)
+    scale = 1.0 - 0.22 * eased;    // 1.0 → 0.78 (smaller = further away)
+    opacity = 1.0 - 0.25 * eased;   // 1.0 → 0.75 (more opaque)
+    offsetX = 220 * eased;           // slides right much more (was 140)
+    offsetY = -130 * eased;          // slides up much more (was -80)
   } else if (isNext) {
-    // V0.6.5: Strengthened — next card now peeks more visibly from bottom-left
+    // V0.6.5.2: Further strengthened — next card visible at bottom-left corner
     const progress = Math.min(1, localFrame / entryDuration);
     const eased = 1 - Math.pow(1 - progress, 2);
-    scale = 0.72 + 0.10 * eased;    // 0.72 → 0.82 (more visible size)
-    opacity = 0.55 - 0.15 * eased;  // 0.55 → 0.40 (stays more visible than V0.6.4's 0.3)
-    offsetX = -120 * eased;          // from left more (was -50)
-    offsetY = 70 * eased;           // from bottom more (was 30)
+    scale = 0.72 + 0.04 * eased;    // 0.72 → 0.76 (slightly larger)
+    opacity = 0.40 + 0.20 * eased;  // 0.40 → 0.60 (more opaque than V0.6.5's 0.40)
+    offsetX = -220 * eased;          // from left much more (was -120)
+    offsetY = 110 * eased;           // from bottom much more (was 70)
   } else {
     // Current card: V0.6.5 — slides up from bottom, scales in to full size
     const progress = Math.min(1, localFrame / entryDuration);
@@ -863,7 +863,22 @@ const CardStackLayer: React.FC<{
     offsetY = 0;                   // V0.6.5: centered (was 30 → 0)
   }
 
+  // V0.6.5.2: Visible border color for prev/next layer identification
+  const layerBorderColor = isPrev
+    ? "rgba(96,165,250,0.85)"
+    : isNext
+    ? "rgba(34,211,238,0.85)"
+    : C.border;
+
+  // V0.6.5.2: Stronger glow for prev/next layers
+  const layerGlow = isPrev
+    ? "rgba(59,130,246,0.45)"
+    : isNext
+    ? "rgba(6,182,212,0.45)"
+    : C.glow;
+
   // Build the card JSX (same content as KeyPointCard but positioned differently)
+  // V0.6.5.2: prev/next have distinct border colors and small corner labels for visibility verification
   const cardContent = (
     <div
       style={{
@@ -871,16 +886,54 @@ const CardStackLayer: React.FC<{
         maxWidth: 880,
         background: C.card,
         borderRadius: 24,
-        border: `2px solid ${C.border}`,
+        border: `2px solid ${layerBorderColor}`,
         padding: "56px 44px",
         position: "relative",
-        boxShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
+        boxShadow: `0 0 80px ${layerGlow}, 0 24px 60px rgba(0,0,0,0.6)`,
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
         minHeight: 760,
       }}
     >
+      {/* V0.6.5.2: Small verification label for prev layer — top-right corner */}
+      {isPrev && (
+        <div style={{
+          position: "absolute",
+          top: 12,
+          right: 16,
+          background: "rgba(59,130,246,0.25)",
+          border: "1px solid rgba(96,165,250,0.7)",
+          borderRadius: 6,
+          padding: "3px 10px",
+          fontSize: 13,
+          fontWeight: 700,
+          color: "rgba(147,197,253,0.95)",
+          letterSpacing: 1,
+          zIndex: 10,
+        }}>
+          PREV
+        </div>
+      )}
+      {/* V0.6.5.2: Small verification label for next layer — bottom-left corner */}
+      {isNext && (
+        <div style={{
+          position: "absolute",
+          bottom: 12,
+          left: 16,
+          background: "rgba(6,182,212,0.25)",
+          border: "1px solid rgba(34,211,238,0.7)",
+          borderRadius: 6,
+          padding: "3px 10px",
+          fontSize: 13,
+          fontWeight: 700,
+          color: "rgba(128,240,255,0.95)",
+          letterSpacing: 1,
+          zIndex: 10,
+        }}>
+          NEXT
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 36 }}>
         <div style={{
           display: "inline-flex", alignItems: "center", justifyContent: "center",

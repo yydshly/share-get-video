@@ -1,4 +1,4 @@
-// Remotion Style Family Page - V0.6.4
+// Remotion Style Family Page - V0.6.5.2
 // Remotion 多表现范式探索页面
 
 import { Link } from "react-router-dom";
@@ -85,7 +85,7 @@ const FAMILIES: StyleFamily[] = [
       "下一张卡片预览",
       "短视频节奏",
     ],
-    currentStatus: "V0.6.4 已支持 UI 预览对比 — 可在页面直接看到 Data News vs Card Stack 实际效果",
+    currentStatus: "V0.6.5.2 已支持 UI 预览对比 — prev/next 图层已强化可见性，蓝/青边框+PREV/NEXT角标使堆叠效果可辨识",
     priority: "P1",
     priorityReason: "短视频感最强，适合 AI 新闻信息流方向",
     accentColor: "#2563eb",
@@ -496,7 +496,7 @@ export default function RemotionStyleFamilyPage() {
       {/* Header */}
       <div style={{ marginBottom: "2.5rem" }}>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-          Remotion 表现范式 · V0.6.4
+          Remotion 表现范式 · V0.6.5.2
         </h1>
         <p style={{ color: "#64748b", fontSize: "0.95rem" }}>
           将 Remotion 从单一路线升级为可编程视频表现系统
@@ -686,10 +686,10 @@ export default function RemotionStyleFamilyPage() {
         }}
       >
         <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem", color: "#1e293b" }}>
-          实际预览对比 · V0.6.5
+          实际预览对比 · V0.6.5.2
         </h2>
         <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "1rem" }}>
-          点击「生成对比预览」同时渲染 Data News 和 Card Stack 两种范式的实际效果。Card Stack V0.6.5 已强化叠层偏移（prev card 右上露出更明显，next card 左下预览更清晰），可在右侧视频中查看更明显的卡片堆叠效果。
+          点击「生成对比预览」同时渲染 Data News 和 Card Stack 两种范式的实际效果。Card Stack V0.6.5.2 已进一步强化 prev/next 图层可见性（更大偏移、更强透明度、蓝色/青色边框标识），验证期加入 PREV/NEXT 角标，可在右侧视频中清晰看到三层卡片堆叠。
         </p>
 
         {/* Generate Button */}
@@ -766,7 +766,7 @@ export default function RemotionStyleFamilyPage() {
               <div style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
                 <div style={{ background: "linear-gradient(135deg, #2563eb18 0%, #2563eb08 100%)", padding: "0.75rem 1rem", borderBottom: "1px solid #e2e8f0" }}>
                   <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#2563eb" }}>🗂️ Card Stack</div>
-                  <div style={{ fontSize: "0.72rem", color: "#64748b" }}>V0.6.5 强化：prev 右上露出 + next 左下预览</div>
+                  <div style={{ fontSize: "0.72rem", color: "#64748b" }}>V0.6.5.2 强化：prev/next 更大偏移 + 边框标识 + PREV/NEXT 角标</div>
                 </div>
                 <div style={{ padding: "1rem" }}>
                   {compareResult.cardStack.success && compareResult.cardStack.videoUrl ? (
@@ -807,9 +807,9 @@ export default function RemotionStyleFamilyPage() {
               <div style={{ fontWeight: 600, marginBottom: "0.4rem", color: "#1e293b" }}>视觉差异结论：</div>
               <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
                 <li>Data News：单一居中卡片，数字滚动动画和数据条更突出，适合需要强调数据的场景。</li>
-                <li>Card Stack V0.6.5：主卡（z=2）居中，前一张（z=1）在右上角露出，后一张（z=0）在左下角预览，形成三层卡片堆叠感。</li>
-                <li>强化效果：prev card 右上露出更明显（offsetX=140, offsetY=-80），next card 左下预览更大（offsetX=-120, offsetY=70）。</li>
-                <li>当前判断：短视频信息流感已增强，但主卡入场动效可进一步强化（当前是直接淡入）。</li>
+                <li>Card Stack V0.6.5.2：主卡（z=2）居中，前一张（z=1）在右上角露出（蓝色边框+PREV角标），后一张（z=0）在左下角预览（青色边框+NEXT角标），形成明确的三层卡片堆叠。</li>
+                <li>强化效果：prev offsetX=220/offsetY=-130，next offsetX=-220/offsetY=110；prev opacity=0.75，next opacity=0.60；prev 蓝色边框+PREV角标，next 青色边框+NEXT角标。</li>
+                <li>当前判断：V0.6.5.2 通过边框标识和更大偏移，使 prev/next 层在抽帧和播放中均可辨识。</li>
               </ul>
             </div>
           </>
