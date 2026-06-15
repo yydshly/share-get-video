@@ -108,6 +108,55 @@ def test_needs_human_dimensions_present():
     assert "visual_aesthetics" in report.to_dict()["needsHuman"]
 
 
+# ─── V0.3.6-b2: title_length threshold fix ─────────────────────────────────
+
+def test_title_length_allows_6_char_titles():
+    """6-char titles should NOT trigger title_length short warning."""
+    structured = {"lead": "总起", "totalItems": 2, "items": []}
+    # Two 6-char titles — these are within the 6-14 char valid range
+    key_points = {"keyPoints": [
+        {"title": "模型A突破", "source": "依据：1"},
+        {"title": "模型B发布", "source": "依据：2"},
+    ]}
+    voiceover = {
+        "voiceoverText": "开场。 模型A突破。 模型B发布。 结尾。",
+        "segments": [
+            {"index": 1, "text": "s1", "startSec": 0, "durationSec": 6},
+            {"index": 2, "text": "s2", "startSec": 6, "durationSec": 6},
+        ],
+    }
+    report = assess_quality(
+        source_content="x", structured=structured, key_points=key_points, voiceover=voiceover,
+        audio_duration_sec=12.0, subtitle_count=2, subtitle_burned=True,
+        visual_duration_sec=12.0, has_cover=True, frame_count=4, warnings=[],
+    )
+    checks = {c["checkId"]: c for c in report.to_dict()["checks"]}
+    # title_length should PASS (not warn) for 6-char titles
+    assert checks["title_length"]["status"] == "pass", \
+        f"6-char titles should pass, got: {checks['title_length']}"
+
+
+def test_title_length_catches_truly_short_titles():
+    """Titles < 5 chars should still trigger title_length warning."""
+    structured = {"lead": "总起", "totalItems": 1, "items": []}
+    key_points = {"keyPoints": [
+        {"title": "突破", "source": "依据：1"},  # 2 chars — truly short
+    ]}
+    voiceover = {
+        "voiceoverText": "开场。 突破。 结尾。",
+        "segments": [{"index": 1, "text": "s1", "startSec": 0, "durationSec": 6}],
+    }
+    report = assess_quality(
+        source_content="x", structured=structured, key_points=key_points, voiceover=voiceover,
+        audio_duration_sec=6.0, subtitle_count=1, subtitle_burned=True,
+        visual_duration_sec=6.0, has_cover=True, frame_count=2, warnings=[],
+    )
+    checks = {c["checkId"]: c for c in report.to_dict()["checks"]}
+    # title_length should WARN for truly short titles (<5 chars)
+    assert checks["title_length"]["status"] in ("warn", "fail"), \
+        f"2-char title should warn, got: {checks['title_length']}"
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

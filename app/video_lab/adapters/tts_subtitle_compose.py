@@ -188,6 +188,8 @@ def run_tts_subtitle_compose(
             "body": s.get("display", ""),
             "source": "",
             "category": "",
+            # V0.3.6-b2: carry emphasisTerms through to key_points
+            "emphasisTerms": s.get("emphasisTerms", []),
         })
     key_points = {
         "keyPoints": kps_list,

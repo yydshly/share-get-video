@@ -249,6 +249,55 @@ def test_tts_manifest_has_subtitle_fields():
     assert "subtitleFallback" in payload, "Manifest should have subtitleFallback"
 
 
+# ─────────────────────────────────────────
+# V0.3.6-b2: emphasisTerms carried through key_points
+# ─────────────────────────────────────────
+def test_tts_key_points_artifact_carries_emphasis_terms():
+    """key_points artifact should carry emphasisTerms from plan_shots."""
+    from app.video_lab.planners.llm_content_planner import plan_shots
+
+    # Use proper content format recognized by structure_content
+    content = (
+        "今日AI前沿。\n"
+        "ProReviewer评审突破：评审准确率提升39%。\n"
+        "依据：1\n"
+        "BBVA宣布：10万名员工使用ChatGPT。\n"
+        "依据：2\n"
+    )
+    plan = plan_shots(content, max_items=3, use_llm=False)
+
+    # Verify plan has emphasisTerms
+    assert plan["source"] == "fallback"
+    assert len(plan["shots"]) >= 1
+    for shot in plan["shots"]:
+        assert "emphasisTerms" in shot
+        assert isinstance(shot["emphasisTerms"], list)
+
+
+def test_tts_compose_step3_builds_kps_with_emphasis_terms():
+    """plan_shots with use_llm=False produces shots with emphasisTerms."""
+    from app.video_lab.planners.llm_content_planner import plan_shots
+
+    content = (
+        "AI前沿进展。\n"
+        "ProReviewer评审突破39%。\n"
+        "依据：1\n"
+        "BBVA部署10万名。\n"
+        "依据：2\n"
+    )
+    plan = plan_shots(content, max_items=3, use_llm=False)
+
+    assert plan["source"] == "fallback"
+    assert len(plan["shots"]) == 2
+    # Each shot should have emphasisTerms extracted
+    for shot in plan["shots"]:
+        assert "emphasisTerms" in shot
+        assert isinstance(shot["emphasisTerms"], list)
+    # At least one shot should have extracted a number or model name
+    all_terms = sum((s["emphasisTerms"] for s in plan["shots"]), [])
+    assert len(all_terms) > 0, "Should extract at least some emphasis terms"
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

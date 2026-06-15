@@ -128,6 +128,57 @@ def test_tts_subtitle_compose_selects_visual_route():
     assert result.rawOutput.get("status") == "succeeded"
 
 
+# ─────────────────────────────────────────
+# V0.3.6-b2: Pillow emphasisTerms rendering
+# ─────────────────────────────────────────
+def test_pillow_keypoint_template_accepts_emphasis_terms():
+    """render_keypoint_template should accept emphasis_terms param without error."""
+    import tempfile
+    from pathlib import Path
+    from app.video_lab.renderers.frame_templates import render_keypoint_template
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        frames_dir = Path(tmpdir)
+        result = render_keypoint_template(
+            index=1,
+            total=3,
+            category="",
+            title="ProReviewer breakthrough 39%",
+            body="Error rate drops from 88.9% to 16%",
+            source="",
+            frames_dir=frames_dir,
+            emphasis_terms=["ProReviewer", "39%", "88.9%", "16%"],
+        )
+    # Verify result structure (image may not save in all test environments)
+    assert "path" in result
+    assert "highlights" in result
+    assert result["highlights"] == ["ProReviewer", "39%", "88.9%", "16%"]
+    assert result["template"] == "keypoint"
+    # Verify frame was saved or at least path is valid
+    assert str(result["path"]).endswith("frame_001.png")
+
+
+def test_pillow_keypoint_highlights_priority_over_auto():
+    """When emphasisTerms provided, result.highlights should come from them (not auto-extract)."""
+    import tempfile
+    from pathlib import Path
+    from app.video_lab.renderers.frame_templates import render_keypoint_template
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = render_keypoint_template(
+            index=1,
+            total=1,
+            category="",
+            title="研究突破",
+            body="数字在此88.9%",
+            source="",
+            frames_dir=Path(tmpdir),
+            emphasis_terms=["自定义词", "突出显示"],
+        )
+    # highlights should be the explicit emphasisTerms
+    assert result["highlights"] == ["自定义词", "突出显示"]
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

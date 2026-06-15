@@ -442,10 +442,20 @@ def _draw_lines_with_highlights(
     line_h: int,
     base_color: Tuple[int, int, int],
     highlight_color: Tuple[int, int, int],
+    emphasis_terms: List[str] | None = None,
 ) -> int:
-    """Draw wrapped lines left-aligned, highlighting numbers. Returns bottom y."""
+    """Draw wrapped lines left-aligned, highlighting explicit terms or auto-extracted numbers.
+
+    V0.3.6-b2: priority = explicit emphasis_terms > auto-extract > none.
+    Returns bottom y.
+    """
     import re
-    highlights = extract_highlights(" ".join(lines))
+    text_all = " ".join(lines)
+    # V0.3.6-b2: explicit emphasisTerms take priority over auto-extract
+    if emphasis_terms:
+        highlights = list(dict.fromkeys(e for e in emphasis_terms if e and isinstance(e, str)))
+    else:
+        highlights = extract_highlights(text_all)
     pattern = "|".join(re.escape(h) for h in highlights) if highlights else None
 
     cur_y = y
@@ -475,6 +485,7 @@ def render_keypoint_template(
     frames_dir: Path,
     resolution: Tuple[int, int] = (1080, 1920),
     background_path: str | None = None,
+    emphasis_terms: list[str] | None = None,
 ) -> Dict[str, Any]:
     """
     Render a keypoint card that FILLS the card with auto-fit fonts and never
@@ -482,6 +493,7 @@ def render_keypoint_template(
     - Header: big index + optional category tag (hidden when default/empty)
     - Headline (`title`): auto-fit large text
     - Detail (`body`): auto-fit body text, fills remaining space
+    - V0.3.6-b2: explicit emphasisTerms take priority for highlighting; fallback to auto-extract
     - Numbers are highlighted; placeholder source is dropped
     - background_path: 若提供 AI 生成的背景图，则用其作背景 + 半透明信息卡
     """
@@ -575,9 +587,11 @@ def render_keypoint_template(
         headline, inner_w, headline_box_h, draw,
         size_max=int(80 * scale), size_min=int(40 * scale), line_spacing=int(18 * scale),
     )
+    # V0.3.6-b2: pass emphasis_terms for priority highlighting
     end_y = _draw_lines_with_highlights(
         draw, h_lines, inner_x, content_top, h_font, h_line_h,
         COLORS["text_primary"], COLORS["highlight_yellow"],
+        emphasis_terms=emphasis_terms,
     )
     if h_overflow:
         warnings.append(f"keypoint {index}: headline overflow (text truncated visually)")
@@ -590,9 +604,11 @@ def render_keypoint_template(
             detail, inner_w, avail_h, draw,
             size_max=int(52 * scale), size_min=int(28 * scale), line_spacing=int(14 * scale),
         )
+        # V0.3.6-b2: pass emphasis_terms for priority highlighting
         _draw_lines_with_highlights(
             draw, d_lines, inner_x, detail_top, d_font, d_line_h,
             COLORS["text_secondary"], COLORS["highlight_yellow"],
+            emphasis_terms=emphasis_terms,
         )
         if d_overflow:
             warnings.append(f"keypoint {index}: detail overflow (text truncated visually)")
@@ -618,7 +634,7 @@ def render_keypoint_template(
         "templateVersion": TEMPLATE_VERSION,
         "visualPreset": VISUAL_PRESET,
         "category": category,
-        "highlights": extract_highlights(headline + " " + detail),
+        "highlights": (emphasis_terms if emphasis_terms else extract_highlights(headline + " " + detail)),
     }
 
 

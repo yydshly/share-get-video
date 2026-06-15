@@ -234,10 +234,10 @@ def assess_quality(
     # ── 维度5：可读性 (V0.3.6-a) ──────────────────────────
     dim = "readability"
 
-    # 检查关键点标题是否过短
-    short_titles = [k.get("title", "") for k in kps if len(k.get("title", "")) < 8]
+    # 检查关键点标题是否过短 (V0.3.6-b2: <5 才算过短，planner 合法范围是 6-14 字)
+    short_titles = [k.get("title", "") for k in kps if len(k.get("title", "")) < 5]
     checks.append(QualityCheck("title_length", dim, FAIL if len(short_titles) > len(kps) * 0.5 else (WARN if short_titles else PASS),
-        f"关键点标题过短（<8字）的数量: {len(short_titles)}" if short_titles else "关键点标题长度正常",
+        f"关键点标题过短（<5字）的数量: {len(short_titles)}" if short_titles else "关键点标题长度正常",
         value=len(short_titles), expected=0))
 
     # 检查 display/body 是否过长（未拆分）

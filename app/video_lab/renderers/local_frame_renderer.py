@@ -247,7 +247,10 @@ def generate_frames(
                 detail = kp_body if not detail else f"{detail} {kp_body}"
         category = (kp.get("category", "") or "").strip()  # 空/默认时模板自动隐藏
 
-        # V0.2.5: Extract highlights based on highlight_mode
+        # V0.3.6-b2: carry emphasisTerms from keypoint dict; pass through for priority highlighting
+        emphasis_terms: Optional[List[str]] = kp.get("emphasisTerms") or None
+
+        # V0.2.5: Extract highlights based on highlight_mode (for tracking only)
         highlights = extract_highlights_by_mode(f"{headline} {detail}", highlight_mode)
         all_highlights.extend(highlights)
 
@@ -261,6 +264,7 @@ def generate_frames(
             frames_dir=frames_dir,
             resolution=resolution,
             background_path=(backgrounds or {}).get(i),
+            emphasis_terms=emphasis_terms,
         )
         frame_name = frame_result["frame_name"]
         frame_outputs.append({
@@ -272,7 +276,7 @@ def generate_frames(
             "templateVersion": TEMPLATE_VERSION,
             "visualPreset": VISUAL_PRESET,
             "category": category,
-            "highlights": highlights,
+            "highlights": frame_result.get("highlights", highlights),
         })
         duration_per_frame[frame_name] = keypoint_duration
         all_warnings.extend(frame_result.get("warnings", []))
