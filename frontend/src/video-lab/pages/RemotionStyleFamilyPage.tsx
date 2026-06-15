@@ -1,5 +1,13 @@
-// Remotion Style Family Page - V0.6.5.2
-// Remotion 多表现范式探索页面
+// Remotion Style Family Page - V0.6.5.2 / V0.8.7
+// V0.8.7: 升级为「Remotion 表现范式研究台」 —
+//   - 扩展 StyleFamily：referenceExamples / implementationPattern / requiredComponents / styleSweepMapping / nextExperiment
+//   - 新增「参考样例 → 可落地范式」「当前实现覆盖度」「下一步最小实验推荐」三个区块
+//   - 参考来源（人工整理）：
+//       Remotion 官方 templates 方向：Audiogram / Music Visualization / Prompt to Video /
+//         3D / Code Hike / Stargazer / TikTok word-by-word captions / Overlay
+//       Remotion Showcase / Prompt Showcase 方向：News article headline highlight /
+//         Product Demo / Cinematic Tech Intro / Rocket Launches Timeline /
+//         Three.js Ranking / Bar + Line Chart / Travel Route Map / Transparent CTA overlay
 
 import { Link } from "react-router-dom";
 import { useState } from "react";
@@ -36,6 +44,13 @@ interface StyleFamily {
   priorityReason: string;
   accentColor: string;
   icon: string;
+
+  // V0.8.7: 参考样例 / 实现映射（来自 Remotion 官方模板 / Showcase / Prompt Showcase 抽象）
+  referenceExamples?: string[];
+  implementationPattern?: string[];
+  requiredComponents?: string[];
+  styleSweepMapping?: string[];
+  nextExperiment?: string;
 }
 
 const FAMILIES: StyleFamily[] = [
@@ -64,6 +79,21 @@ const FAMILIES: StyleFamily[] = [
     priorityReason: "与当前 AI 新闻场景最贴近，已验证可行",
     accentColor: "#7c3aed",
     icon: "📊",
+    referenceExamples: [
+      "News article headline highlight",
+      "Bar + Line Chart",
+      "Ranking / Leaderboard",
+    ],
+    implementationPattern: [
+      "数据驱动卡片",
+      "指标动画",
+      "标题高亮",
+      "趋势箭头",
+    ],
+    requiredComponents: ["MetricCard", "AnimatedCounter", "TrendArrow", "HeadlineHighlight"],
+    styleSweepMapping: ["remotion_metric_motion", "remotion_minimal_clean"],
+    nextExperiment:
+      "把 metricAnimation 从 countup_bar 扩展到 chart_story / ranking_strip",
   },
   {
     id: "card_stack",
@@ -90,6 +120,21 @@ const FAMILIES: StyleFamily[] = [
     priorityReason: "短视频感最强，适合 AI 新闻信息流方向",
     accentColor: "#2563eb",
     icon: "🗂️",
+    referenceExamples: [
+      "Product Demo",
+      "TikTok-style card carousel",
+      "Social post carousel",
+    ],
+    implementationPattern: [
+      "多卡片队列",
+      "prev / current / next 三层",
+      "卡片滑入滑出",
+      "短视频信息流节奏",
+    ],
+    requiredComponents: ["CardStackLayer", "SwipeTransition", "PrevNextIndicator"],
+    styleSweepMapping: ["remotion_card_stack"],
+    nextExperiment:
+      "增加 card depth、swipe transition、当前卡片强调、结尾总览卡",
   },
   {
     id: "timeline",
@@ -116,6 +161,21 @@ const FAMILIES: StyleFamily[] = [
     priorityReason: "适合解释复杂事件，与 Data News 正交",
     accentColor: "#0891b2",
     icon: "📅",
+    referenceExamples: [
+      "Rocket Launches Timeline",
+      "Travel Route Map",
+      "产品发布路线图",
+    ],
+    implementationPattern: [
+      "时间节点",
+      "事件进度线",
+      "当前节点高亮",
+      "历史节点淡化",
+    ],
+    requiredComponents: ["TimelineNode", "ProgressLine", "EventCard"],
+    styleSweepMapping: [],
+    nextExperiment:
+      "新增 remotion_timeline_news 最小模板，先做竖向时间线 + 3 个节点",
   },
   {
     id: "dashboard",
@@ -142,6 +202,22 @@ const FAMILIES: StyleFamily[] = [
     priorityReason: "信息密度高但复杂度也高，容易过度设计",
     accentColor: "#f59e0b",
     icon: "🖥️",
+    referenceExamples: [
+      "Three.js Ranking",
+      "Bar + Line Chart",
+      "Benchmark dashboard",
+      "Leaderboard",
+    ],
+    implementationPattern: [
+      "多指标面板",
+      "排行榜",
+      "矩阵布局",
+      "进度条 / 小图表",
+    ],
+    requiredComponents: ["DashboardPanel", "RankingList", "MiniBar", "MiniSpark"],
+    styleSweepMapping: [],
+    nextExperiment:
+      "新增 remotion_dashboard_brief，先做 3 指标面板 + 1 个排行榜模块",
   },
   {
     id: "subtitle_story",
@@ -168,6 +244,21 @@ const FAMILIES: StyleFamily[] = [
     priorityReason: "更偏向情绪内容，与当前 AI 新闻定位差异较大",
     accentColor: "#ec4899",
     icon: "💬",
+    referenceExamples: [
+      "TikTok word-by-word captions",
+      "Cinematic Tech Intro",
+      "Transparent CTA overlay",
+    ],
+    implementationPattern: [
+      "大字幕",
+      "逐词高亮",
+      "背景弱动效",
+      "旁白节奏驱动",
+    ],
+    requiredComponents: ["WordCaption", "SentenceCard", "AmbientBackground"],
+    styleSweepMapping: [],
+    nextExperiment:
+      "新增 remotion_caption_story，用大字幕 + word highlight 做一版 AI 新闻口播",
   },
 ];
 
@@ -410,6 +501,340 @@ function FamilyCard({ family }: { family: StyleFamily }) {
   );
 }
 
+// ─── V0.8.7: 当前实现覆盖度面板 ───────────────────────────────────────────────
+
+function CoveragePanel() {
+  // 已实现基础：Data News / Card Stack
+  // 部分实现：Data News 指标动画 / Card Stack 卡片堆叠
+  // 未实现：Timeline / Dashboard / Subtitle Story / Map Journey / Code Walkthrough / Audio Wave
+  const implemented = [
+    { name: "Data News", note: "AiNewsVideo 当前形态即 Data News 范式" },
+    { name: "Card Stack", note: "V0.6.5.2 已支持 prev/next 三层卡片 UI 预览对比" },
+  ];
+  const partial = [
+    { name: "Data News 指标动画", note: "已有 countup_bar；chart_story / ranking_strip 待扩展" },
+    { name: "Card Stack 卡片堆叠", note: "已有 prev/next 视觉；swipe transition / 当前卡片强调待增强" },
+  ];
+  const missing = [
+    { name: "Timeline", note: "新增 remotion_timeline_news 最小模板" },
+    { name: "Dashboard", note: "新增 remotion_dashboard_brief" },
+    { name: "Subtitle Story", note: "新增 remotion_caption_story" },
+    { name: "Map Journey", note: "未纳入本轮主流程" },
+    { name: "Code Walkthrough", note: "未纳入本轮主流程" },
+    { name: "Audio Wave", note: "未纳入本轮主流程" },
+  ];
+  return (
+    <div
+      data-testid="remotion-coverage-panel"
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1.25rem",
+        marginBottom: "2.5rem",
+      }}
+    >
+      <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.4rem", color: "#1e293b" }}>
+        当前实现覆盖度
+      </h2>
+      <p style={{ fontSize: "0.78rem", color: "#94a3b8", marginBottom: "1rem" }}>
+        下方三列明确区分"已实现基础 / 部分实现 / 未实现"，避免误以为本页列出的 family 都已可生成。
+      </p>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: "0.85rem",
+        }}
+      >
+        <CoverageColumn
+          title="已实现基础"
+          color="#10b981"
+          bg="#f0fdf4"
+          border="#bbf7d0"
+          items={implemented}
+        />
+        <CoverageColumn
+          title="部分实现"
+          color="#f59e0b"
+          bg="#fffbeb"
+          border="#fde68a"
+          items={partial}
+        />
+        <CoverageColumn
+          title="未实现"
+          color="#94a3b8"
+          bg="#f8fafc"
+          border="#e2e8f0"
+          items={missing}
+        />
+      </div>
+    </div>
+  );
+}
+
+function CoverageColumn({
+  title,
+  color,
+  bg,
+  border,
+  items,
+}: {
+  title: string;
+  color: string;
+  bg: string;
+  border: string;
+  items: { name: string; note: string }[];
+}) {
+  return (
+    <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 10, padding: "0.75rem 0.85rem" }}>
+      <div style={{ fontSize: "0.82rem", fontWeight: 700, color, marginBottom: 6 }}>
+        {title}（{items.length}）
+      </div>
+      <ul style={{ margin: 0, paddingLeft: "1rem", fontSize: "0.78rem", color: "#334155", lineHeight: 1.55 }}>
+        {items.map((it) => (
+          <li key={it.name} style={{ marginBottom: 4 }}>
+            <b style={{ color: "#1e293b" }}>{it.name}</b> — {it.note}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ─── V0.8.7: 下一步最小实验推荐 ───────────────────────────────────────────────
+
+function NextExperimentPanel() {
+  return (
+    <div
+      data-testid="remotion-next-experiment-panel"
+      style={{
+        background: "linear-gradient(135deg, #0f766e 0%, #0ea5e9 100%)",
+        borderRadius: "16px",
+        padding: "1.25rem 1.5rem",
+        color: "white",
+        marginBottom: "2.5rem",
+      }}
+    >
+      <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.4rem" }}>
+        下一步最小实验推荐
+      </h2>
+      <p style={{ fontSize: "0.78rem", opacity: 0.85, marginBottom: "0.85rem" }}>
+        本轮建议只做 1 个最小实验，不要同时铺开 — 先做最能体现"Composition Family 差异"的那一个。
+      </p>
+      <div
+        style={{
+          background: "rgba(255,255,255,0.15)",
+          borderRadius: 10,
+          padding: "0.85rem 1rem",
+          fontSize: "0.85rem",
+          lineHeight: 1.65,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: "1.4rem" }}>📅</span>
+          <span style={{ fontSize: "1.05rem", fontWeight: 700 }}>推荐：remotion_timeline_news</span>
+          <span style={{ fontSize: "0.7rem", background: "rgba(255,255,255,0.25)", borderRadius: 999, padding: "2px 8px", fontWeight: 600 }}>
+            Timeline 范式
+          </span>
+        </div>
+        <ol style={{ margin: 0, paddingLeft: "1.1rem", opacity: 0.95 }}>
+          <li>与 Data News / Card Stack 差异明显（事件演进 vs 单卡 / 卡片堆叠）</li>
+          <li>适合 AI 新闻中的事件演进、产品发布、研究路线</li>
+          <li>不依赖复杂 3D / 图表库</li>
+          <li>可以用现有 keyPoints 直接映射成 3 个节点</li>
+          <li>可快速验证"Composition Family 差异"</li>
+        </ol>
+        <div style={{ marginTop: 8, fontSize: "0.78rem", opacity: 0.85 }}>
+          备选：<b>remotion_caption_story</b>（Subtitle Story 范式）— 更偏情绪 / 口播，和当前 AI 新闻主线略偏。
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── V0.8.7: 参考样例 → 可落地范式 映射 ────────────────────────────────────────
+
+const REFERENCE_MAPPING: {
+  referenceExample: string;
+  familyId: string;
+  content: string;
+  status: "已有基础" | "部分可做" | "待实现";
+  next: string;
+}[] = [
+  {
+    referenceExample: "News article headline highlight",
+    familyId: "data_news",
+    content: "AI 新闻 / 指标变化",
+    status: "已有基础",
+    next: "强化标题高亮",
+  },
+  {
+    referenceExample: "Bar + Line Chart",
+    familyId: "data_news",
+    content: "Benchmark / 排名",
+    status: "部分可做",
+    next: "chart_story",
+  },
+  {
+    referenceExample: "Ranking / Leaderboard",
+    familyId: "data_news",
+    content: "榜单 / Top 10",
+    status: "部分可做",
+    next: "ranking_strip",
+  },
+  {
+    referenceExample: "Product Demo",
+    familyId: "card_stack",
+    content: "产品介绍 / 工具推荐",
+    status: "已有基础",
+    next: "强化多卡轮播",
+  },
+  {
+    referenceExample: "TikTok-style card carousel",
+    familyId: "card_stack",
+    content: "AI 工具推荐 / 短资讯合集",
+    status: "已有基础",
+    next: "强化多卡轮播",
+  },
+  {
+    referenceExample: "Rocket Launches Timeline",
+    familyId: "timeline",
+    content: "事件演进 / 历史里程碑",
+    status: "待实现",
+    next: "remotion_timeline_news",
+  },
+  {
+    referenceExample: "Travel Route Map",
+    familyId: "timeline",
+    content: "路线 / 路径展示",
+    status: "待实现",
+    next: "remotion_timeline_news（路线变体）",
+  },
+  {
+    referenceExample: "Three.js Ranking",
+    familyId: "dashboard",
+    content: "模型排行 / 3D 数据展示",
+    status: "待实现",
+    next: "remotion_dashboard_brief",
+  },
+  {
+    referenceExample: "Benchmark dashboard",
+    familyId: "dashboard",
+    content: "Benchmark 矩阵 / 分数对比",
+    status: "待实现",
+    next: "remotion_dashboard_brief",
+  },
+  {
+    referenceExample: "TikTok word-by-word captions",
+    familyId: "subtitle_story",
+    content: "口播 / 情绪 / 观点",
+    status: "待实现",
+    next: "remotion_caption_story",
+  },
+  {
+    referenceExample: "Cinematic Tech Intro",
+    familyId: "subtitle_story",
+    content: "科技开场 / 品牌感",
+    status: "待实现",
+    next: "remotion_caption_story（intro 变体）",
+  },
+  {
+    referenceExample: "Transparent CTA overlay",
+    familyId: "subtitle_story",
+    content: "行动号召 / 透明叠加",
+    status: "待实现",
+    next: "remotion_caption_story（CTA 变体）",
+  },
+];
+
+function ReferenceMappingPanel() {
+  const statusColor = {
+    "已有基础": { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
+    "部分可做": { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
+    "待实现": { bg: "#f8fafc", color: "#64748b", border: "#e2e8f0" },
+  } as const;
+  return (
+    <div
+      data-testid="remotion-reference-mapping-panel"
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1.25rem",
+        marginBottom: "2.5rem",
+      }}
+    >
+      <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.4rem", color: "#1e293b" }}>
+        参考样例 → 可落地范式
+      </h2>
+      <p style={{ fontSize: "0.78rem", color: "#64748b", marginBottom: "0.85rem" }}>
+        从 Remotion 官方 templates / Showcase / Prompt Showcase 抽象出的参考样例类型，映射到本页 5 个 family。
+        "当前状态"列对齐上方"当前实现覆盖度"，避免重复。
+      </p>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+          <thead>
+            <tr style={{ background: "#f8fafc" }}>
+              <th style={thStyle}>参考样例类型</th>
+              <th style={thStyle}>可转化 family</th>
+              <th style={thStyle}>适合内容</th>
+              <th style={thStyle}>当前状态</th>
+              <th style={thStyle}>下一步实验</th>
+            </tr>
+          </thead>
+          <tbody>
+            {REFERENCE_MAPPING.map((row, i) => {
+              const fam = FAMILIES.find((f) => f.id === row.familyId);
+              const sc = statusColor[row.status];
+              return (
+                <tr
+                  key={`${row.referenceExample}-${row.familyId}`}
+                  style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "white" : "#fafafa" }}
+                >
+                  <td style={{ ...tdLabelStyle, fontStyle: "italic" }}>{row.referenceExample}</td>
+                  <td style={tdCenterStyle}>
+                    <span
+                      style={{
+                        background: `${fam?.accentColor}15`,
+                        color: fam?.accentColor,
+                        border: `1px solid ${fam?.accentColor}35`,
+                        borderRadius: 6,
+                        padding: "0.1rem 0.5rem",
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {fam?.icon} {fam?.name ?? row.familyId}
+                    </span>
+                  </td>
+                  <td style={tdLabelStyle}>{row.content}</td>
+                  <td style={tdCenterStyle}>
+                    <span
+                      style={{
+                        background: sc.bg,
+                        color: sc.color,
+                        border: `1px solid ${sc.border}`,
+                        borderRadius: 999,
+                        padding: "0.1rem 0.55rem",
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {row.status}
+                    </span>
+                  </td>
+                  <td style={{ ...tdLabelStyle, fontSize: "0.75rem", color: "#475569" }}>{row.next}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function ComparisonTable() {
   return (
     <div style={{ overflowX: "auto" }}>
@@ -494,13 +919,77 @@ export default function RemotionStyleFamilyPage() {
   return (
     <div style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ marginBottom: "2.5rem" }}>
+      <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-          Remotion 表现范式 · V0.6.5.2
+          Remotion 表现范式研究台 · V0.8.7
         </h1>
         <p style={{ color: "#64748b", fontSize: "0.95rem" }}>
-          将 Remotion 从单一路线升级为可编程视频表现系统
+          将 Remotion 从单一路线升级为可编程视频表现系统 — 本页是"设计方向研究"，批量生成验证请去 Style Sweep，沉淀样片请去 Style Gallery。
         </p>
+      </div>
+
+      {/* V0.8.7: 主流程入口 */}
+      <div
+        data-testid="remotion-family-top-entries"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+          marginBottom: "2.5rem",
+        }}
+      >
+        <Link
+          to="/video-lab/style-sweep"
+          style={{
+            background: "#8b5cf6",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "8px",
+            padding: "0.5rem 1rem",
+            fontSize: "0.9rem",
+            fontWeight: 600,
+          }}
+        >
+          进入 Style Sweep
+        </Link>
+        <Link
+          to="/video-lab/style-gallery"
+          style={{
+            background: "#10b981",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "8px",
+            padding: "0.5rem 1rem",
+            fontSize: "0.9rem",
+            fontWeight: 600,
+          }}
+        >
+          进入 Style Gallery
+        </Link>
+        <Link
+          to="/video-lab"
+          style={{
+            background: "#64748b",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "8px",
+            padding: "0.5rem 1rem",
+            fontSize: "0.9rem",
+            fontWeight: 600,
+          }}
+        >
+          返回 Video Lab
+        </Link>
+        <div
+          style={{
+            marginLeft: "auto",
+            fontSize: "0.8rem",
+            color: "#94a3b8",
+            alignSelf: "center",
+          }}
+        >
+          Style Family = 设计方向研究 · Style Sweep = 批量生成验证 · Style Gallery = 沉淀样片
+        </div>
       </div>
 
       {/* Section 1: Family Cards */}
@@ -520,6 +1009,15 @@ export default function RemotionStyleFamilyPage() {
           ))}
         </div>
       </div>
+
+      {/* V0.8.7: 当前实现覆盖度（避免用户误以为 family 都已可生成） */}
+      <CoveragePanel />
+
+      {/* V0.8.7: 下一步最小实验推荐 */}
+      <NextExperimentPanel />
+
+      {/* V0.8.7: 参考样例 → 可落地范式 映射表 */}
+      <ReferenceMappingPanel />
 
       {/* Section 2: Comparison Matrix */}
       <div
