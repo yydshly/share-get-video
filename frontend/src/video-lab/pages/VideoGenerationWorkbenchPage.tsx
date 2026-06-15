@@ -1,5 +1,5 @@
-// Video Generation Workbench Page - V0.7.1
-// 视频生成实验台 V0.7.1：接入完整视频生成（/visual-compose）
+// Video Generation Workbench Page - V0.7.2
+// 视频生成实验台 V0.7.2：approved 后保存样片 / 加入对比真实功能
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -111,6 +111,32 @@ const SAMPLE_CONTENT = {
 
 企业级AI加速落地：Anthropic与TCS合作推进企业级 AI 应用，DeepMind投资千万美元。`,
 };
+
+// ─── Route → Sample Meta mapping ───────────────────────────────────────────
+
+const ROUTE_SAMPLE_META: Record<RouteId, { route_id: string; route_name: string; style_name: string } | null> = {
+  pillow: {
+    route_id: "local_frame_compose",
+    route_name: "Pillow 信息卡片",
+    style_name: "Workbench / Pillow 信息卡片",
+  },
+  remotion_data_news: {
+    route_id: "template_programmatic_render",
+    route_name: "Remotion Data News",
+    style_name: "Workbench / Remotion Data News",
+  },
+  remotion_card_stack: {
+    route_id: "template_programmatic_render",
+    route_name: "Remotion Card Stack",
+    style_name: "Workbench / Remotion Card Stack",
+  },
+  ai_asset: null,
+};
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+const stripRuntimePrefix = (url: string) =>
+  url.startsWith("/runtime/") ? url.replace(/^\/runtime\//, "") : url;
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -232,6 +258,16 @@ export default function VideoGenerationWorkbenchPage() {
   const [reviewNotes, setReviewNotes] = useState("");
   const [copied, setCopied] = useState(false);
 
+  // ── Save / Compare State ───────────────────────────────────────────────
+  const [savedSampleId, setSavedSampleId] = useState<string | null>(null);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState("");
+
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState("");
+  const [compareSuccess, setCompareSuccess] = useState(false);
+
   const loadSample = () => {
     setTitle(SAMPLE_CONTENT.title);
     setBody(SAMPLE_CONTENT.body);
@@ -241,12 +277,17 @@ export default function VideoGenerationWorkbenchPage() {
     setReviewNotes("");
     setPreviewError("");
     setFullError("");
+    // Reset save/compare state
+    setSavedSampleId(null);
+    setSaveError("");
+    setSaveSuccess("");
+    setCompareError("");
+    setCompareSuccess(false);
   };
 
   const resolveUrl = (u: string) =>
     u && u.startsWith("/runtime/") ? `${API_BASE.replace(/\/video-lab$/, "")}${u}` : u || "";
 
-  // ── Route to backend visualRoute mapping ─────────────────────────────────
   const routeToVisualRoute: Record<RouteId, string> = {
     pillow: "local_frame_compose",
     remotion_data_news: "template_programmatic_render",
@@ -255,18 +296,9 @@ export default function VideoGenerationWorkbenchPage() {
   };
 
   const buildVisualRouteParams = (): Record<string, unknown> => {
-    const base = {
-      targetDuration: 45,
-      aspectRatio: "9:16",
-      keyPointCount: 3,
-      useLlmPlan: true,
-    };
-    if (selectedRoute === "remotion_data_news") {
-      return { ...base, remotionFamily: "data_news" };
-    }
-    if (selectedRoute === "remotion_card_stack") {
-      return { ...base, remotionFamily: "card_stack" };
-    }
+    const base = { targetDuration: 45, aspectRatio: "9:16", keyPointCount: 3, useLlmPlan: true };
+    if (selectedRoute === "remotion_data_news") return { ...base, remotionFamily: "data_news" };
+    if (selectedRoute === "remotion_card_stack") return { ...base, remotionFamily: "card_stack" };
     return base;
   };
 
@@ -276,6 +308,11 @@ export default function VideoGenerationWorkbenchPage() {
     setPreviewError("");
     setPreviewResult(null);
     setReviewStatus("pending");
+    setSavedSampleId(null);
+    setSaveError("");
+    setSaveSuccess("");
+    setCompareError("");
+    setCompareSuccess(false);
 
     const shot = { headline: title.trim(), display: body.trim(), emphasisTerms: [] };
     let payload: Record<string, unknown>;
@@ -318,7 +355,6 @@ export default function VideoGenerationWorkbenchPage() {
         body: JSON.stringify(payload),
       });
       const data = await resp.json();
-
       if (!resp.ok && !data) throw new Error(`${resp.status}`);
       if (!data.success) throw new Error(data.message || "预览生成失败");
 
@@ -345,6 +381,11 @@ export default function VideoGenerationWorkbenchPage() {
     setFullError("");
     setFullResult(null);
     setReviewStatus("pending");
+    setSavedSampleId(null);
+    setSaveError("");
+    setSaveSuccess("");
+    setCompareError("");
+    setCompareSuccess(false);
 
     const visualRoute = routeToVisualRoute[selectedRoute];
     if (!visualRoute) {
@@ -364,7 +405,6 @@ export default function VideoGenerationWorkbenchPage() {
         }),
       });
       const data = await resp.json();
-
       if (!resp.ok && !data) throw new Error(`${resp.status}`);
       if (data.detail) throw new Error(data.detail);
 
@@ -373,6 +413,90 @@ export default function VideoGenerationWorkbenchPage() {
       setFullError(String(e));
     } finally {
       setFullLoading(false);
+    }
+  };
+
+  // ── Save Approved Sample ─────────────────────────────────────────────────
+  const saveApprovedSample = async (): Promise<string | null> => {
+    if (!fullResult || fullResult.status !== "succeeded" || !fullResult.finalVideoUrl) return null;
+    const sampleMeta = ROUTE_SAMPLE_META[selectedRoute];
+    if (!sampleMeta) return null;
+
+    setSaveLoading(true);
+    setSaveError("");
+    setSaveSuccess("");
+
+    try {
+      const resp = await fetch(`${API_BASE}/style-samples`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: `workbench_${fullResult.experimentId}`,
+          route_id: sampleMeta.route_id,
+          route_name: sampleMeta.route_name,
+          style_name: sampleMeta.style_name,
+          description: `Workbench approved: ${title.trim().slice(0, 80)}`,
+          status: "approved",
+          params: {
+            ...(fullResult.params || {}),
+            source: "workbench",
+            workbenchRoute: selectedRoute,
+            experimentId: fullResult.experimentId,
+            reviewNotes,
+          },
+          output_type: "mp4",
+          output_path: stripRuntimePrefix(fullResult.finalVideoUrl),
+          poster_path: stripRuntimePrefix(fullResult.coverUrl || ""),
+          audio_url: stripRuntimePrefix(fullResult.audioUrl || ""),
+          srt_url: stripRuntimePrefix(fullResult.srtUrl || ""),
+          manifest_url: stripRuntimePrefix(fullResult.manifestUrl || ""),
+          content_preview: body.trim().slice(0, 160),
+          duration_sec: Number(fullResult.audioDurationSec || 0),
+          audio_duration_sec: Number(fullResult.audioDurationSec || 0),
+          tags: ["workbench", selectedRoute, "approved"],
+          evaluation_notes: reviewNotes,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+
+      const savedId = data.id || `workbench_${fullResult.experimentId}`;
+      setSavedSampleId(savedId);
+      setSaveSuccess(`已保存为样片：${savedId}`);
+      return savedId;
+    } catch (e) {
+      setSaveError(`保存失败：${String(e)}`);
+      return null;
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  // ── Mark Sample For Compare ──────────────────────────────────────────────
+  const addSavedSampleToCompare = async () => {
+    let sampleId = savedSampleId;
+
+    // If not saved yet, save first
+    if (!sampleId) {
+      sampleId = await saveApprovedSample();
+      if (!sampleId) return; // save failed, error already set
+    }
+
+    setCompareLoading(true);
+    setCompareError("");
+
+    try {
+      const resp = await fetch(`${API_BASE}/style-samples/${sampleId}/compare`, { method: "POST" });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.detail || `HTTP ${resp.status}`);
+      }
+      setCompareSuccess(true);
+      setCompareError("");
+    } catch (e) {
+      setCompareError(`加入对比失败：${String(e)}`);
+    } finally {
+      setCompareLoading(false);
     }
   };
 
@@ -405,7 +529,7 @@ export default function VideoGenerationWorkbenchPage() {
           视频生成实验台
         </h1>
         <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
-          输入内容 → 选择路线 → 生成预览 / 完整视频 → 人工观察确认 → 保存样片
+          输入内容 → 选择路线 → 生成预览 / 完整视频 → 人工观察确认 → 保存样片 / 加入对比
         </p>
       </div>
 
@@ -434,24 +558,12 @@ export default function VideoGenerationWorkbenchPage() {
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="例如：&#10;科学研究评审实现突破：ProReviewer系统...&#10;&#10;购物AI助手落后：主流模型通过率仅57-77%..."
               rows={8}
               style={{ width: "100%", padding: "0.55rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.85rem", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
             />
           </div>
           <div>
-            <button
-              onClick={loadSample}
-              style={{
-                background: "#f1f5f9",
-                color: "#475569",
-                border: "1px solid #e2e8f0",
-                borderRadius: 8,
-                padding: "0.4rem 0.9rem",
-                fontSize: "0.8rem",
-                cursor: "pointer",
-              }}
-            >
+            <button onClick={loadSample} style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.4rem 0.9rem", fontSize: "0.8rem", cursor: "pointer" }}>
               加载示例内容（AI 新闻三条）
             </button>
           </div>
@@ -490,12 +602,8 @@ export default function VideoGenerationWorkbenchPage() {
             disabled={previewLoading || selectedRoute === "ai_asset"}
             style={{
               background: previewLoading || selectedRoute === "ai_asset" ? "#94a3b8" : "#0f766e",
-              color: "white",
-              border: "none",
-              borderRadius: 8,
-              padding: "0.6rem 1.5rem",
-              fontSize: "0.9rem",
-              fontWeight: 600,
+              color: "white", border: "none", borderRadius: 8,
+              padding: "0.6rem 1.5rem", fontSize: "0.9rem", fontWeight: 600,
               cursor: previewLoading || selectedRoute === "ai_asset" ? "not-allowed" : "pointer",
             }}
           >
@@ -507,12 +615,8 @@ export default function VideoGenerationWorkbenchPage() {
             disabled={fullLoading || selectedRoute === "ai_asset"}
             style={{
               background: fullLoading || selectedRoute === "ai_asset" ? "#94a3b8" : "#7c3aed",
-              color: "white",
-              border: "none",
-              borderRadius: 8,
-              padding: "0.6rem 1.5rem",
-              fontSize: "0.9rem",
-              fontWeight: 600,
+              color: "white", border: "none", borderRadius: 8,
+              padding: "0.6rem 1.5rem", fontSize: "0.9rem", fontWeight: 600,
               cursor: fullLoading || selectedRoute === "ai_asset" ? "not-allowed" : "pointer",
             }}
           >
@@ -521,7 +625,7 @@ export default function VideoGenerationWorkbenchPage() {
 
           {(previewLoading || fullLoading) && (
             <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
-              当前：{previewLoading ? "预览生成中" : fullLoading ? "完整视频生成中" : ""}，路线：{ROUTES.find((r) => r.id === selectedRoute)?.name}
+              {previewLoading ? "预览生成中" : fullLoading ? "完整视频生成中" : ""}，路线：{ROUTES.find((r) => r.id === selectedRoute)?.name}
             </span>
           )}
         </div>
@@ -553,7 +657,7 @@ export default function VideoGenerationWorkbenchPage() {
           4. 结果观看
         </h2>
 
-        {/* ── 4a: Preview Result ─────────────────────────────────────── */}
+        {/* Preview */}
         <div style={{ marginBottom: "1.5rem" }}>
           <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: 8 }}>
             <span>预览结果</span>
@@ -561,9 +665,7 @@ export default function VideoGenerationWorkbenchPage() {
           </div>
 
           {!previewResult && !previewLoading && (
-            <div style={{ textAlign: "center", padding: "1.5rem", color: "#94a3b8", fontSize: "0.82rem" }}>
-              点击上方「生成预览」
-            </div>
+            <div style={{ textAlign: "center", padding: "1.5rem", color: "#94a3b8", fontSize: "0.82rem" }}>点击上方「生成预览」</div>
           )}
 
           {previewResult && previewResult.success && (
@@ -587,10 +689,9 @@ export default function VideoGenerationWorkbenchPage() {
           )}
         </div>
 
-        {/* Divider */}
         <div style={{ borderTop: "1px solid #e2e8f0", marginBottom: "1.5rem" }} />
 
-        {/* ── 4b: Full Video Result ──────────────────────────────────── */}
+        {/* Full Video */}
         <div>
           <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: 8 }}>
             <span>完整视频</span>
@@ -598,9 +699,7 @@ export default function VideoGenerationWorkbenchPage() {
           </div>
 
           {!fullResult && !fullLoading && (
-            <div style={{ textAlign: "center", padding: "1.5rem", color: "#94a3b8", fontSize: "0.82rem" }}>
-              点击上方「生成完整视频」
-            </div>
+            <div style={{ textAlign: "center", padding: "1.5rem", color: "#94a3b8", fontSize: "0.82rem" }}>点击上方「生成完整视频」</div>
           )}
 
           {fullResult && fullResult.status === "succeeded" && fullResult.finalVideoUrl && (
@@ -645,7 +744,7 @@ export default function VideoGenerationWorkbenchPage() {
         <h2 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "1rem", color: "#1e293b" }}>
           5. 人工观察确认
           {hasFullVideo && (
-            <span style={{ marginLeft: 10, verticalAlign: "middle" }}>
+            <span style={{ marginLeft: 10 }}>
               <ReviewBadge status={reviewStatus} />
             </span>
           )}
@@ -670,11 +769,7 @@ export default function VideoGenerationWorkbenchPage() {
                   background: reviewStatus === "approved" ? "#16a34a" : "#f0fdf4",
                   color: reviewStatus === "approved" ? "white" : "#16a34a",
                   border: `1px solid ${reviewStatus === "approved" ? "#16a34a" : "#bbf7d0"}`,
-                  borderRadius: 8,
-                  padding: "0.5rem 1.2rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
+                  borderRadius: 8, padding: "0.5rem 1.2rem", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",
                 }}
               >
                 ✅ 通过
@@ -685,11 +780,7 @@ export default function VideoGenerationWorkbenchPage() {
                   background: reviewStatus === "problem" ? "#d97706" : "#fffbeb",
                   color: reviewStatus === "problem" ? "white" : "#d97706",
                   border: `1px solid ${reviewStatus === "problem" ? "#d97706" : "#fde68a"}`,
-                  borderRadius: 8,
-                  padding: "0.5rem 1.2rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
+                  borderRadius: 8, padding: "0.5rem 1.2rem", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",
                 }}
               >
                 ⚠️ 有问题
@@ -700,11 +791,7 @@ export default function VideoGenerationWorkbenchPage() {
                   background: reviewStatus === "discarded" ? "#dc2626" : "#fef2f2",
                   color: reviewStatus === "discarded" ? "white" : "#dc2626",
                   border: `1px solid ${reviewStatus === "discarded" ? "#dc2626" : "#fecaca"}`,
-                  borderRadius: 8,
-                  padding: "0.5rem 1.2rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
+                  borderRadius: 8, padding: "0.5rem 1.2rem", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",
                 }}
               >
                 ❌ 丢弃
@@ -718,36 +805,89 @@ export default function VideoGenerationWorkbenchPage() {
               <textarea
                 value={reviewNotes}
                 onChange={(e) => setReviewNotes(e.target.value)}
-                placeholder="记录你观察到的问题或优点，例如：数字滚动流畅，但字幕过小..."
                 rows={3}
                 style={{ width: "100%", padding: "0.55rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.82rem", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
               />
             </div>
 
-            {/* Action buttons based on review status */}
+            {/* ── Approved Actions ── */}
             {reviewStatus === "approved" && (
-              <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-                <button
-                  style={{ background: "#0f766e", color: "white", border: "none", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
-                  onClick={() => alert("保存样片功能下一阶段接入")}
-                >
-                  💾 保存样片功能下一阶段接入
-                </button>
-                <button
-                  style={{ background: "#7c3aed", color: "white", border: "none", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
-                  onClick={() => alert("加入对比功能下一阶段接入")}
-                >
-                  ⚖️ 加入对比功能下一阶段接入
-                </button>
-                <button
-                  onClick={copyPath}
-                  style={{ background: copied ? "#16a34a" : "#f1f5f9", color: copied ? "white" : "#475569", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer", transition: "background 0.2s" }}
-                >
-                  {copied ? "✅ 已复制" : "📋 复制完整视频路径"}
-                </button>
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "1rem", marginBottom: "1rem" }}>
+                <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534", marginBottom: "0.75rem" }}>
+                  视频通过 — 选择后续操作：
+                </div>
+
+                {/* Save / Compare status */}
+                <div style={{ fontSize: "0.75rem", color: "#475569", marginBottom: "0.75rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  {saveSuccess && <div style={{ color: "#16a34a" }}>✅ {saveSuccess}</div>}
+                  {saveError && <div style={{ color: "#dc2626" }}>❌ {saveError}</div>}
+                  {compareSuccess && <div style={{ color: "#16a34a" }}>✅ 已加入对比</div>}
+                  {compareError && <div style={{ color: "#dc2626" }}>❌ {compareError}</div>}
+                </div>
+
+                <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", alignItems: "center" }}>
+                  {savedSampleId ? (
+                    <span style={{ fontSize: "0.78rem", color: "#16a34a", fontWeight: 600 }}>
+                      ✅ 已保存：{savedSampleId}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={saveApprovedSample}
+                      disabled={saveLoading}
+                      style={{
+                        background: saveLoading ? "#94a3b8" : "#0f766e",
+                        color: "white", border: "none", borderRadius: 8,
+                        padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600,
+                        cursor: saveLoading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {saveLoading ? "保存中..." : "💾 保存为样片"}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={addSavedSampleToCompare}
+                    disabled={compareLoading}
+                    style={{
+                      background: compareLoading ? "#94a3b8" : "#7c3aed",
+                      color: "white", border: "none", borderRadius: 8,
+                      padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600,
+                      cursor: compareLoading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {compareLoading ? "加入中..." : compareSuccess ? "✅ 已加入对比" : "⚖️ 加入对比"}
+                  </button>
+
+                  <button
+                    onClick={copyPath}
+                    style={{
+                      background: copied ? "#16a34a" : "#f1f5f9",
+                      color: copied ? "white" : "#475569",
+                      border: "1px solid #e2e8f0", borderRadius: 8,
+                      padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600,
+                      cursor: "pointer", transition: "background 0.2s",
+                    }}
+                  >
+                    {copied ? "✅ 已复制" : "📋 复制完整视频路径"}
+                  </button>
+
+                  {compareSuccess && (
+                    <Link
+                      to="/video-lab/style-gallery"
+                      style={{
+                        fontSize: "0.78rem", color: "#7c3aed",
+                        textDecoration: "none", border: "1px solid #7c3aed",
+                        borderRadius: 8, padding: "0.5rem 1rem",
+                      }}
+                    >
+                      查看样片库 →
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
 
+            {/* ── Problem Actions ── */}
             {reviewStatus === "problem" && (
               <div style={{ display: "flex", gap: "0.6rem" }}>
                 <button
@@ -757,14 +897,14 @@ export default function VideoGenerationWorkbenchPage() {
                   🔄 重新生成
                 </button>
                 <button
-                  style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", cursor: "pointer" }}
-                  onClick={() => alert("记录问题功能下一阶段接入")}
+                  style={{ background: "#f1f5f9", color: "#94a3b8", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", cursor: "not-allowed" }}
                 >
                   📝 记录问题功能下一阶段接入
                 </button>
               </div>
             )}
 
+            {/* ── Discarded ── */}
             {reviewStatus === "discarded" && (
               <div style={{ padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.82rem", color: "#dc2626" }}>
                 已丢弃，不建议保存。如需重新生成，请再次点击「生成完整视频」。
@@ -782,10 +922,7 @@ export default function VideoGenerationWorkbenchPage() {
 
       {/* Back link */}
       <div style={{ textAlign: "center" }}>
-        <Link
-          to="/video-lab"
-          style={{ color: "#64748b", textDecoration: "none", fontSize: "0.85rem" }}
-        >
+        <Link to="/video-lab" style={{ color: "#64748b", textDecoration: "none", fontSize: "0.85rem" }}>
           ← 返回 Video Lab 首页
         </Link>
       </div>
