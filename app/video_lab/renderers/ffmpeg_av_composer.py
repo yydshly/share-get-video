@@ -28,6 +28,7 @@ import subprocess
 import shlex
 from pathlib import Path
 
+from app.video_lab.config import ffmpeg_bin
 from app.video_lab.renderers.ffmpeg_composer import check_ffmpeg_available, get_ffmpeg_version
 
 
@@ -271,7 +272,7 @@ def compose_av_with_subtitles(
     output_abs = output_path.as_posix()
 
     cmd = [
-        "ffmpeg", "-y",
+        ffmpeg_bin(), "-y",
         "-i", video_abs,
         "-i", audio_abs,
     ]
@@ -444,7 +445,7 @@ def compose_video_with_audio(
     output_abs = output_path.as_posix()
 
     cmd = [
-        "ffmpeg", "-y",
+        ffmpeg_bin(), "-y",
         "-i", video_abs,
         "-i", audio_abs,
     ]

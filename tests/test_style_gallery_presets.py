@@ -37,8 +37,8 @@ def test_routes_are_known():
 
 
 def test_remotion_family_values_are_supported():
-    """remotionFamily 只能用真实支持的值（props_builder 仅映射 data_news/card_stack）。"""
-    supported = {"data_news", "card_stack"}
+    """remotionFamily 只能用真实支持的值（props_builder + AiNewsVideo.tsx 都已实现）。"""
+    supported = {"data_news", "card_stack", "timeline_news"}
     for p in list_preset_styles():
         fam = p["params"].get("remotionFamily")
         if fam is not None:

@@ -92,11 +92,6 @@ class RemotionVisualRenderer(VisualRenderer):
         """
         if not video_url:
             return ""
-        from app.video_lab.config import RUNTIME_DIR, PUBLIC_RUNTIME_URL_PREFIX
-
-        prefix = (PUBLIC_RUNTIME_URL_PREFIX or "/runtime").rstrip("/")
-        for p in (prefix, "/runtime"):  # 当前前缀优先，兼容历史 /runtime URL
-            marker = p + "/"
-            if video_url.startswith(marker):
-                return str(RUNTIME_DIR / video_url[len(marker):])
-        return video_url
+        # 统一走 path_contract（单一真相），兼容自定义 RUNTIME_DIR / 历史前缀
+        from app.video_lab.path_contract import runtime_url_to_path
+        return str(runtime_url_to_path(video_url))

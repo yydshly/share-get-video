@@ -46,31 +46,9 @@ def path_to_url(file_path: Path | str) -> str:
       path_to_url("D:/video-lab-runtime/video_lab/experiments/exp/final.mp4")
         → "/runtime/video_lab/experiments/exp/final.mp4"
     """
-    path = Path(file_path)
-    prefix = PUBLIC_RUNTIME_URL_PREFIX.rstrip("/") or "/runtime"
-
-    try:
-        resolved = path.resolve()
-    except Exception:
-        resolved = path
-
-    # 1. If path is inside RUNTIME_DIR, use relative_to for a clean sub-path.
-    try:
-        rel = resolved.relative_to(RUNTIME_DIR.resolve())
-        return f"{prefix}/{rel.as_posix()}"
-    except ValueError:
-        pass
-
-    # 2. Normalize to forward slashes and strip any existing /runtime/ prefix.
-    normalized = resolved.as_posix().replace("\\", "/")
-
-    # Strip /runtime/ if it appears after the mount point
-    marker = "/runtime/"
-    if marker in normalized:
-        return f"{prefix}/" + normalized.split(marker, 1)[1]
-
-    # 3. Fallback: strip leading slashes and put everything under the prefix.
-    return f"{prefix}/" + normalized.lstrip("/")
+    # 统一委托给 path_contract（单一真相），避免与其重复实现产生不一致。
+    from app.video_lab.path_contract import path_to_runtime_url
+    return path_to_runtime_url(file_path)
 
 
 def write_manifest(experiment_id: str, manifest: dict) -> Path:

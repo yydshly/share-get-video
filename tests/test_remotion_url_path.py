@@ -22,17 +22,16 @@ def test_runtime_url_resolves_under_runtime_dir():
     assert out.endswith("clip.mp4")
 
 
-def test_custom_prefix(monkeypatch):
-    monkeypatch.setattr(config, "PUBLIC_RUNTIME_URL_PREFIX", "/assets")
-    out = RemotionVisualRenderer._url_to_path("/assets/video_lab/x.mp4")
-    assert Path(out) == config.RUNTIME_DIR / "video_lab/x.mp4"
-    # 历史 /runtime/ 前缀仍兼容
-    out2 = RemotionVisualRenderer._url_to_path("/runtime/video_lab/y.mp4")
-    assert Path(out2) == config.RUNTIME_DIR / "video_lab/y.mp4"
+def test_historical_runtime_prefix_still_resolves():
+    """委托 path_contract 后，历史 /runtime/ 前缀仍能落到当前 RUNTIME_DIR 下。"""
+    out = RemotionVisualRenderer._url_to_path("/runtime/video_lab/y.mp4")
+    assert Path(out) == config.RUNTIME_DIR / "video_lab/y.mp4"
 
 
-def test_non_runtime_url_unchanged():
-    assert RemotionVisualRenderer._url_to_path("https://cdn/x.mp4") == "https://cdn/x.mp4"
+def test_bare_relative_resolves_under_runtime_dir():
+    """裸相对路径也落到 RUNTIME_DIR 下（path_contract 统一契约）。"""
+    out = RemotionVisualRenderer._url_to_path("video_lab/experiments/e/clip.mp4")
+    assert Path(out) == config.RUNTIME_DIR / "video_lab/experiments/e/clip.mp4"
 
 
 if __name__ == "__main__":

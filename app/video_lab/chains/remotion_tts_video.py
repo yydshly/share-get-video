@@ -102,9 +102,9 @@ def run_remotion_tts_video(
                 silent_video_path_str = art_dict.get("payload", {}).get("outputVideo", "")
 
     if not silent_video_path_str and silent_video_url:
-        # Try to derive path from URL
-        if silent_video_url.startswith("/runtime/"):
-            silent_video_path_str = "runtime/" + silent_video_url[len("/runtime/"):]
+        # 统一走 path_contract，兼容自定义 RUNTIME_DIR / 历史前缀
+        from app.video_lab.path_contract import runtime_url_to_path
+        silent_video_path_str = str(runtime_url_to_path(silent_video_url))
 
     if not silent_video_path_str:
         logs.append("  ERROR: Could not determine Remotion output video path")

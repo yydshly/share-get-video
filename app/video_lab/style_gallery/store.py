@@ -129,18 +129,24 @@ def to_runtime_url(path: str) -> str:
     # 已经是完整 URL，保持不变
     if path.startswith("http://") or path.startswith("https://"):
         return path
-    # 替换任何已有的 /runtime/ 或 /assets/ 前缀为当前 prefix
+    # 已带当前 prefix → 原样返回
+    if prefix and path.startswith(prefix + "/"):
+        return path
+    # 替换任何已有的 /runtime/ 或 /assets/ 前缀
     stripped = path
     for old_prefix in ("/runtime/", "/assets/"):
         if stripped.startswith(old_prefix):
             stripped = stripped[len(old_prefix):]
             break
-    # 补上前缀
-    if stripped.startswith(prefix + "/"):
-        return stripped  # already has this prefix
     if stripped.startswith("runtime/"):
-        # runtime/xxx → prefix/xxx
-        return f"{prefix}/" + stripped[len("runtime/"):]
+        stripped = stripped[len("runtime/"):]
+    stripped = stripped.lstrip("/")
+    if not stripped:
+        return ""
+    # 已知运行时顶层目录原样保留；其余视为 style_gallery 资产，补上 style_gallery/ 前缀
+    first = stripped.split("/", 1)[0]
+    if first not in ("video_lab", "style_gallery"):
+        stripped = "style_gallery/" + stripped
     return f"{prefix}/{stripped}"
 
 

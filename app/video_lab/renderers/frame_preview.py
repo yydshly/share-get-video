@@ -9,6 +9,7 @@ Frame Preview - 单帧快速预览（调试台地基）
 供 POST /video-lab/frame-preview 调用。
 """
 
+from app.video_lab.config import ffmpeg_bin
 import time
 import uuid
 from datetime import datetime
@@ -185,7 +186,7 @@ def _ken_burns_clip(image_path: str, out_path: Path, seconds: int, resolution: t
         f"fade=t=in:st=0:d={fade},format=yuv420p"
     )
     cmd = [
-        "ffmpeg", "-y", "-loop", "1", "-framerate", "30", "-i", image_path,
+        ffmpeg_bin(), "-y", "-loop", "1", "-framerate", "30", "-i", image_path,
         "-t", str(seconds), "-vf", vf, "-c:v", "libx264", "-pix_fmt", "yuv420p",
         out_path.as_posix(),
     ]

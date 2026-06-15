@@ -2,6 +2,7 @@
 Video Capability Lab - FastAPI Router
 """
 
+from app.video_lab.config import ffmpeg_bin, ffprobe_bin
 from typing import Any
 from fastapi import APIRouter, HTTPException
 
@@ -413,7 +414,7 @@ def visual_judge(request: VisualJudgeRequest) -> dict[str, Any]:
     if local.suffix.lower() in (".mp4", ".webm", ".mov"):
         try:
             probe = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                [ffprobe_bin(), "-v", "error", "-show_entries", "format=duration",
                  "-of", "default=nw=1:nk=1", local.as_posix()],
                 capture_output=True, text=True, timeout=30,
             )
@@ -428,7 +429,7 @@ def visual_judge(request: VisualJudgeRequest) -> dict[str, Any]:
             fp = local.parent / f"judge_{tag}_{i}.png"
             try:
                 subprocess.run(
-                    ["ffmpeg", "-y", "-ss", f"{t:.2f}", "-i", local.as_posix(),
+                    [ffmpeg_bin(), "-y", "-ss", f"{t:.2f}", "-i", local.as_posix(),
                      "-vframes", "1", fp.as_posix()],
                     capture_output=True, timeout=60,
                 )
@@ -1031,7 +1032,7 @@ def _extract_video_frame(video_path: str, fraction: float = 0.4) -> str | None:
     at_sec = 1.5
     try:
         probe = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+            [ffprobe_bin(), "-v", "error", "-show_entries", "format=duration",
              "-of", "default=nw=1:nk=1", vp.as_posix()],
             capture_output=True, text=True, timeout=20,
         )
@@ -1043,7 +1044,7 @@ def _extract_video_frame(video_path: str, fraction: float = 0.4) -> str | None:
     out = vp.parent / f"_judge_frame_{uuid.uuid4().hex[:6]}.png"
     try:
         subprocess.run(
-            ["ffmpeg", "-y", "-ss", f"{at_sec:.2f}", "-i", vp.as_posix(),
+            [ffmpeg_bin(), "-y", "-ss", f"{at_sec:.2f}", "-i", vp.as_posix(),
              "-vframes", "1", out.as_posix()],
             capture_output=True, timeout=60,
         )
@@ -1083,12 +1084,9 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
     # 优先使用 poster_path
     image_path = poster_path if poster_path else video_path
 
-    # 将 /runtime/ 路径转换为实际文件路径
-    runtime_prefix = "runtime/"
-    if image_path.startswith("/runtime/"):
-        image_path = image_path[len("/runtime/"):]
-    if not image_path.startswith(runtime_prefix):
-        image_path = runtime_prefix + image_path
+    # 将 runtime URL 转换为实际文件路径（统一走 path_contract，兼容自定义 RUNTIME_DIR）
+    from app.video_lab.path_contract import runtime_url_to_path
+    image_path = str(runtime_url_to_path(image_path))
 
     # V0.4.5: 只有视频没有 poster 时，先抽一帧再评（mp4 不能直接送视觉模型）
     from pathlib import Path as _Path

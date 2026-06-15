@@ -15,7 +15,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-LOG_PATH = Path("runtime/video_lab/quality_log.jsonl")
+# 基于 config.RUNTIME_DIR 的绝对路径，避免依赖启动 CWD（换目录后日志读写错位）。
+from app.video_lab.config import RUNTIME_DIR
+LOG_PATH = RUNTIME_DIR / "video_lab" / "quality_log.jsonl"
 
 
 def append_record(record: dict[str, Any]) -> dict[str, Any]:

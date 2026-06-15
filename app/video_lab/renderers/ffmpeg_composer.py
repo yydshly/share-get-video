@@ -7,12 +7,14 @@ import shlex
 from pathlib import Path
 from typing import Tuple, Dict, List, Any
 
+from app.video_lab.config import ffmpeg_bin
+
 
 def check_ffmpeg_available() -> bool:
     """Check if FFmpeg is available in PATH."""
     try:
         result = subprocess.run(
-            ["ffmpeg", "-version"],
+            [ffmpeg_bin(), "-version"],
             capture_output=True,
             timeout=10,
         )
@@ -25,7 +27,7 @@ def get_ffmpeg_version() -> str:
     """Get FFmpeg version string."""
     try:
         result = subprocess.run(
-            ["ffmpeg", "-version"],
+            [ffmpeg_bin(), "-version"],
             capture_output=True,
             timeout=10,
         )
@@ -86,7 +88,7 @@ def compose_video_from_frames(
 
     # Build FFmpeg command with absolute paths
     cmd = [
-        "ffmpeg", "-y",
+        ffmpeg_bin(), "-y",
         "-f", "concat", "-safe", "0",
         "-i", frames_txt_abs,
         "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
@@ -233,7 +235,7 @@ def compose_video_from_frame_sequence(
 
     # Build FFmpeg command with absolute paths
     cmd = [
-        "ffmpeg", "-y",
+        ffmpeg_bin(), "-y",
         "-f", "concat", "-safe", "0",
         "-i", frames_txt_abs,
         "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
