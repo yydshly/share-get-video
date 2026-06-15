@@ -1,4 +1,4 @@
-// Video Compare Page - 结果对比页
+// Video Compare Page - 本地结果对比页（数据来自浏览器 localStorage）
 
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
@@ -11,6 +11,8 @@ const STATUS_COLORS: Record<string, string> = {
   running: "#3b82f6",
   pending: "#94a3b8",
 };
+
+const STORAGE_KEY = "vl_experiments";
 
 function RiskBadge({ label, level }: { label: string; level: string }) {
   const color = level === "high" || level === "very_high" ? "#ef4444" : level === "medium" ? "#f59e0b" : "#10b981";
@@ -52,9 +54,19 @@ export default function VideoComparePage() {
   const [experiments, setExperiments] = useState<CreateExperimentResponse[]>([]);
 
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem("vl_experiments") ?? "[]");
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
     setExperiments(stored);
   }, []);
+
+  // 任务三：清空本地对比数据（带 confirm 二次确认）
+  function handleClearLocal() {
+    const ok = window.confirm(
+      "确认清空当前浏览器中的本地实验对比数据？\n此操作不会删除后端产物或 runtime 文件。",
+    );
+    if (!ok) return;
+    localStorage.removeItem(STORAGE_KEY);
+    setExperiments([]);
+  }
 
   // Group by test case
   const grouped: Record<string, CreateExperimentResponse[]> = {};
@@ -66,17 +78,51 @@ export default function VideoComparePage() {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto" }}>
-      <div style={{ marginBottom: "2rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-            结果对比
-          </h1>
-          <p style={{ color: "#64748b" }}>
-            按测试用例分组展示实验结果
-          </p>
+      {/* 任务一：顶部"本地暂存数据"提示 */}
+      <div
+        data-testid="local-storage-banner"
+        style={{
+          background: "#fffbeb",
+          border: "1px solid #fbbf24",
+          borderRadius: "10px",
+          padding: "1rem 1.25rem",
+          marginBottom: "1.5rem",
+          color: "#92400e",
+          fontSize: "0.9rem",
+          lineHeight: 1.6,
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: "0.4rem" }}>
+          ⚠️ 当前页面为本地暂存结果对比页
         </div>
+        <div>
+          数据来源：浏览器 <code style={{ background: "#fef3c7", padding: "0 0.25rem", borderRadius: "3px" }}>localStorage["vl_experiments"]</code>。
+          它不是后端真实实验库，也不代表 Workbench / Style Sweep / Style Gallery 的全部最新结果。
+          如果你想查看当前主流程产物，请优先进入 Style Gallery 或 Workbench。
+        </div>
+        <div style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
+          {experiments.length === 0 ? (
+            <span>当前浏览器暂无本地暂存实验数据。</span>
+          ) : (
+            <span>
+              当前浏览器共读取到 <strong>{experiments.length}</strong> 条本地暂存实验
+              （数据来源：localStorage，存储 key：<code>vl_experiments</code>）。
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* 任务四：主流程快捷入口 */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+          marginBottom: "1.5rem",
+        }}
+      >
         <Link
-          to="/video-lab/experiments/new"
+          to="/video-lab/workbench"
           style={{
             background: "#3b82f6",
             color: "white",
@@ -86,11 +132,90 @@ export default function VideoComparePage() {
             fontSize: "0.9rem",
           }}
         >
-          + 新建实验
+          进入 Workbench
         </Link>
+        <Link
+          to="/video-lab/style-sweep"
+          style={{
+            background: "#8b5cf6",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "8px",
+            padding: "0.5rem 1rem",
+            fontSize: "0.9rem",
+          }}
+        >
+          进入 Style Sweep
+        </Link>
+        <Link
+          to="/video-lab/style-gallery"
+          style={{
+            background: "#10b981",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "8px",
+            padding: "0.5rem 1rem",
+            fontSize: "0.9rem",
+          }}
+        >
+          进入 Style Gallery
+        </Link>
+        <Link
+          to="/video-lab"
+          style={{
+            background: "#64748b",
+            color: "white",
+            textDecoration: "none",
+            borderRadius: "8px",
+            padding: "0.5rem 1rem",
+            fontSize: "0.9rem",
+          }}
+        >
+          返回 Video Lab 总控台
+        </Link>
+        {/* 任务三：清空本地对比数据按钮 */}
+        <button
+          type="button"
+          onClick={handleClearLocal}
+          data-testid="clear-local-compare"
+          style={{
+            background: "#fef2f2",
+            color: "#dc2626",
+            border: "1px solid #fecaca",
+            borderRadius: "8px",
+            padding: "0.5rem 1rem",
+            fontSize: "0.9rem",
+            cursor: "pointer",
+            marginLeft: "auto",
+          }}
+          title="只清空当前浏览器 localStorage，不删除后端文件、不删除 runtime 视频。"
+        >
+          清空本地对比数据
+        </button>
+      </div>
+      <div
+        style={{
+          fontSize: "0.8rem",
+          color: "#94a3b8",
+          marginTop: "-1rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        只清空当前浏览器 localStorage，不删除后端文件、不删除 runtime 视频。
+      </div>
+
+      {/* 任务六：标题/副标题明确"本地结果对比" */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+          本地结果对比
+        </h1>
+        <p style={{ color: "#64748b" }}>
+          按测试用例分组展示当前浏览器 localStorage 中的暂存实验结果
+        </p>
       </div>
 
       {experiments.length === 0 ? (
+        // 任务五：空状态文案改成"当前浏览器暂无本地暂存对比数据"
         <div
           style={{
             background: "#f8fafc",
@@ -101,20 +226,38 @@ export default function VideoComparePage() {
             color: "#64748b",
           }}
         >
-          <p style={{ marginBottom: "1rem" }}>暂无实验数据</p>
-          <Link
-            to="/video-lab/experiments/new"
-            style={{
-              background: "#3b82f6",
-              color: "white",
-              textDecoration: "none",
-              borderRadius: "8px",
-              padding: "0.5rem 1rem",
-              fontSize: "0.9rem",
-            }}
-          >
-            创建第一个实验
-          </Link>
+          <p style={{ marginBottom: "0.5rem", fontWeight: 500 }}>当前浏览器暂无本地暂存对比数据</p>
+          <p style={{ fontSize: "0.85rem", color: "#94a3b8", marginBottom: "1.5rem" }}>
+            这只表示 localStorage["vl_experiments"] 为空，不代表系统没有 Workbench 样片或 Style Sweep 结果。
+          </p>
+          <div style={{ display: "inline-flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "center" }}>
+            <Link
+              to="/video-lab/workbench"
+              style={{
+                background: "#3b82f6",
+                color: "white",
+                textDecoration: "none",
+                borderRadius: "8px",
+                padding: "0.5rem 1rem",
+                fontSize: "0.9rem",
+              }}
+            >
+              进入 Workbench
+            </Link>
+            <Link
+              to="/video-lab/style-gallery"
+              style={{
+                background: "#10b981",
+                color: "white",
+                textDecoration: "none",
+                borderRadius: "8px",
+                padding: "0.5rem 1rem",
+                fontSize: "0.9rem",
+              }}
+            >
+              进入 Style Gallery
+            </Link>
+          </div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>

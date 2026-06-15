@@ -54,7 +54,7 @@ Workbench 生成完整视频
 - **首页不再宣传「8 类技术路线」**：V0.7.4 起不再展示，改为只列当前主线 / 验证 / 历史。
 - **V0.7.5 巡检发现：5 个对比页冗余**（route-benchmark / route-playground / route-baseline-comparison / compare / visual-compose）：多数被技术探测台覆盖；后续应收敛为 1 条主线。详见 [docs/UI_ENTRY_AUDIT.md](UI_ENTRY_AUDIT.md) §7 P1。
 - **VideoMethodsPage 能力边界表达已澄清（V0.8.5）**：V0.7.5 巡检发现 `/video-lab/methods` 文案提到「6 类视频生成方案」，实际渲染器只接入了 3 类（Pillow / Remotion / AI 素材），但文案给用户"6 类都完整可用"的错觉。V0.8.5 已：① 标题改为「视频生成路线库」+「6 类视频生成路线参考（不表示都已在主流程中可调用）」；② 顶部红字提示"并非所有路线都已接入当前主流程"；③ 新增主流程入口卡片（Workbench / Style Sweep / Style Gallery）+ 「返回 Video Lab 总控台」次级按钮；④ 顶部增加 `available / mock / reserved / not_configured` 状态说明面板，并明确"当前主流程渲染器只接入了 Pillow 与 Remotion 两条"；⑤ 每张方法卡顶部增加蓝色「当前定位」条（按 id 路由），例如 "主流程重点验证：对应 Remotion 动态模板路线" / "部分验证：AI 素材路线仍非 Workbench 默认可用" / "后续预留"。**状态 badge 未被改动**：seedData 中全部方法仍是 `mock` 或 `reserved`，本轮**不强行改为 available**。
-- **V0.7.5 巡检发现：结果对比页（`/video-lab/compare`）读 localStorage，非实时后端**：用户看到的对比数据可能是过时的旧数据。
+- **结果对比页 localStorage 数据来源已澄清（V0.8.6）**：`/video-lab/compare` 当前定位为"本地结果对比页"，数据来源为当前浏览器 `localStorage["vl_experiments"]`，不是后端真实实验库，也不代表 Workbench / Style Sweep / Style Gallery 的全部最新结果。页面已增加数据来源提示、本地实验数、清空本地对比数据按钮、主流程快捷入口和空状态说明。后续如需全局真实对比，应另做后端实验库 / 样片库对比能力。
 - **V0.7.6 手工验收发现：Style Gallery 样片卡片展示弱**：Workbench 样片虽然可见，但视频预览小、缺少放大预览 / 查看详情入口，用户难以判断样片效果。V0.7.7 已加"查看效果"提示 + 原生全屏按钮，不做 modal 大重构。
 - **V0.7.6 手工验收发现：历史 / 参考 / 待清理入口位置不够直观**：用户需要下滚才能看到，首页"🗄️ 历史 / 参考 / 待清理（不参与主流程）"标题之上 V0.7.7 已增加一个次级按钮 / 锚点，引导用户快速跳到该区。
 - **V0.7.6 手工验收发现：Advice 页面当前只是文字建议页**：不能当作真实数据驱动推荐系统，V0.7.7 已在页面顶部加定位 banner 明确"当前为历史建议页 / 文字规则页，尚未接入完整真实实验数据"，并提供返回主流程的按钮。
