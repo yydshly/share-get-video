@@ -66,6 +66,7 @@ class PillowVisualRenderer(VisualRenderer):
             include_overview=rp.include_overview,
             include_summary=rp.include_summary,
             segment_durations=request.voiceover_segments or None,
+            style_params=request.params or None,
         )
         warnings.extend(frame_result.get("warnings", []))
         logs.append(f"[pillow] frames={frame_result.get('total_frames', 0)}")

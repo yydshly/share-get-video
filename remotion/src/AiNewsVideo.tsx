@@ -12,7 +12,7 @@ import {
   spring,
   Sequence,
 } from "remotion";
-import type { AiNewsVideoProps, KeyPoint } from "./data";
+import type { AiNewsVideoProps, KeyPoint, RemotionStyle } from "./data";
 
 // ─── Highlight Helper (V0.3.6-b1) ────────────────────────────────────────────
 /** Auto-extract numbers, percentages, and key terms from text (fallback). */
@@ -92,6 +92,43 @@ const C = {
   textMuted: "#64748b",
   border: "#1e293b",
   glow: "rgba(59, 130, 246, 0.15)",
+};
+
+// ─── Tone presets (主题自适应：按语义配色/图标) ──────────────────────────────
+const TONE_STYLES: Record<string, { accent: string; highlight: string; glyph: string }> = {
+  positive: { accent: "#22c55e", highlight: "#86efac", glyph: "↑" },
+  negative: { accent: "#f59e0b", highlight: "#fcd34d", glyph: "!" },
+  neutral: { accent: "#3b82f6", highlight: "#60a5fa", glyph: "✦" },
+};
+
+// ─── Data motion helpers (count-up number + growing bar) ─────────────────────
+// Remotion 特有：把百分比做成"数字滚动 + 数据条生长"，这是静态卡(Pillow)做不到的动画。
+function findPrimaryStat(kp: KeyPoint): { value: number; suffix: string } | null {
+  const sources = [...(kp.emphasisTerms ?? []), kp.body ?? "", kp.title ?? ""];
+  for (const s of sources) {
+    const m = String(s).match(/(\d+(?:\.\d+)?)\s*%/);
+    if (m) return { value: parseFloat(m[1]), suffix: "%" };
+  }
+  return null;
+}
+
+const CountUpNumber: React.FC<{
+  value: number; suffix?: string; startFrame?: number; durationFrames?: number; decimals?: number; style?: React.CSSProperties;
+}> = ({ value, suffix = "", startFrame = 18, durationFrames = 26, decimals = 0, style }) => {
+  const frame = useCurrentFrame();
+  const p = interpolate(frame, [startFrame, startFrame + durationFrames], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+  return <span style={style}>{(value * eased).toFixed(decimals)}{suffix}</span>;
+};
+
+const DataBar: React.FC<{ pct: number; startFrame?: number; durationFrames?: number; fromColor?: string; toColor?: string }> = ({ pct, startFrame = 18, durationFrames = 30, fromColor = C.accent, toColor = C.highlight }) => {
+  const frame = useCurrentFrame();
+  const w = interpolate(frame, [startFrame, startFrame + durationFrames], [0, Math.min(100, Math.max(0, pct))], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (
+    <div style={{ width: "100%", height: 16, background: C.surface, borderRadius: 999, overflow: "hidden", marginTop: 10, border: `1px solid ${C.border}` }}>
+      <div style={{ width: `${w}%`, height: "100%", background: `linear-gradient(90deg, ${fromColor}, ${toColor})`, borderRadius: 999 }} />
+    </div>
+  );
 };
 
 // ─── Cover Page (V0.3.8: compact, includes 3-point preview list) ─────────────
@@ -273,9 +310,18 @@ const KeyPointCard: React.FC<{
   startFrame: number;
   totalDuration: number;
   fps: number;
-}> = ({ kp, index, startFrame, totalDuration, fps }) => {
+  vstyle?: RemotionStyle;
+}> = ({ kp, index, startFrame, totalDuration, fps, vstyle }) => {
   const frame = useCurrentFrame();
   const localFrame = Math.max(0, frame - startFrame);
+
+  // 主题自适应 + 可调样式（显式 vstyle 优先，否则按该条 tone 配色/图标）
+  const tonePreset = TONE_STYLES[(kp.tone || "neutral")] || TONE_STYLES.neutral;
+  const accent = vstyle?.accentColor || tonePreset.accent;
+  const hl = vstyle?.highlightColor || tonePreset.highlight;
+  const fs = vstyle?.fontScale || 1;
+  const showIcon = vstyle?.showIcon ?? true;
+  const iconGlyph = tonePreset.glyph;
 
   const cardOpacity = interpolate(localFrame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
   const cardY = interpolate(localFrame, [0, 12], [40, 0], { extrapolateRight: "clamp" });
@@ -325,12 +371,12 @@ const KeyPointCard: React.FC<{
             left: "10%",
             right: "10%",
             height: 3,
-            background: `linear-gradient(90deg, transparent, ${C.accent}, transparent)`,
+            background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
             opacity: 0.3 + borderPulse * 0.4,
           }}
         />
 
-        {/* Header row: big index + category tag */}
+        {/* Header row: big index + category tag + optional icon */}
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 36 }}>
           <div
             style={{
@@ -340,12 +386,12 @@ const KeyPointCard: React.FC<{
               width: 72,
               height: 72,
               borderRadius: 18,
-              background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
+              background: `linear-gradient(135deg, ${accent}, ${C.accent2})`,
               fontSize: 32,
               fontWeight: 800,
               color: C.textPrimary,
               opacity: indexOpacity,
-              boxShadow: `0 0 30px ${C.accent}60`,
+              boxShadow: `0 0 30px ${accent}60`,
             }}
           >
             {String(index + 1).padStart(2, "0")}
@@ -354,9 +400,9 @@ const KeyPointCard: React.FC<{
             style={{
               fontSize: 16,
               fontWeight: 700,
-              color: C.accent,
-              background: "rgba(59, 130, 246, 0.15)",
-              border: `1px solid rgba(59, 130, 246, 0.4)`,
+              color: accent,
+              background: `${accent}26`,
+              border: `1px solid ${accent}66`,
               borderRadius: 999,
               padding: "6px 16px",
               letterSpacing: 1.5,
@@ -366,13 +412,33 @@ const KeyPointCard: React.FC<{
           >
             KEY POINT
           </div>
+          {showIcon && (
+            <div
+              style={{
+                marginLeft: "auto",
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                background: `${accent}22`,
+                border: `2px solid ${accent}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: accent,
+                fontSize: 24,
+                fontWeight: 900,
+                opacity: indexOpacity,
+              }}
+            >
+              {iconGlyph}
+            </div>
+          )}
         </div>
 
-        {/* Title - V0.3.6-a: increased to 44px for mobile readability */}
-        {/* V0.3.6-b1: priority emphasisTerms > auto-extract */}
+        {/* Title */}
         <h2
           style={{
-            fontSize: 44,
+            fontSize: Math.round(44 * fs),
             fontWeight: 800,
             color: C.textPrimary,
             margin: 0,
@@ -382,7 +448,7 @@ const KeyPointCard: React.FC<{
             textShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
           }}
         >
-          <HighlightedText text={kp.title} style={{}} emphasisTerms={kp.emphasisTerms} />
+          <HighlightedText text={kp.title} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
         </h2>
 
         {/* Decorative separator */}
@@ -390,18 +456,17 @@ const KeyPointCard: React.FC<{
           style={{
             width: 80,
             height: 3,
-            background: `linear-gradient(90deg, ${C.accent}, ${C.accent2})`,
+            background: `linear-gradient(90deg, ${accent}, ${C.accent2})`,
             borderRadius: 2,
             marginBottom: 28,
             opacity: titleOpacity,
           }}
         />
 
-        {/* Body - V0.3.6-a: increased to 32px for mobile readability */}
-        {/* V0.3.6-b1: priority emphasisTerms > auto-extract */}
+        {/* Body */}
         <p
           style={{
-            fontSize: 32,
+            fontSize: Math.round(32 * fs),
             color: C.textSecondary,
             margin: 0,
             marginBottom: 28,
@@ -409,8 +474,25 @@ const KeyPointCard: React.FC<{
             opacity: bodyOpacity,
           }}
         >
-          <HighlightedText text={kp.body} style={{}} highlightColor={C.highlight} emphasisTerms={kp.emphasisTerms} />
+          <HighlightedText text={kp.body} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
         </p>
+
+        {/* Data animation: count-up + growing bar for the primary percentage */}
+        {(() => {
+          const stat = findPrimaryStat(kp);
+          if (!stat) return null;
+          return (
+            <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
+              <CountUpNumber
+                value={stat.value}
+                suffix={stat.suffix}
+                decimals={stat.value % 1 === 0 ? 0 : 1}
+                style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}
+              />
+              <DataBar pct={stat.value} fromColor={accent} toColor={hl} />
+            </div>
+          );
+        })()}
 
         {/* Source footer */}
         {kp.source && (
@@ -549,6 +631,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   keyPoints,
   durationSec,
   segmentDurations,
+  style,
 }) => {
   const { fps } = useVideoConfig();
 
@@ -606,6 +689,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
             startFrame={0}
             totalDuration={cardFramesArr[i]}
             fps={fps}
+            vstyle={style}
           />
         </Sequence>
       ))}

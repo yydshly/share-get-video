@@ -36,6 +36,8 @@ def build_remotion_props(
 
     # Build keyPoints array (prefer LLM-planned headline/display)
     # V0.3.6-b1: also carry emphasisTerms for Remotion highlighting
+    from app.video_lab.renderers.theme_presets import resolve_shot_tone
+
     kps_list = key_points.get("keyPoints", key_points.get("key_points", []))
     key_points_list = []
     for kp in kps_list:
@@ -46,6 +48,8 @@ def build_remotion_props(
                 "source": kp.get("source", ""),
                 # V0.3.6-b1: carry through emphasisTerms if present
                 "emphasisTerms": kp.get("emphasisTerms", []),
+                # 主题自适应：解析每条基调（LLM 给的优先，否则按文本推断）
+                "tone": resolve_shot_tone(kp),
             })
         else:
             key_points_list.append({
@@ -53,6 +57,7 @@ def build_remotion_props(
                 "body": "",
                 "source": "",
                 "emphasisTerms": [],
+                "tone": "neutral",
             })
 
     num_kps = len(key_points_list)
@@ -83,6 +88,27 @@ def build_remotion_props(
     }
     if segment_durations_prop:
         props["segmentDurations"] = segment_durations_prop
+
+    # 可调样式（对应调试台旋钮：配色/字号/图标）
+    rstyle = params.get("remotionStyle") if isinstance(params.get("remotionStyle"), dict) else {}
+    style: dict[str, Any] = {}
+    accent = rstyle.get("accentColor") or params.get("accentColor")
+    highlight = rstyle.get("highlightColor") or params.get("highlightColor")
+    font_scale = rstyle.get("fontScale") or params.get("fontScale")
+    show_icon = rstyle.get("showIcon") if rstyle.get("showIcon") is not None else params.get("showIcon")
+    if accent:
+        style["accentColor"] = accent
+    if highlight:
+        style["highlightColor"] = highlight
+    if font_scale:
+        try:
+            style["fontScale"] = float(font_scale)
+        except (TypeError, ValueError):
+            pass
+    if show_icon is not None:
+        style["showIcon"] = bool(show_icon)
+    if style:
+        props["style"] = style
 
     # Write props to runtime directory
     props_path = _write_props_json(experiment_id, props)

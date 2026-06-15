@@ -9,7 +9,7 @@ from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResu
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
-from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest
+from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -270,6 +270,128 @@ def list_visual_routes() -> list[dict[str, Any]]:
     return list_visual_renderers()
 
 
+@router.post("/frame-preview")
+def frame_preview(request: FramePreviewRequest) -> dict[str, Any]:
+    """单帧快速预览（调试台）：渲染一张帧，秒级返回，用于调版式/参数/强调词。
+
+    不跑 TTS、不合成视频。Remotion 路线返回提示（动效路线单帧无意义）。
+    """
+    from app.video_lab.renderers.frame_preview import render_single_frame
+    try:
+        return render_single_frame(
+            visual_route=request.visualRoute,
+            frame_type=request.frameType,
+            shot=request.shot,
+            cover_title=request.coverTitle,
+            params=request.params,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/visual-judge")
+def visual_judge(request: VisualJudgeRequest) -> dict[str, Any]:
+    """视觉模型感知评分：把画面交给多模态大模型，评 排版/可读性/层级/美观 + 改进建议。
+
+    支持图片；若传入视频(.mp4)则自动抽取中间一帧再评。
+    """
+    import subprocess
+    import uuid
+    from pathlib import Path
+    from app.video_lab.quality.visual_judge import assess_visual_quality
+
+    url = request.imageUrl
+    rel = url[len("/runtime/"):] if url.startswith("/runtime/") else url.lstrip("/")
+    local = Path("runtime") / rel if not rel.startswith("runtime") else Path(rel)
+    if not local.exists():
+        raise HTTPException(status_code=404, detail=f"file not found: {local}")
+
+    # 视频：均匀抽多帧，综合评整片（封面/关键点/结尾）
+    judge_paths: list[str] = [str(local)]
+    if local.suffix.lower() in (".mp4", ".webm", ".mov"):
+        try:
+            probe = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "default=nw=1:nk=1", local.as_posix()],
+                capture_output=True, text=True, timeout=30,
+            )
+            duration = float((probe.stdout or "0").strip() or 0)
+        except Exception:
+            duration = 0.0
+        fractions = [0.08, 0.35, 0.62, 0.88]
+        tag = uuid.uuid4().hex[:6]
+        judge_paths = []
+        for i, fr in enumerate(fractions):
+            t = max(0.0, duration * fr) if duration > 0 else i * 1.5
+            fp = local.parent / f"judge_{tag}_{i}.png"
+            try:
+                subprocess.run(
+                    ["ffmpeg", "-y", "-ss", f"{t:.2f}", "-i", local.as_posix(),
+                     "-vframes", "1", fp.as_posix()],
+                    capture_output=True, timeout=60,
+                )
+            except Exception:
+                continue
+            if fp.exists():
+                judge_paths.append(str(fp))
+        if not judge_paths:
+            raise HTTPException(status_code=500, detail="failed to extract frames from video")
+
+    result = assess_visual_quality(judge_paths)
+
+    # 感知层评分留痕（仅当提供 route 且评分成功）
+    if request.route and result.get("success"):
+        try:
+            from app.video_lab.quality.quality_log import append_record
+            append_record({
+                "kind": "perceptual",
+                "route": request.route,
+                "overall": result.get("overall"),
+                "dimensions": result.get("scores", {}),
+                "imageUrl": request.imageUrl,
+            })
+        except Exception:
+            pass
+
+    return result
+
+
+@router.get("/quality-history")
+def quality_history(route: str = "", kind: str = "", limit: int = 300) -> list[dict[str, Any]]:
+    """读取质量评分历史（可按 route / kind 过滤）。"""
+    from app.video_lab.quality.quality_log import read_records
+    return read_records(route=route or None, kind=kind or None, limit=limit)
+
+
+@router.get("/quality-summary")
+def quality_summary() -> dict[str, Any]:
+    """按路线聚合：每条路线各类评分的最新值 + 趋势（delta）。"""
+    from app.video_lab.quality.quality_log import summarize_by_route
+    return summarize_by_route()
+
+
+@router.post("/clip-preview")
+def clip_preview(request: ClipPreviewRequest) -> dict[str, Any]:
+    """渲染一小段（~3s）动效片段。
+
+    - Remotion：渲染前几秒真实动画
+    - Pillow / AI 素材：Ken Burns（缓慢缩放 + 淡入）
+    """
+    from app.video_lab.renderers.frame_preview import render_clip_preview
+    try:
+        return render_clip_preview(
+            content=request.content,
+            visual_route=request.visualRoute,
+            params=request.params,
+            clip_seconds=int((request.params or {}).get("clipSeconds", 3)),
+            shot=request.shot,
+            frame_type=request.frameType,
+            cover_title=request.coverTitle,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/visual-compose")
 def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
     """Run ONE visual route end-to-end (LLM plan + TTS + 字幕 + 合成) and return
@@ -321,6 +443,25 @@ def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
                 audio_url = audio_url or payload.get("audioUrl", "")
                 srt_url = srt_url or payload.get("srtUrl", "")
                 manifest_url = manifest_url or payload.get("manifestUrl", "")
+
+    # 结构层评分留痕（趋势/防退化）
+    try:
+        from app.video_lab.quality.quality_log import append_record
+        _q = raw.get("quality", {}) or {}
+        append_record({
+            "kind": "structural",
+            "route": request.visualRoute,
+            "experimentId": exp_id,
+            "status": status,
+            "overall": _q.get("overallScore"),
+            "dimensions": _q.get("dimensionScores", {}),
+            "durationSec": assets.get("audioDurationSec", 0),
+            "subtitleCount": assets.get("subtitleCount", 0),
+            "contentChars": len(request.content),
+            "params": params,
+        })
+    except Exception:
+        pass
 
     return {
         "experimentId": exp_id,

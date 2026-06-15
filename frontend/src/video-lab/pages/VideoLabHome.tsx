@@ -11,6 +11,20 @@ const NAV_CARDS = [
     color: "#2563eb",
   },
   {
+    to: "/video-lab/frame-preview",
+    title: "调试台",
+    desc: "单帧秒级预览，调版式/参数/强调词",
+    icon: "🛠️",
+    color: "#0ea5e9",
+  },
+  {
+    to: "/video-lab/quality-history",
+    title: "评分趋势",
+    desc: "质量评分留痕，看版本间涨跌、防退化",
+    icon: "📈",
+    color: "#14b8a6",
+  },
+  {
     to: "/video-lab/test-cases",
     title: "测试用例",
     desc: "查看内置标准测试场景",

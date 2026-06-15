@@ -82,9 +82,11 @@ export default function VisualComposePage() {
   const [duration, setDuration] = useState(45);
   const [keyPointCount, setKeyPointCount] = useState(6);
   const [useLlmPlan, setUseLlmPlan] = useState(true);
+  const [styleJson, setStyleJson] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<Record<string, RouteResult>>({});
+  const [judges, setJudges] = useState<Record<string, { loading?: boolean; success?: boolean; overall?: number; scores?: Record<string, number>; suggestions?: string[]; message?: string }>>({});
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -113,6 +115,11 @@ export default function VisualComposePage() {
     setRunning(true);
     setResults(Object.fromEntries(selected.map((r) => [r, { visualRoute: r, _pending: true } as RouteResult])));
 
+    let parsedStyle: Record<string, unknown> = {};
+    if (styleJson.trim()) {
+      try { parsedStyle = JSON.parse(styleJson); } catch { setError("样式参数 JSON 格式错误，已忽略"); }
+    }
+
     for (const route of selected) {
       try {
         const resp = await fetch(`${API_BASE}/visual-compose`, {
@@ -121,7 +128,7 @@ export default function VisualComposePage() {
           body: JSON.stringify({
             content,
             visualRoute: route,
-            params: { targetDuration: duration, aspectRatio: "9:16", keyPointCount, useLlmPlan },
+            params: { targetDuration: duration, aspectRatio: "9:16", keyPointCount, useLlmPlan, ...parsedStyle },
           }),
         });
         const data = await resp.json();
@@ -139,6 +146,25 @@ export default function VisualComposePage() {
 
   const resolveUrl = (u: string) =>
     u && u.startsWith("/runtime/") ? `${API_BASE.replace(/\/video-lab$/, "")}${u}` : u;
+
+  const JUDGE_DIMS: Record<string, string> = { layout: "排版", readability: "可读性", hierarchy: "层级", aesthetics: "美观", consistency: "一致性" };
+
+  const judgeRoute = async (route: string) => {
+    const r = results[route];
+    const url = r?.finalVideoUrl || r?.coverUrl;  // 优先视频 → 多帧综合评分
+    if (!url) return;
+    setJudges((p) => ({ ...p, [route]: { loading: true } }));
+    try {
+      const resp = await fetch(`${API_BASE}/visual-judge`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: url, route }),
+      });
+      const data = await resp.json();
+      setJudges((p) => ({ ...p, [route]: { ...data, loading: false } }));
+    } catch (e) {
+      setJudges((p) => ({ ...p, [route]: { success: false, message: String(e), loading: false } }));
+    }
+  };
 
   return (
     <div style={{ padding: "2rem", maxWidth: "1280px", margin: "0 auto" }}>
@@ -164,6 +190,15 @@ export default function VisualComposePage() {
             <input type="checkbox" checked={useLlmPlan} onChange={(e) => setUseLlmPlan(e.target.checked)} /> 用大模型规划展示
           </label>
         </div>
+        <details style={{ marginTop: "0.75rem" }}>
+          <summary style={{ cursor: "pointer", fontSize: "0.8rem", color: "#475569", fontWeight: 600 }}>样式参数（可选，应用到所有路线）</summary>
+          <div style={{ fontSize: "0.72rem", color: "#94a3b8", margin: "0.4rem 0" }}>
+            把调试台调好的样式 JSON 贴这里，正式出片就会带上。例如：
+            <code style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 3 }}>{`{"highlightColor":"#22d3ee","contentAlign":"center","icon":"bars","remotionStyle":{"accentColor":"#22d3ee","fontScale":1.1,"showIcon":true}}`}</code>
+          </div>
+          <textarea value={styleJson} onChange={(e) => setStyleJson(e.target.value)} rows={3}
+            placeholder='{"highlightColor":"#22d3ee", ...}' style={{ width: "100%", padding: "0.5rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", fontFamily: "monospace", boxSizing: "border-box" }} />
+        </details>
       </div>
 
       {/* 路线选择 */}
@@ -280,6 +315,41 @@ export default function VisualComposePage() {
                       {q.checks.every((c) => c.status === "pass") && <div style={{ color: "#10b981" }}>全部检查通过 ✓</div>}
                     </div>
                   </>
+                )}
+
+                {/* AI 视觉评分（感知层：好不好看） */}
+                {r.status === "succeeded" && (r.coverUrl || r.finalVideoUrl) && (
+                  <div style={{ marginTop: "0.6rem", borderTop: "1px solid #f1f5f9", paddingTop: "0.6rem" }}>
+                    {(() => {
+                      const j = judges[route];
+                      return (
+                        <>
+                          <button onClick={() => judgeRoute(route)} disabled={j?.loading}
+                            style={{ background: j?.loading ? "#94a3b8" : "#10b981", color: "white", border: "none", borderRadius: 6, padding: "0.35rem 0.75rem", fontSize: "0.75rem", cursor: j?.loading ? "wait" : "pointer" }}>
+                            {j?.loading ? "AI 评分中..." : "🤖 AI 视觉评分"}
+                          </button>
+                          {j && j.success && (
+                            <div style={{ marginTop: "0.5rem" }}>
+                              <div style={{ fontWeight: 700, fontSize: "0.85rem" }}>感知 {j.overall}/5</div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem", margin: "0.3rem 0" }}>
+                                {j.scores && Object.entries(j.scores).map(([k, v]) => (
+                                  <span key={k} style={{ fontSize: "0.7rem", background: "#ecfdf5", color: "#065f46", borderRadius: 6, padding: "1px 7px" }}>
+                                    {JUDGE_DIMS[k] ?? k}: <b>{v}</b>
+                                  </span>
+                                ))}
+                              </div>
+                              {j.suggestions && j.suggestions.length > 0 && (
+                                <ul style={{ margin: 0, paddingLeft: 16, color: "#64748b", fontSize: "0.72rem", lineHeight: 1.6 }}>
+                                  {j.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+                          {j && j.success === false && <div style={{ color: "#f59e0b", fontSize: "0.72rem", marginTop: "0.4rem" }}>{j.message}</div>}
+                        </>
+                      );
+                    })()}
+                  </div>
                 )}
 
                 {/* 交互参数 */}

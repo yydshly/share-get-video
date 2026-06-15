@@ -8,8 +8,10 @@ Endpoint: POST {base}/v1/text/chatcompletion_v2
 
 from __future__ import annotations
 
+import base64
 import json
 import os
+from pathlib import Path
 
 import requests
 
@@ -75,6 +77,38 @@ class MiniMaxChatClient:
             return {"success": True, "content": content, "providerMessage": "Success"}
         except Exception as exc:
             return {"success": False, "content": "", "providerMessage": f"request failed: {exc}"}
+
+    def chat_vision(
+        self,
+        text: str,
+        image_paths: list[str],
+        temperature: float = 0.2,
+        max_tokens: int = 1500,
+        timeout: int = 90,
+    ) -> dict:
+        """图像理解：文本 + 一张或多张本地图片 → 模型回复。MiniMax-Text-01 支持多模态。"""
+        content: list[dict] = [{"type": "text", "text": text}]
+        for p in image_paths:
+            try:
+                raw = Path(p).read_bytes()
+            except Exception as e:
+                return {"success": False, "content": "", "providerMessage": f"read image failed: {e}"}
+            b64 = "data:image/png;base64," + base64.b64encode(raw).decode()
+            content.append({"type": "image_url", "image_url": {"url": b64}})
+        return self.chat(
+            [{"role": "user", "content": content}],
+            temperature=temperature, max_tokens=max_tokens, timeout=timeout,
+        )
+
+    def chat_vision_json(self, text: str, image_paths: list[str], **kwargs) -> dict:
+        """图像理解并解析为 JSON。"""
+        result = self.chat_vision(text, image_paths, **kwargs)
+        if not result["success"]:
+            return result
+        parsed = _extract_json(result["content"].strip())
+        if parsed is None:
+            return {"success": False, "content": result["content"], "providerMessage": "failed to parse JSON"}
+        return {"success": True, "content": result["content"], "json": parsed, "providerMessage": "Success"}
 
     def chat_json(self, messages: list[dict], **kwargs) -> dict:
         """Call chat and parse the response as JSON (tolerant to ```json fences)."""

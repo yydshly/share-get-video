@@ -116,6 +116,7 @@ def generate_frames(
     include_summary: bool = True,
     segment_durations: list | None = None,
     backgrounds: dict | None = None,
+    style_params: dict | None = None,
 ) -> dict:
     """
     Generate all frames using AI Frontier Dark templates.
@@ -154,6 +155,28 @@ def generate_frames(
     all_warnings = []
     frame_outputs = []
     duration_per_frame = {}
+
+    # 样式参数（配色/对齐/图标），来自调试台/对比页参数
+    sp = style_params or {}
+
+    def _color(v):
+        if isinstance(v, (list, tuple)) and len(v) >= 3:
+            return (int(v[0]), int(v[1]), int(v[2]))
+        if isinstance(v, str) and v.startswith("#") and len(v) == 7:
+            try:
+                return (int(v[1:3], 16), int(v[3:5], 16), int(v[5:7], 16))
+            except ValueError:
+                return None
+        return None
+
+    kp_title_color = _color(sp.get("titleColor"))
+    kp_body_color = _color(sp.get("bodyColor"))
+    kp_highlight_color = _color(sp.get("highlightColor"))
+    kp_content_align = sp.get("contentAlign", "top")
+    kp_icon = sp.get("icon", "")
+    # 主题自适应：按每条语义自动配高亮色/图标（显式样式优先，可用 themeAdaptive=false 关闭）
+    theme_adaptive = sp.get("themeAdaptive", True) not in (False, "false", "False", 0)
+    from app.video_lab.renderers.theme_presets import resolve_shot_tone, tone_to_style
 
     kps = key_points.get("keyPoints") or key_points.get("key_points") or []
     num_keypoints = len(kps)
@@ -254,6 +277,18 @@ def generate_frames(
         highlights = extract_highlights_by_mode(f"{headline} {detail}", highlight_mode)
         all_highlights.extend(highlights)
 
+        # 主题自适应：每条按语义配高亮色/图标（显式样式优先）
+        eff_highlight = kp_highlight_color
+        eff_icon = kp_icon
+        card_tone = ""
+        if theme_adaptive:
+            card_tone = resolve_shot_tone(kp)
+            preset = tone_to_style(card_tone)
+            if eff_highlight is None:
+                eff_highlight = _color(preset["highlight"])
+            if not eff_icon:
+                eff_icon = preset["icon"]
+
         frame_result = render_keypoint_template(
             index=i,
             total=num_keypoints,
@@ -265,6 +300,11 @@ def generate_frames(
             resolution=resolution,
             background_path=(backgrounds or {}).get(i),
             emphasis_terms=emphasis_terms,
+            title_color=kp_title_color,
+            body_color=kp_body_color,
+            highlight_color=eff_highlight,
+            content_align=kp_content_align,
+            icon=eff_icon,
         )
         frame_name = frame_result["frame_name"]
         frame_outputs.append({

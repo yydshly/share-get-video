@@ -63,9 +63,10 @@ def _build_user_prompt(lead: str, items: list[dict]) -> str:
         "不要为了短而省略关键事实（长度以信息完整为准，约 30-80 字）\n"
         "- narration: 口播文案，自然口语，完整传达该条信息（保留关键数字），可比 display 略详细\n"
         "- emphasisTerms: 数组，该条最值得突出的 1-4 个关键词，优先数字/百分比/模型名/系统名/机构名，如 []\n"
+        "- tone: 该条的语义基调，只能取 positive（突破/提升/达成）/ negative（短板/漏洞/落后/风险）/ neutral（合作/发布/中性）之一\n"
         "再输出：coverTitle（<=16字封面标题）、opening（<=30字开场钩子句，要有观点/冲突/趋势，不要流水账）、closing（<=24字收尾口播）。\n"
         "严格输出 JSON：\n"
-        '{"coverTitle":"...","opening":"...","shots":[{"headline":"...","display":"...","narration":"...","emphasisTerms":["..."]}],"closing":"..."}\n\n'
+        '{"coverTitle":"...","opening":"...","shots":[{"headline":"...","display":"...","narration":"...","emphasisTerms":["..."],"tone":"positive"}],"closing":"..."}\n\n'
         f"待改写的 {n} 条要点：\n{items_block}"
     )
 
@@ -226,11 +227,15 @@ def _normalize_plan(raw: dict, items: list[dict], lead: str) -> dict[str, Any]:
             # Auto-extract from resolved content (after fallback fill)
             emp = _extract_emphasis_terms(f"{headline} {display} {narration}", max_terms=4)
 
+        tone = (s.get("tone") or "").strip().lower()
+        if tone not in ("positive", "negative", "neutral"):
+            tone = ""  # 留空，渲染器按文本推断
         shots.append({
             "headline": _clamp(headline, 18),
             "display": display,          # 不截断
             "narration": narration,      # 不截断
             "emphasisTerms": emp,
+            "tone": tone,
         })
 
     cover_default, _ = split_headline_and_detail(lead)

@@ -173,6 +173,44 @@ def draw_tag(
     return (tag_w, tag_h)
 
 
+def draw_simple_icon(
+    draw: ImageDraw.ImageDraw,
+    kind: str,
+    cx: int,
+    cy: int,
+    size: int,
+    color: Tuple[int, int, int],
+) -> None:
+    """Draw a clean geometric icon (no asset files). kind: bars/arrow/ring/spark/dots."""
+    half = size // 2
+    if kind == "bars":
+        bw = max(4, size // 5)
+        gap = max(2, bw // 2)
+        heights = [size * 0.45, size * 0.72, size * 1.0]
+        x0 = cx - (bw * 3 + gap * 2) // 2
+        base = cy + half
+        for i, h in enumerate(heights):
+            x = x0 + i * (bw + gap)
+            draw.rounded_rectangle([(x, base - h), (x + bw, base)], radius=max(1, bw // 3), fill=color)
+    elif kind == "arrow":
+        draw.polygon([(cx, cy - half), (cx - int(half * 0.72), cy), (cx + int(half * 0.72), cy)], fill=color)
+        sw = max(4, size // 6)
+        draw.rectangle([(cx - sw // 2, cy), (cx + sw // 2, cy + half)], fill=color)
+    elif kind == "ring":
+        w = max(3, size // 8)
+        draw.ellipse([(cx - half, cy - half), (cx + half, cy + half)], outline=color, width=w)
+    elif kind == "spark":
+        q = int(half * 0.34)
+        draw.polygon([
+            (cx, cy - half), (cx + q, cy - q), (cx + half, cy), (cx + q, cy + q),
+            (cx, cy + half), (cx - q, cy + q), (cx - half, cy), (cx - q, cy - q),
+        ], fill=color)
+    elif kind == "dots":
+        r = max(3, size // 9)
+        for dx in (-half + r, 0, half - r):
+            draw.ellipse([(cx + dx - r, cy - r), (cx + dx + r, cy + r)], fill=color)
+
+
 # ─────────────────────────────────────────
 # Cover Frame Template
 # ─────────────────────────────────────────
@@ -486,10 +524,17 @@ def render_keypoint_template(
     resolution: Tuple[int, int] = (1080, 1920),
     background_path: str | None = None,
     emphasis_terms: list[str] | None = None,
+    title_color: Tuple[int, int, int] | None = None,
+    body_color: Tuple[int, int, int] | None = None,
+    highlight_color: Tuple[int, int, int] | None = None,
+    content_align: str = "top",
+    icon: str = "",
 ) -> Dict[str, Any]:
     """
     Render a keypoint card that FILLS the card with auto-fit fonts and never
     truncates content:
+    - title_color/body_color/highlight_color: 可选颜色覆盖（区分标题/正文/重点）
+    - content_align: "top"（默认）| "center"（垂直居中内容，改善留白）
     - Header: big index + optional category tag (hidden when default/empty)
     - Headline (`title`): auto-fit large text
     - Detail (`body`): auto-fit body text, fills remaining space
@@ -562,6 +607,20 @@ def render_keypoint_template(
         cat_style = get_category_style(category)
         draw_tag(draw, category, card_x2 - 140, header_y + 40, font_category, cat_style)
 
+    # Icon badge (V0.3.6-c) — 视觉元素，放在 header 右上（无分类标签时）
+    if icon and icon not in ("none", "") and not show_category:
+        icon_size = int(48 * scale)
+        icon_cx = card_x2 - 70
+        icon_cy = header_y + 40
+        # 浅色圆底
+        bg_r = int(icon_size * 0.85)
+        ib = COLORS["accent_blue"]
+        draw.ellipse(
+            [(icon_cx - bg_r, icon_cy - bg_r), (icon_cx + bg_r, icon_cy + bg_r)],
+            fill=(ib[0], ib[1], ib[2], 30) if img.mode == "RGBA" else COLORS.get("bg_card", (26, 34, 54)),
+        )
+        draw_simple_icon(draw, icon, icon_cx, icon_cy, icon_size, COLORS["accent_blue"])
+
     # Header divider
     bar_y = header_y + 130
     draw.rectangle([(inner_x, bar_y), (card_x2 - 50, bar_y + 2)], fill=COLORS["border_subtle"])
@@ -574,41 +633,57 @@ def render_keypoint_template(
     headline = (title or "").strip()
     detail = (body or "").strip()
 
+    # 颜色（可被参数覆盖，用于区分标题/正文/强调）
+    t_color = title_color or COLORS["text_primary"]
+    b_color = body_color or COLORS["text_secondary"]
+    hl_color = highlight_color or COLORS["highlight_yellow"]
+
     # Allocate vertical space: headline gets up to ~45% when detail exists
     if detail:
         headline_box_h = int(content_h * 0.42)
-        detail_box_h = content_h - headline_box_h - 30
     else:
         headline_box_h = content_h
-        detail_box_h = 0
 
     # Headline — auto-fit large, minimum 40px for readability on mobile
     h_font, h_lines, h_size, h_line_h, h_overflow = fit_wrapped_text(
         headline, inner_w, headline_box_h, draw,
         size_max=int(80 * scale), size_min=int(40 * scale), line_spacing=int(18 * scale),
     )
-    # V0.3.6-b2: pass emphasis_terms for priority highlighting
+
+    # 预拟合正文以测高（用于可选垂直居中）
+    gap = int(40 * scale)
+    headline_h = len(h_lines) * h_line_h
+    d_font = d_lines = None
+    d_line_h = 0
+    d_overflow = False
+    detail_h = 0
+    if detail:
+        prov_detail_top = content_top + headline_h + gap
+        prov_avail_h = content_bottom - prov_detail_top
+        d_font, d_lines, d_size, d_line_h, d_overflow = fit_wrapped_text(
+            detail, inner_w, prov_avail_h, draw,
+            size_max=int(52 * scale), size_min=int(28 * scale), line_spacing=int(14 * scale),
+        )
+        detail_h = len(d_lines) * d_line_h
+
+    # 内容垂直对齐：center 时整块下移居中，改善"下半部空"的留白
+    used_h = headline_h + (gap + detail_h if detail else 0)
+    offset = max(0, (content_h - used_h) // 2) if content_align == "center" else 0
+    head_top = content_top + offset
+
     end_y = _draw_lines_with_highlights(
-        draw, h_lines, inner_x, content_top, h_font, h_line_h,
-        COLORS["text_primary"], COLORS["highlight_yellow"],
-        emphasis_terms=emphasis_terms,
+        draw, h_lines, inner_x, head_top, h_font, h_line_h,
+        t_color, hl_color, emphasis_terms=emphasis_terms,
     )
     if h_overflow:
         warnings.append(f"keypoint {index}: headline overflow (text truncated visually)")
 
-    # Detail — placed right under the headline, fills remaining space
+    # Detail — placed right under the headline
     if detail:
-        detail_top = end_y + int(40 * scale)
-        avail_h = content_bottom - detail_top
-        d_font, d_lines, d_size, d_line_h, d_overflow = fit_wrapped_text(
-            detail, inner_w, avail_h, draw,
-            size_max=int(52 * scale), size_min=int(28 * scale), line_spacing=int(14 * scale),
-        )
-        # V0.3.6-b2: pass emphasis_terms for priority highlighting
+        detail_top = end_y + gap
         _draw_lines_with_highlights(
             draw, d_lines, inner_x, detail_top, d_font, d_line_h,
-            COLORS["text_secondary"], COLORS["highlight_yellow"],
-            emphasis_terms=emphasis_terms,
+            b_color, hl_color, emphasis_terms=emphasis_terms,
         )
         if d_overflow:
             warnings.append(f"keypoint {index}: detail overflow (text truncated visually)")

@@ -80,6 +80,8 @@ def render_remotion_video(
     experiment_id: str,
     props: dict[str, Any],
     timeout: int = 300,
+    frame_range: str | None = None,
+    output_name: str = "output.mp4",
 ) -> dict[str, Any]:
     """
     Execute Remotion render for the AiNewsVideo template.
@@ -88,6 +90,8 @@ def render_remotion_video(
         experiment_id: experiment identifier
         props: Remotion props (from props_builder)
         timeout: max seconds to wait for render
+        frame_range: optional "0-90" 只渲染该帧范围（片段预览，远快于整片）
+        output_name: output filename (default output.mp4; clip 用 clip.mp4)
 
     Returns:
         dict with keys: success (bool), videoUrl (str), manifestUrl (str),
@@ -119,7 +123,7 @@ def render_remotion_video(
     logs.append(f"[Remotion] props: {REMOTION_PROPS_PATH} -> {remotion_props_path}")
 
     # Use absolute path with forward slashes for FFmpeg/Remotion compatibility on Windows
-    output_mp4 = exp_dir.resolve() / "output.mp4"
+    output_mp4 = exp_dir.resolve() / output_name
     output_mp4_posix = Path(output_mp4.as_posix())  # ensures forward slashes
     logs.append(f"[Remotion] output: {output_mp4_posix}")
 
@@ -138,6 +142,8 @@ def render_remotion_video(
         "--codec",
         "h264",
     ]
+    if frame_range:
+        cmd += ["--frames", frame_range]
     logs.append(f"[Remotion] Command: {' '.join(cmd)}")
 
     try:

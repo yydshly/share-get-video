@@ -7,12 +7,21 @@ export type KeyPoint = {
   source?: string;
   // V0.3.6-b1: explicit emphasis terms for highlight; falls back to auto-extract
   emphasisTerms?: string[];
+  // 主题自适应：positive | negative | neutral（驱动配色/图标）
+  tone?: string;
 };
 
 export type SegmentDurations = {
   coverSec: number;
   cardSecs: number[];
   summarySec: number;
+};
+
+export type RemotionStyle = {
+  accentColor?: string;     // 主题强调色（标号/分隔线/数据条/图标）
+  highlightColor?: string;  // 关键词/数字高亮色
+  fontScale?: number;       // 字号缩放（排版清晰度），如 1.1
+  showIcon?: boolean;       // 是否在卡片显示视觉图标元素
 };
 
 export type AiNewsVideoProps = {
@@ -23,6 +32,8 @@ export type AiNewsVideoProps = {
   stylePreset: "ai_frontier_dark";
   // 每段时长（与旁白对齐）；缺省时模板用固定时长
   segmentDurations?: SegmentDurations;
+  // 可调样式（对应调试台旋钮：配色/字号/图标）
+  style?: RemotionStyle;
 };
 
 export const defaultProps: AiNewsVideoProps = {

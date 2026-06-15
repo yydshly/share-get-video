@@ -190,6 +190,8 @@ def run_tts_subtitle_compose(
             "category": "",
             # V0.3.6-b2: carry emphasisTerms through to key_points
             "emphasisTerms": s.get("emphasisTerms", []),
+            # 主题自适应：语义基调
+            "tone": s.get("tone", ""),
         })
     key_points = {
         "keyPoints": kps_list,

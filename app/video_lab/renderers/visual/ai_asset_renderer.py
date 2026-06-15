@@ -103,6 +103,7 @@ class AiAssetVisualRenderer(VisualRenderer):
             include_summary=rp.include_summary,
             segment_durations=request.voiceover_segments or None,
             backgrounds=backgrounds,
+            style_params=request.params or None,
         )
         warnings.extend(frame_result.get("warnings", []))
 

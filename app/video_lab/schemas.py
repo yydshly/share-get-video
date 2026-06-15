@@ -100,6 +100,40 @@ class VisualComposeRequest(BaseModel):
     }
 
 
+class FramePreviewRequest(BaseModel):
+    """JSON body for POST /video-lab/frame-preview (单帧快速预览，调试台)"""
+
+    visualRoute: str = Field(..., min_length=1, description="视觉路线 routeId")
+    frameType: str = Field(default="keypoint", description="cover | keypoint")
+    shot: dict[str, Any] = Field(
+        default_factory=dict,
+        description="单条内容 {headline, display, emphasisTerms}",
+    )
+    coverTitle: str = Field(default="", description="封面标题（frameType=cover 时用）")
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="渲染参数 (aspectRatio, index, total...)",
+    )
+
+
+class VisualJudgeRequest(BaseModel):
+    """JSON body for POST /video-lab/visual-judge (视觉模型感知评分)"""
+
+    imageUrl: str = Field(..., min_length=1, description="/runtime/... 画面或视频 URL")
+    route: str = Field(default="", description="可选：路线 ID，提供则把感知评分留痕")
+
+
+class ClipPreviewRequest(BaseModel):
+    """JSON body for POST /video-lab/clip-preview (动效片段预览)"""
+
+    visualRoute: str = Field(..., min_length=1)
+    content: str = Field(default="", description="报告原文（Remotion 用）")
+    shot: dict[str, Any] = Field(default_factory=dict, description="单条内容（Pillow/AI 素材 Ken Burns 用）")
+    frameType: str = Field(default="keypoint", description="cover | keypoint")
+    coverTitle: str = Field(default="")
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
 class CreateChainBenchmarkRequest(BaseModel):
     """JSON body for POST /video-lab/chain-benchmarks"""
 
