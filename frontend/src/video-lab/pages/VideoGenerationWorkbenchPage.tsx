@@ -1,5 +1,5 @@
-// Video Generation Workbench Page - V0.7.0
-// 视频生成实验台：人在回路的内容 → 路线 → 生成 → 观察 → 确认
+// Video Generation Workbench Page - V0.7.1
+// 视频生成实验台 V0.7.1：接入完整视频生成（/visual-compose）
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -11,7 +11,7 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-l
 type RouteId = "pillow" | "remotion_data_news" | "remotion_card_stack" | "ai_asset";
 type HumanReviewStatus = "pending" | "approved" | "problem" | "discarded";
 
-interface GenerationResult {
+interface PreviewResult {
   experimentId: string;
   success: boolean;
   videoUrl: string;
@@ -20,6 +20,23 @@ interface GenerationResult {
   route: string;
   message: string;
   failedReason: string | null;
+}
+
+interface FullVideoResult {
+  experimentId: string;
+  status: string;
+  visualRoute: string;
+  finalVideoUrl: string;
+  coverUrl: string;
+  audioUrl?: string;
+  srtUrl?: string;
+  manifestUrl?: string;
+  audioDurationSec?: number;
+  subtitleCount?: number;
+  failedReason?: string;
+  warnings?: string[];
+  params?: Record<string, unknown>;
+  steps?: Array<{ name: string; status: string; output: string }>;
 }
 
 interface RouteOption {
@@ -78,7 +95,7 @@ const ROUTES: RouteOption[] = [
     speed: "慢（30秒+）",
     cost: "高",
     status: "preview_only",
-    note: "暂未接入完整预览",
+    note: "暂未接入完整视频生成",
   },
 ];
 
@@ -190,6 +207,8 @@ function ReviewBadge({ status }: { status: HumanReviewStatus }) {
   );
 }
 
+// ─── Main Page ───────────────────────────────────────────────────────────────
+
 export default function VideoGenerationWorkbenchPage() {
   // ── Section 1: Content Input ────────────────────────────────────────────
   const [title, setTitle] = useState(SAMPLE_CONTENT.title);
@@ -199,40 +218,66 @@ export default function VideoGenerationWorkbenchPage() {
   const [selectedRoute, setSelectedRoute] = useState<RouteId>("pillow");
 
   // ── Section 3: Generation Control ───────────────────────────────────────
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const [fullLoading, setFullLoading] = useState(false);
+  const [fullError, setFullError] = useState("");
 
-  // ── Section 4: Result ──────────────────────────────────────────────────
-  const [result, setResult] = useState<GenerationResult | null>(null);
+  // ── Section 4: Results ──────────────────────────────────────────────────
+  const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null);
+  const [fullResult, setFullResult] = useState<FullVideoResult | null>(null);
 
   // ── Section 5: Human Review ─────────────────────────────────────────────
   const [reviewStatus, setReviewStatus] = useState<HumanReviewStatus>("pending");
   const [reviewNotes, setReviewNotes] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const loadSample = () => {
     setTitle(SAMPLE_CONTENT.title);
     setBody(SAMPLE_CONTENT.body);
-    setResult(null);
+    setPreviewResult(null);
+    setFullResult(null);
     setReviewStatus("pending");
     setReviewNotes("");
+    setPreviewError("");
+    setFullError("");
   };
 
   const resolveUrl = (u: string) =>
     u && u.startsWith("/runtime/") ? `${API_BASE.replace(/\/video-lab$/, "")}${u}` : u || "";
 
-  const buildShot = () => ({
-    headline: title.trim(),
-    display: body.trim(),
-    emphasisTerms: [],
-  });
+  // ── Route to backend visualRoute mapping ─────────────────────────────────
+  const routeToVisualRoute: Record<RouteId, string> = {
+    pillow: "local_frame_compose",
+    remotion_data_news: "template_programmatic_render",
+    remotion_card_stack: "template_programmatic_render",
+    ai_asset: "ai_asset_then_compose",
+  };
 
+  const buildVisualRouteParams = (): Record<string, unknown> => {
+    const base = {
+      targetDuration: 45,
+      aspectRatio: "9:16",
+      keyPointCount: 3,
+      useLlmPlan: true,
+    };
+    if (selectedRoute === "remotion_data_news") {
+      return { ...base, remotionFamily: "data_news" };
+    }
+    if (selectedRoute === "remotion_card_stack") {
+      return { ...base, remotionFamily: "card_stack" };
+    }
+    return base;
+  };
+
+  // ── Preview ─────────────────────────────────────────────────────────────
   const callPreview = async () => {
-    setLoading(true);
-    setError("");
-    setResult(null);
+    setPreviewLoading(true);
+    setPreviewError("");
+    setPreviewResult(null);
     setReviewStatus("pending");
 
-    const shot = buildShot();
+    const shot = { headline: title.trim(), display: body.trim(), emphasisTerms: [] };
     let payload: Record<string, unknown>;
 
     if (selectedRoute === "pillow") {
@@ -261,8 +306,8 @@ export default function VideoGenerationWorkbenchPage() {
         params: { clipSeconds: 3, aspectRatio: "9:16", keyPointCount: 3, remotionFamily: "card_stack" },
       };
     } else {
-      setError("AI 素材路线暂未接入预览");
-      setLoading(false);
+      setPreviewError("AI 素材路线暂未接入预览");
+      setPreviewLoading(false);
       return;
     }
 
@@ -275,10 +320,10 @@ export default function VideoGenerationWorkbenchPage() {
       const data = await resp.json();
 
       if (!resp.ok && !data) throw new Error(`${resp.status}`);
-      if (!data.success) throw new Error(data.message || "生成失败");
+      if (!data.success) throw new Error(data.message || "预览生成失败");
 
-      setResult({
-        experimentId: data.experimentId || data.experimentId || "—",
+      setPreviewResult({
+        experimentId: data.experimentId || "—",
         success: true,
         videoUrl: data.clipUrl || data.videoUrl || "",
         runtimePath: data.clipPath || data.runtimePath || "",
@@ -288,19 +333,66 @@ export default function VideoGenerationWorkbenchPage() {
         failedReason: null,
       });
     } catch (e) {
-      setError(String(e));
+      setPreviewError(String(e));
     } finally {
-      setLoading(false);
+      setPreviewLoading(false);
     }
   };
+
+  // ── Full Video ───────────────────────────────────────────────────────────
+  const callFullVideo = async () => {
+    setFullLoading(true);
+    setFullError("");
+    setFullResult(null);
+    setReviewStatus("pending");
+
+    const visualRoute = routeToVisualRoute[selectedRoute];
+    if (!visualRoute) {
+      setFullError("该路线不支持完整视频生成");
+      setFullLoading(false);
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE}/visual-compose`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: body.trim(),
+          visualRoute,
+          params: buildVisualRouteParams(),
+        }),
+      });
+      const data = await resp.json();
+
+      if (!resp.ok && !data) throw new Error(`${resp.status}`);
+      if (data.detail) throw new Error(data.detail);
+
+      setFullResult(data as FullVideoResult);
+    } catch (e) {
+      setFullError(String(e));
+    } finally {
+      setFullLoading(false);
+    }
+  };
+
+  // ── Human Review ────────────────────────────────────────────────────────
+  const hasFullVideo = fullResult && fullResult.status === "succeeded" && fullResult.finalVideoUrl;
+  const hasPreview = previewResult && previewResult.success;
 
   const handleReview = (status: HumanReviewStatus) => {
     setReviewStatus(status);
   };
 
-  const copyPath = () => {
-    if (result?.videoUrl) {
-      navigator.clipboard.writeText(result.videoUrl);
+  const copyPath = async () => {
+    const url = fullResult?.finalVideoUrl || previewResult?.videoUrl || "";
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // silent
     }
   };
 
@@ -313,7 +405,7 @@ export default function VideoGenerationWorkbenchPage() {
           视频生成实验台
         </h1>
         <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
-          输入内容 → 选择路线 → 生成预览 → 人工观察确认 → 保存样片
+          输入内容 → 选择路线 → 生成预览 / 完整视频 → 人工观察确认 → 保存样片
         </p>
       </div>
 
@@ -386,59 +478,71 @@ export default function VideoGenerationWorkbenchPage() {
       {/* ── Section 3: Generation Control ───────────────────────────────── */}
       <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 16, padding: "1.25rem", marginBottom: "1.5rem" }}>
         <h2 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "1rem", color: "#1e293b" }}>
-          3. 生成预览
+          3. 生成控制
         </h2>
+        <p style={{ fontSize: "0.78rem", color: "#64748b", marginBottom: "1rem" }}>
+          预览用于快速看版式；完整视频会调用 TTS、字幕和 FFmpeg 合成，耗时更长（约 30-90 秒）。
+        </p>
 
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.75rem" }}>
           <button
             onClick={callPreview}
-            disabled={loading || selectedRoute === "ai_asset"}
+            disabled={previewLoading || selectedRoute === "ai_asset"}
             style={{
-              background: loading || selectedRoute === "ai_asset" ? "#94a3b8" : "#0f766e",
+              background: previewLoading || selectedRoute === "ai_asset" ? "#94a3b8" : "#0f766e",
               color: "white",
               border: "none",
               borderRadius: 8,
               padding: "0.6rem 1.5rem",
               fontSize: "0.9rem",
               fontWeight: 600,
-              cursor: loading || selectedRoute === "ai_asset" ? "not-allowed" : "pointer",
+              cursor: previewLoading || selectedRoute === "ai_asset" ? "not-allowed" : "pointer",
             }}
           >
-            {loading ? "生成中（约 10-30 秒）..." : "生成预览"}
+            {previewLoading ? "预览生成中..." : "生成预览"}
           </button>
 
           <button
-            disabled
-            title="完整视频功能下一阶段接入"
+            onClick={callFullVideo}
+            disabled={fullLoading || selectedRoute === "ai_asset"}
             style={{
-              background: "#f1f5f9",
-              color: "#94a3b8",
-              border: "1px solid #e2e8f0",
+              background: fullLoading || selectedRoute === "ai_asset" ? "#94a3b8" : "#7c3aed",
+              color: "white",
+              border: "none",
               borderRadius: 8,
-              padding: "0.6rem 1.2rem",
-              fontSize: "0.85rem",
-              cursor: "not-allowed",
+              padding: "0.6rem 1.5rem",
+              fontSize: "0.9rem",
+              fontWeight: 600,
+              cursor: fullLoading || selectedRoute === "ai_asset" ? "not-allowed" : "pointer",
             }}
           >
-            生成完整视频（下一阶段）
+            {fullLoading ? "完整视频生成中（约 30-90 秒）..." : "生成完整视频"}
           </button>
 
-          {loading && (
+          {(previewLoading || fullLoading) && (
             <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
-              当前路线：{ROUTES.find((r) => r.id === selectedRoute)?.name}
+              当前：{previewLoading ? "预览生成中" : fullLoading ? "完整视频生成中" : ""}，路线：{ROUTES.find((r) => r.id === selectedRoute)?.name}
             </span>
           )}
         </div>
 
-        {error && (
-          <div style={{ marginTop: "0.85rem", padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.82rem", color: "#dc2626" }}>
-            错误：{error}
-            <button
-              onClick={() => setError("")}
-              style={{ marginLeft: 12, background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: "0.82rem", textDecoration: "underline" }}
-            >
-              关闭
-            </button>
+        {selectedRoute === "ai_asset" && (
+          <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginBottom: "0.5rem" }}>
+            AI 素材路线暂未接入完整视频生成
+          </div>
+        )}
+
+        {previewError && (
+          <div style={{ marginTop: "0.75rem", padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.82rem", color: "#dc2626" }}>
+            预览错误：{previewError}
+            <button onClick={() => setPreviewError("")} style={{ marginLeft: 12, background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: "0.82rem", textDecoration: "underline" }}>关闭</button>
+          </div>
+        )}
+
+        {fullError && (
+          <div style={{ marginTop: "0.75rem", padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.82rem", color: "#dc2626" }}>
+            完整视频错误：{fullError}
+            <button onClick={() => setFullError("")} style={{ marginLeft: 12, background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: "0.82rem", textDecoration: "underline" }}>关闭</button>
           </div>
         )}
       </div>
@@ -449,69 +553,114 @@ export default function VideoGenerationWorkbenchPage() {
           4. 结果观看
         </h2>
 
-        {!result && !loading && !error && (
-          <div style={{ textAlign: "center", padding: "2.5rem", color: "#94a3b8", fontSize: "0.85rem" }}>
-            点击上方「生成预览」等待结果出现
+        {/* ── 4a: Preview Result ─────────────────────────────────────── */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: 8 }}>
+            <span>预览结果</span>
+            {previewLoading && <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 400 }}>⏳ 生成中...</span>}
           </div>
-        )}
 
-        {loading && (
-          <div style={{ textAlign: "center", padding: "2rem", color: "#64748b", fontSize: "0.85rem" }}>
-            ⏳ 渲染中，请稍候...
-          </div>
-        )}
-
-        {result && result.success && (
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem", fontSize: "0.78rem", color: "#64748b" }}>
-              <span>experiment_id：<span style={{ color: "#1e293b", fontFamily: "monospace" }}>{result.experimentId}</span></span>
-              <span>路线：<span style={{ color: "#1e293b" }}>{result.route}</span></span>
-              <span>耗时：<span style={{ color: "#1e293b" }}>{result.elapsedMs}ms</span></span>
-              <span>视频地址：<span style={{ color: "#1e293b", fontFamily: "monospace", wordBreak: "break-all" }}>{result.videoUrl}</span></span>
+          {!previewResult && !previewLoading && (
+            <div style={{ textAlign: "center", padding: "1.5rem", color: "#94a3b8", fontSize: "0.82rem" }}>
+              点击上方「生成预览」
             </div>
+          )}
 
-            {result.videoUrl ? (
-              <video
-                controls
-                src={resolveUrl(result.videoUrl)}
-                style={{ width: "100%", maxWidth: 480, borderRadius: 10, background: "#0f172a" }}
-              />
-            ) : (
-              <div style={{ color: "#ef4444", fontSize: "0.85rem", padding: "1rem", textAlign: "center" }}>
-                视频路径为空
+          {previewResult && previewResult.success && (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.75rem", fontSize: "0.75rem", color: "#64748b" }}>
+                <span>experiment_id：<span style={{ color: "#1e293b", fontFamily: "monospace" }}>{previewResult.experimentId}</span></span>
+                <span>路线：<span style={{ color: "#1e293b" }}>{previewResult.route}</span></span>
+                <span>耗时：<span style={{ color: "#1e293b" }}>{previewResult.elapsedMs}ms</span></span>
+                <span>地址：<span style={{ color: "#1e293b", fontFamily: "monospace", wordBreak: "break-all" }}>{previewResult.videoUrl}</span></span>
               </div>
-            )}
-          </div>
-        )}
+              {previewResult.videoUrl && (
+                <video controls src={resolveUrl(previewResult.videoUrl)} style={{ width: "100%", maxWidth: 400, borderRadius: 8, background: "#0f172a" }} />
+              )}
+            </div>
+          )}
 
-        {result && !result.success && (
-          <div style={{ padding: "1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.82rem", color: "#dc2626" }}>
-            生成失败：{result.failedReason || result.message || "未知错误"}
+          {previewResult && !previewResult.success && (
+            <div style={{ padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.82rem", color: "#dc2626" }}>
+              预览失败：{previewResult.failedReason || previewResult.message || "未知错误"}
+            </div>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div style={{ borderTop: "1px solid #e2e8f0", marginBottom: "1.5rem" }} />
+
+        {/* ── 4b: Full Video Result ──────────────────────────────────── */}
+        <div>
+          <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: 8 }}>
+            <span>完整视频</span>
+            {fullLoading && <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 400 }}>⏳ 生成中...</span>}
           </div>
-        )}
+
+          {!fullResult && !fullLoading && (
+            <div style={{ textAlign: "center", padding: "1.5rem", color: "#94a3b8", fontSize: "0.82rem" }}>
+              点击上方「生成完整视频」
+            </div>
+          )}
+
+          {fullResult && fullResult.status === "succeeded" && fullResult.finalVideoUrl && (
+            <div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.75rem", fontSize: "0.75rem", color: "#64748b" }}>
+                <span>experiment_id：<span style={{ color: "#1e293b", fontFamily: "monospace" }}>{fullResult.experimentId}</span></span>
+                <span>visualRoute：<span style={{ color: "#1e293b" }}>{fullResult.visualRoute}</span></span>
+                <span>status：<span style={{ color: "#16a34a" }}>{fullResult.status}</span></span>
+                <span>audioDuration：<span style={{ color: "#1e293b" }}>{fullResult.audioDurationSec}s</span></span>
+                <span>subtitleCount：<span style={{ color: "#1e293b" }}>{fullResult.subtitleCount ?? "—"}</span></span>
+                <span>地址：<span style={{ color: "#1e293b", fontFamily: "monospace", wordBreak: "break-all" }}>{fullResult.finalVideoUrl}</span></span>
+              </div>
+
+              {(fullResult.audioUrl || fullResult.srtUrl || fullResult.manifestUrl) && (
+                <div style={{ marginBottom: "0.75rem", fontSize: "0.75rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                  {fullResult.audioUrl && <a href={resolveUrl(fullResult.audioUrl)} target="_blank" rel="noreferrer" style={{ color: "#7c3aed" }}>音频</a>}
+                  {fullResult.srtUrl && <a href={resolveUrl(fullResult.srtUrl)} target="_blank" rel="noreferrer" style={{ color: "#7c3aed" }}>字幕</a>}
+                  {fullResult.manifestUrl && <a href={resolveUrl(fullResult.manifestUrl)} target="_blank" rel="noreferrer" style={{ color: "#7c3aed" }}>Manifest</a>}
+                </div>
+              )}
+
+              {fullResult.warnings && fullResult.warnings.length > 0 && (
+                <div style={{ marginBottom: "0.75rem", padding: "0.5rem 0.75rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, fontSize: "0.75rem", color: "#92400e" }}>
+                  警告：{fullResult.warnings.join("；")}
+                </div>
+              )}
+
+              <video controls src={resolveUrl(fullResult.finalVideoUrl)} style={{ width: "100%", maxWidth: 480, borderRadius: 8, background: "#0f172a" }} />
+            </div>
+          )}
+
+          {fullResult && fullResult.status !== "succeeded" && (
+            <div style={{ padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.82rem", color: "#dc2626" }}>
+              生成失败：{fullResult.failedReason || "未知错误"}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Section 5: Human Review ──────────────────────────────────────── */}
       <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 16, padding: "1.25rem", marginBottom: "1.5rem" }}>
         <h2 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "1rem", color: "#1e293b" }}>
           5. 人工观察确认
-          {result && result.success && (
+          {hasFullVideo && (
             <span style={{ marginLeft: 10, verticalAlign: "middle" }}>
               <ReviewBadge status={reviewStatus} />
             </span>
           )}
         </h2>
 
-        {!result && (
+        {!hasFullVideo && !hasPreview && (
           <div style={{ textAlign: "center", padding: "1.5rem", color: "#94a3b8", fontSize: "0.85rem" }}>
             生成视频后才可进行人工确认
           </div>
         )}
 
-        {result && result.success && (
+        {hasFullVideo && (
           <>
             <p style={{ fontSize: "0.82rem", color: "#475569", marginBottom: "1rem" }}>
-              请在播放视频后，判断该视频是否可用：
+              请播放完整视频后，判断该视频是否可用：
             </p>
 
             <div style={{ display: "flex", gap: "0.6rem", marginBottom: "1rem", flexWrap: "wrap" }}>
@@ -582,19 +731,19 @@ export default function VideoGenerationWorkbenchPage() {
                   style={{ background: "#0f766e", color: "white", border: "none", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
                   onClick={() => alert("保存样片功能下一阶段接入")}
                 >
-                  💾 保存为样片
+                  💾 保存样片功能下一阶段接入
                 </button>
                 <button
                   style={{ background: "#7c3aed", color: "white", border: "none", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
                   onClick={() => alert("加入对比功能下一阶段接入")}
                 >
-                  ⚖️ 加入对比
+                  ⚖️ 加入对比功能下一阶段接入
                 </button>
                 <button
                   onClick={copyPath}
-                  style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
+                  style={{ background: copied ? "#16a34a" : "#f1f5f9", color: copied ? "white" : "#475569", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer", transition: "background 0.2s" }}
                 >
-                  📋 复制路径
+                  {copied ? "✅ 已复制" : "📋 复制完整视频路径"}
                 </button>
               </div>
             )}
@@ -602,7 +751,7 @@ export default function VideoGenerationWorkbenchPage() {
             {reviewStatus === "problem" && (
               <div style={{ display: "flex", gap: "0.6rem" }}>
                 <button
-                  onClick={callPreview}
+                  onClick={callFullVideo}
                   style={{ background: "#d97706", color: "white", border: "none", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
                 >
                   🔄 重新生成
@@ -611,17 +760,23 @@ export default function VideoGenerationWorkbenchPage() {
                   style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", cursor: "pointer" }}
                   onClick={() => alert("记录问题功能下一阶段接入")}
                 >
-                  📝 记录问题
+                  📝 记录问题功能下一阶段接入
                 </button>
               </div>
             )}
 
             {reviewStatus === "discarded" && (
               <div style={{ padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.82rem", color: "#dc2626" }}>
-                已丢弃，不建议保存。如需重新生成，请再次点击「生成预览」。
+                已丢弃，不建议保存。如需重新生成，请再次点击「生成完整视频」。
               </div>
             )}
           </>
+        )}
+
+        {hasPreview && !hasFullVideo && (
+          <div style={{ textAlign: "center", padding: "1rem", color: "#94a3b8", fontSize: "0.82rem" }}>
+            当前仅生成预览（{previewResult?.videoUrl ? "可播放" : "播放失败"}）。完整视频生成后可做最终确认。
+          </div>
         )}
       </div>
 
