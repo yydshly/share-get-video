@@ -1152,6 +1152,304 @@ const CardStackLayout: React.FC<{
     </AbsoluteFill>
   );
 };
+// V0.8.9: Timeline News layout — renders all keyPoints as a vertical event-evolution
+// timeline. The currently-playing node is highlighted; past nodes are dimmed; upcoming
+// nodes are even dimmer. Used when remotionFamily === "timeline_news".
+const TimelineNewsLayout: React.FC<{
+  keyPoints: KeyPoint[];
+  cardStarts: number[];
+  cardFramesArr: number[];
+  transitionOverlap: number;
+  fps: number;
+  vstyle?: RemotionStyle;
+  showDataViz?: boolean;
+}> = ({ keyPoints, cardStarts, cardFramesArr, fps, vstyle, showDataViz = true }) => {
+  const localFrame = useCurrentFrame();
+
+  // V0.8.9: This layout is wrapped in a Sequence starting at coverFrames.
+  // useCurrentFrame() returns the local frame inside that Sequence (0-based).
+  // By construction, cardStarts[0] === coverFrames, so the first keypoint's local
+  // start is 0; subsequent keypoints' local starts are cumulative sums of cardFramesArr.
+  const relativeStarts: number[] = [];
+  {
+    let acc = 0;
+    for (const f of cardFramesArr) {
+      relativeStarts.push(acc);
+      acc += f;
+    }
+  }
+
+  // Determine each node's state: upcoming | active | past
+  const states: ("upcoming" | "active" | "past")[] = cardFramesArr.map((dur, i) => {
+    const start = relativeStarts[i];
+    const end = start + dur;
+    if (localFrame < start) return "upcoming";
+    if (localFrame < end) return "active";
+    return "past";
+  });
+
+  // V0.8.9: progress line — 0 to 1 based on time within the card section
+  const totalCardFrames = cardFramesArr.reduce((a, b) => a + b, 0);
+  const progress = totalCardFrames > 0 ? Math.min(1, Math.max(0, localFrame / totalCardFrames)) : 0;
+
+  const accent = vstyle?.accentColor || C.accent;
+  const hl = vstyle?.highlightColor || C.highlight;
+  const fs = vstyle?.fontScale || 1;
+  const showIcon = vstyle?.showIcon ?? true;
+
+  // Container wraps from coverFrames to summaryStart; we center content vertically.
+  // node center X is at left padding + 27 (half of 54)
+  const NODE_SIZE = 54;
+  const NODE_LEFT = 60; // padding-left
+  const NODE_CENTER_X = NODE_LEFT + NODE_SIZE / 2;
+
+  return (
+    <AbsoluteFill
+      style={{
+        background: C.bg,
+        padding: "60px 50px",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+      }}
+    >
+      {/* V0.8.9: 顶部小标题 — 标识 Timeline News 范式 */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 28,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 18,
+            color: accent,
+            fontWeight: 700,
+            letterSpacing: 4,
+            textTransform: "uppercase",
+            opacity: 0.85,
+          }}
+        >
+          事件演进 · {keyPoints.length} 个节点
+        </div>
+      </div>
+
+      {/* V0.8.9: 竖向时间线主轴（包含进度线 + 节点列） */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 22,
+          position: "relative",
+        }}
+      >
+        {/* 背景进度线（暗色槽） */}
+        <div
+          style={{
+            position: "absolute",
+            left: NODE_CENTER_X - 1.5,
+            top: NODE_SIZE / 2,
+            bottom: NODE_SIZE / 2,
+            width: 3,
+            background: C.surface,
+            borderRadius: 999,
+          }}
+        />
+        {/* 已播放进度（彩色渐变 + glow） */}
+        <div
+          style={{
+            position: "absolute",
+            left: NODE_CENTER_X - 1.5,
+            top: NODE_SIZE / 2,
+            width: 3,
+            height: `calc((100% - ${NODE_SIZE}px) * ${progress})`,
+            background: `linear-gradient(180deg, ${accent}, ${hl})`,
+            borderRadius: 999,
+            boxShadow: `0 0 12px ${accent}88`,
+          }}
+        />
+
+        {keyPoints.map((kp, i) => {
+          const state = states[i];
+          const isActive = state === "active";
+          const isPast = state === "past";
+          const isUpcoming = state === "upcoming";
+
+          const nodeOpacity = isActive ? 1 : isPast ? 0.55 : 0.25;
+          const nodeScale = isActive ? 1.0 : 0.85;
+          const nodeBg = isActive
+            ? `linear-gradient(135deg, ${accent}, ${C.accent2})`
+            : C.card;
+          const nodeBorderColor = isActive ? accent : C.border;
+          const nodeTextColor = isActive ? C.textPrimary : C.textMuted;
+          const nodeShadow = isActive ? `0 0 30px ${accent}88` : "none";
+
+          // 节点进场：active 节点第一帧略淡入
+          const entryStart = relativeStarts[i];
+          const entryFrames = 12;
+          const nodeEntryOpacity = isActive
+            ? Math.min(1, Math.max(0, (localFrame - entryStart) / entryFrames))
+            : 1;
+          const combinedOpacity = nodeOpacity * nodeEntryOpacity;
+
+          // 轻量 metric：使用 findPrimaryStat（与 CardStackLayer 同样的优先级）
+          const stat = findPrimaryStat(kp);
+
+          return (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 20,
+                opacity: combinedOpacity,
+                position: "relative",
+              }}
+            >
+              {/* 节点圆 (左侧时间线主轴) */}
+              <div
+                style={{
+                  width: NODE_SIZE,
+                  height: NODE_SIZE,
+                  borderRadius: "50%",
+                  background: nodeBg,
+                  border: `2px solid ${nodeBorderColor}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: nodeTextColor,
+                  flexShrink: 0,
+                  zIndex: 1,
+                  transform: `scale(${nodeScale})`,
+                  boxShadow: nodeShadow,
+                }}
+              >
+                {String(i + 1).padStart(2, "0")}
+              </div>
+
+              {/* 事件卡片 (右侧) */}
+              <div
+                style={{
+                  flex: 1,
+                  background: isActive ? C.card : C.surface,
+                  borderRadius: 16,
+                  border: `1px solid ${isActive ? accent + "66" : C.border}`,
+                  padding: isActive ? "22px 26px" : "14px 18px",
+                  boxShadow: isActive ? `0 0 40px ${accent}33` : "none",
+                }}
+              >
+                {/* 标题 */}
+                <h3
+                  style={{
+                    fontSize: Math.round((isActive ? 34 : 26) * fs),
+                    fontWeight: 800,
+                    color: isActive ? C.textPrimary : C.textSecondary,
+                    margin: 0,
+                    marginBottom: isActive ? 10 : 0,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  <HighlightedText
+                    text={kp.title}
+                    style={{}}
+                    highlightColor={hl}
+                    emphasisTerms={kp.emphasisTerms}
+                  />
+                </h3>
+
+                {/* 摘要 (active 节点才显示完整 body) */}
+                {isActive && (
+                  <p
+                    style={{
+                      fontSize: Math.round(22 * fs),
+                      color: C.textSecondary,
+                      margin: 0,
+                      marginBottom: stat ? 12 : (kp.source ? 12 : 0),
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <HighlightedText
+                      text={kp.body}
+                      style={{}}
+                      highlightColor={hl}
+                      emphasisTerms={kp.emphasisTerms}
+                    />
+                  </p>
+                )}
+
+                {/* 轻量 metric (仅 active，且 showDataViz 开) */}
+                {isActive && showDataViz && stat && (
+                  <div
+                    style={{
+                      fontSize: 30,
+                      fontWeight: 900,
+                      color: hl,
+                      marginBottom: kp.source ? 10 : 0,
+                      textShadow: `0 0 24px ${hl}55`,
+                      lineHeight: 1,
+                    }}
+                  >
+                    <CountUpNumber
+                      value={stat.value}
+                      suffix={stat.suffix}
+                      decimals={stat.value % 1 === 0 ? 0 : 1}
+                      style={{ fontSize: 30, fontWeight: 900, color: hl }}
+                    />
+                    {stat.label && (
+                      <span
+                        style={{
+                          fontSize: 16,
+                          color: C.textMuted,
+                          marginLeft: 8,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {stat.label}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* 来源 (active 节点) */}
+                {isActive && kp.source && (
+                  <div
+                    style={{
+                      fontSize: 15,
+                      color: C.textMuted,
+                      paddingTop: 10,
+                      borderTop: `1px solid ${C.border}`,
+                    }}
+                  >
+                    来源：{kp.source}
+                  </div>
+                )}
+
+                {/* 非 active 节点也允许 small icon 提示分类 (与 showIcon 联动) */}
+                {!isActive && showIcon && (
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: C.textMuted,
+                      marginTop: 4,
+                      opacity: 0.7,
+                    }}
+                  >
+                    ◆ 节点 {String(i + 1).padStart(2, "0")}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 const SummaryPage: React.FC<{
   title: string;
   keyPoints: KeyPoint[];
@@ -1460,6 +1758,8 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
 
       {/* Key Point Cards with transition-aware timing */}
       {/* V0.6.2: Card Stack vs default data_news layout */}
+      {/* V0.8.9: Add timeline_news — vertical event-evolution timeline, all nodes
+          visible simultaneously with current node highlighted. */}
       {remotionFamily === "card_stack" ? (
         <CardStackLayout
           keyPoints={keyPoints}
@@ -1470,6 +1770,24 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
           vstyle={style}
           showDataViz={showDataViz}
         />
+      ) : remotionFamily === "timeline_news" ? (
+        // V0.8.9: Wrap the entire card section in one Sequence so TimelineNewsLayout
+        // can see the local frame and decide which node is active. cardStarts[0] ===
+        // coverFrames by construction, so the local frame == (absoluteFrame - coverFrames).
+        <Sequence
+          from={coverFrames}
+          durationInFrames={Math.max(1, summaryStart - coverFrames + safeOverlap)}
+        >
+          <TimelineNewsLayout
+            keyPoints={keyPoints}
+            cardStarts={cardStarts}
+            cardFramesArr={cardFramesArr}
+            transitionOverlap={safeOverlap}
+            fps={fps}
+            vstyle={style}
+            showDataViz={showDataViz}
+          />
+        </Sequence>
       ) : (
         keyPoints.map((kp, i) => (
           <Sequence

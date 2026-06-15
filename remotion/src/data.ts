@@ -49,7 +49,8 @@ export type RemotionStyle = {
 };
 
 // V0.6.2: Remotion family — selects visual presentation paradigm
-export type RemotionFamily = "data_news" | "card_stack";
+// V0.8.9: Added "timeline_news" for AI news event evolution timelines.
+export type RemotionFamily = "data_news" | "card_stack" | "timeline_news";
 
 export type AiNewsVideoProps = {
   title: string;
@@ -64,6 +65,7 @@ export type AiNewsVideoProps = {
   // V0.3.6-quality-p0-fix: showDataViz=false suppresses metrics animation
   showDataViz?: boolean;
   // V0.6.2: Remotion family — data_news (default) | card_stack
+  // V0.8.9: Added timeline_news — vertical event-evolution timeline layout.
   remotionFamily?: RemotionFamily;
 };
 

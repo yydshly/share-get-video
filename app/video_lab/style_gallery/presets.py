@@ -179,6 +179,29 @@ PRESET_STYLES: list[dict[str, Any]] = [
             "metricAnimation": "countup_bar", "transitionStyle": "slide",
         },
     },
+    {
+        # V0.8.9: Timeline News 表现范式 — 把 keyPoints 映射成事件演进节点
+        "route_id": "template_programmatic_render",
+        "route_name": "Remotion 动态模板路线",
+        "style_id": "remotion_timeline_news",
+        "style_name": "时间线快讯",
+        "description": "采用 Timeline News 表现范式，把 keyPoints 映射成事件演进节点，适合 AI 新闻、产品发布、研究进展类内容",
+        "capabilities": ["事件演进时间线", "节点高亮切换", "进度线", "区别于数据栏目和卡片叠层", "适合新闻/产品发布"],
+        "tags": ["时间线", "事件演进", "节点", "范式差异"],
+        "params": {
+            "showDataViz": True,
+            "accentColor": "#0ea5e9",
+            "highlightColor": "#22d3ee",
+            "fontScale": 1,
+            "showIcon": True,
+            "motionIntensity": "medium",
+            "coverStyle": "editorial",
+            "overviewStyle": "timeline",
+            "metricAnimation": "countup_number",
+            "transitionStyle": "slide_fade",
+            "remotionFamily": "timeline_news",
+        },
+    },
 
     # ──────────────── AI 素材氛围路线 ────────────────
     {

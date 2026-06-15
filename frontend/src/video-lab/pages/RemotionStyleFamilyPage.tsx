@@ -156,7 +156,7 @@ const FAMILIES: StyleFamily[] = [
       "历史节点淡化",
       "因果箭头连接",
     ],
-    currentStatus: "待探索 — 需要 Timeline 专用组件",
+    currentStatus: "V0.8.9 已有最小实现 — TimelineNewsLayout 已接入 AiNewsVideo 的 timeline_news 分支",
     priority: "P1",
     priorityReason: "适合解释复杂事件，与 Data News 正交",
     accentColor: "#0891b2",
@@ -173,9 +173,9 @@ const FAMILIES: StyleFamily[] = [
       "历史节点淡化",
     ],
     requiredComponents: ["TimelineNode", "ProgressLine", "EventCard"],
-    styleSweepMapping: [],
+    styleSweepMapping: ["remotion_timeline_news"],
     nextExperiment:
-      "新增 remotion_timeline_news 最小模板，先做竖向时间线 + 3 个节点",
+      "增强节点节奏、事件日期/阶段标签、结尾路线总览",
   },
   {
     id: "dashboard",
@@ -504,19 +504,21 @@ function FamilyCard({ family }: { family: StyleFamily }) {
 // ─── V0.8.8: 当前实现覆盖度面板 ───────────────────────────────────────────────
 
 function CoveragePanel() {
-  // 已实现基础：Data News / Card Stack
-  // 部分实现：Data News 指标动画 / Card Stack 卡片堆叠
-  // 未实现：Timeline / Dashboard / Subtitle Story / Map Journey / Code Walkthrough / Audio Wave
+  // V0.8.9: Timeline News 已加入已实现基础
+  // 已实现基础：Data News / Card Stack / Timeline News
+  // 部分实现：Data News 指标动画 / Card Stack 卡片堆叠 / Timeline News 竖向时间线
+  // 未实现：Dashboard / Subtitle Story / Map Journey / Code Walkthrough / Audio Wave
   const implemented = [
     { name: "Data News", note: "AiNewsVideo 当前形态即 Data News 范式" },
     { name: "Card Stack", note: "V0.6.5.2 已支持 prev/next 三层卡片 UI 预览对比" },
+    { name: "Timeline News", note: "V0.8.9 已在 AiNewsVideo 中实现 TimelineNewsLayout 最小模板（竖向时间线 + 节点高亮 + 进度线）" },
   ];
   const partial = [
     { name: "Data News 指标动画", note: "已有 countup_bar；chart_story / ranking_strip 待扩展" },
     { name: "Card Stack 卡片堆叠", note: "已有 prev/next 视觉；swipe transition / 当前卡片强调待增强" },
+    { name: "Timeline News 竖向时间线", note: "已有节点高亮 + 进度线；事件日期 / 阶段标签 / 结尾路线总览待增强" },
   ];
   const missing = [
-    { name: "Timeline", note: "新增 remotion_timeline_news 最小模板" },
     { name: "Dashboard", note: "新增 remotion_dashboard_brief" },
     { name: "Subtitle Story", note: "新增 remotion_caption_story" },
     { name: "Map Journey", note: "未纳入本轮主流程" },
@@ -620,7 +622,8 @@ function NextExperimentPanel() {
         下一步最小实验推荐
       </h2>
       <p style={{ fontSize: "0.78rem", opacity: 0.85, marginBottom: "0.85rem" }}>
-        本轮建议只做 1 个最小实验，不要同时铺开 — 先做最能体现"Composition Family 差异"的那一个。
+        V0.8.9 已实现 <code style={{ background: "rgba(255,255,255,0.18)", padding: "1px 6px", borderRadius: 4 }}>remotion_timeline_news</code> 最小模板。
+        下一步建议进入 Style Sweep 实测，观察下列几点：
       </p>
       <div
         style={{
@@ -632,21 +635,17 @@ function NextExperimentPanel() {
         }}
       >
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
-          <span style={{ fontSize: "1.4rem" }}>📅</span>
-          <span style={{ fontSize: "1.05rem", fontWeight: 700 }}>推荐：remotion_timeline_news</span>
-          <span style={{ fontSize: "0.7rem", background: "rgba(255,255,255,0.25)", borderRadius: 999, padding: "2px 8px", fontWeight: 600 }}>
-            Timeline 范式
-          </span>
+          <span style={{ fontSize: "1.4rem" }}>🧪</span>
+          <span style={{ fontSize: "1.05rem", fontWeight: 700 }}>实测观察清单</span>
         </div>
         <ol style={{ margin: 0, paddingLeft: "1.1rem", opacity: 0.95 }}>
-          <li>与 Data News / Card Stack 差异明显（事件演进 vs 单卡 / 卡片堆叠）</li>
-          <li>适合 AI 新闻中的事件演进、产品发布、研究路线</li>
-          <li>不依赖复杂 3D / 图表库</li>
-          <li>可以用现有 keyPoints 直接映射成 3 个节点</li>
-          <li>可快速验证"Composition Family 差异"</li>
+          <li>时间线是否真的比 Data News 更适合事件演进类内容</li>
+          <li>文字密度是否过高（所有 keyPoints 同时显示）</li>
+          <li>当前节点和历史节点是否清楚</li>
+          <li>与 Card Stack 的差异是否肉眼可见（叠层 vs 时间线）</li>
         </ol>
         <div style={{ marginTop: 8, fontSize: "0.78rem", opacity: 0.85 }}>
-          备选：<b>remotion_caption_story</b>（Subtitle Story 范式）— 更偏情绪 / 口播，和当前 AI 新闻主线略偏。
+          下一范式候选：<b>Dashboard</b> / <b>Subtitle Story</b> — 等待 Timeline News 实测结论再决定优先级。
         </div>
       </div>
     </div>
