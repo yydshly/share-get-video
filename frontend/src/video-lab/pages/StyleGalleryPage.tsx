@@ -1042,6 +1042,7 @@ export default function StyleGalleryPage() {
   ];
 
   const filteredPresets = filterRoute ? presets.filter((p) => p.route_id === filterRoute) : presets;
+  const filteredTemplates = filterRoute ? templates.filter((t) => t.route_id === filterRoute) : templates;
   const groupedPresets = filteredPresets.reduce((acc, p) => {
     if (!acc[p.route_id]) acc[p.route_id] = [];
     acc[p.route_id].push(p);
@@ -1118,7 +1119,7 @@ export default function StyleGalleryPage() {
             cursor: "pointer",
           }}
         >
-          模板库 ({templates.length})
+          模板库 ({filteredTemplates.length})
         </button>
       </div>
 
@@ -1326,13 +1327,13 @@ export default function StyleGalleryPage() {
       {/* V0.4.2: 模板库 Tab */}
       {activeTab === "templates" && (
         <div style={{ marginTop: "1rem" }}>
-          {templates.length === 0 ? (
+          {filteredTemplates.length === 0 ? (
             <div style={{ textAlign: "center", padding: "3rem 0", color: "#94a3b8", fontSize: "0.9rem" }}>
-              暂无模板，请先从高分样片或对比面板中升级
+              {templates.length === 0 ? "暂无模板，请先从高分样片或对比面板中升级" : "当前路线筛选下暂无模板"}
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
-              {templates.map((t) => {
+              {filteredTemplates.map((t) => {
                 const color = ROUTE_COLORS[t.route_id] ?? "#64748b";
                 const keyParams = getKeyParamsSummary(t.params, t.route_id);
                 return (

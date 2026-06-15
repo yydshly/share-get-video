@@ -237,7 +237,7 @@ class TestPromoteEndpoint:
         resp = client.post("/video-lab/style-samples/nonexistent_id/promote-template", json={})
         assert resp.status_code == 404
 
-    def test_promote_sample_with_judgement(self, monkeypatch):
+    def test_promote_sample_with_judgement(self, temp_templates_dir):
         """Promote should create template from sample with visual_judgement."""
         from fastapi.testclient import TestClient
         from app.main import app
@@ -259,7 +259,7 @@ class TestPromoteEndpoint:
         finally:
             sg_store.delete_sample("sample_promote1")
 
-    def test_promote_sample_without_judgement_returns_warning(self, monkeypatch):
+    def test_promote_sample_without_judgement_returns_warning(self, temp_templates_dir):
         """Promote should succeed but return warning when no visual_judgement."""
         from fastapi.testclient import TestClient
         from app.main import app
@@ -278,7 +278,7 @@ class TestPromoteEndpoint:
         finally:
             sg_store.delete_sample("sample_no_judge")
 
-    def test_promote_low_score_returns_warning(self, monkeypatch):
+    def test_promote_low_score_returns_warning(self, temp_templates_dir):
         """Promote should return warning for low visual score."""
         from fastapi.testclient import TestClient
         from app.main import app
@@ -297,6 +297,32 @@ class TestPromoteEndpoint:
         finally:
             sg_store.delete_sample("sample_low_score")
 
+    def test_promote_dedup_no_duplicate(self, temp_templates_dir):
+        """V0.4.7: 同一样片重复升级默认不重复创建；force=true 可强制再建。"""
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.video_lab.style_gallery import store as sg_store, templates as sg_templates
+
+        sample = make_sample_with_judgement("sample_dedup1", score=80.0)
+        sg_store.save_sample(sample)
+        try:
+            client = TestClient(app)
+            r1 = client.post("/video-lab/style-samples/sample_dedup1/promote-template", json={})
+            assert r1.status_code == 200
+            assert not r1.json().get("deduped")
+
+            r2 = client.post("/video-lab/style-samples/sample_dedup1/promote-template", json={})
+            assert r2.status_code == 200
+            assert r2.json().get("deduped") is True
+            assert len(sg_templates.list_templates()) == 1, "重复升级不应新建模板"
+
+            r3 = client.post("/video-lab/style-samples/sample_dedup1/promote-template", json={"force": True})
+            assert r3.status_code == 200
+            assert not r3.json().get("deduped")
+            assert len(sg_templates.list_templates()) == 2, "force 应强制再建一份"
+        finally:
+            sg_store.delete_sample("sample_dedup1")
+
 
 class TestTemplateEndpoints:
     """Test template list/get/delete endpoints."""
@@ -311,7 +337,7 @@ class TestTemplateEndpoints:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
-    def test_delete_template_endpoint(self, monkeypatch):
+    def test_delete_template_endpoint(self, temp_templates_dir):
         """DELETE /style-templates/{id} should delete template."""
         from fastapi.testclient import TestClient
         from app.main import app

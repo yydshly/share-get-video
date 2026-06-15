@@ -1040,6 +1040,15 @@ def promote_sample_to_template(
     if not sample:
         raise HTTPException(status_code=404, detail=f"Sample not found: {sample_id}")
 
+    # V0.4.7: 升级去重 —— 同一样片默认不重复创建模板（force=true 可强制再建）
+    force = bool(request.get("force", False))
+    existing = sg_templates.find_by_source_sample(sample_id)
+    if existing and not force:
+        result = existing.to_dict()
+        result["deduped"] = True
+        result["warnings"] = ["该样片已存在模板，未重复创建。如需再建一份，请使用 force。"]
+        return result
+
     name = request.get("name") or f"{sample.style_name} 模板"
 
     # Build visual_judgement dict if present

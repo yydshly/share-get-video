@@ -93,6 +93,14 @@ def get_template(template_id: str) -> StyleTemplate | None:
     return None
 
 
+def find_by_source_sample(sample_id: str) -> StyleTemplate | None:
+    """按来源样片 ID 查找已存在的模板（用于升级去重）。"""
+    for r in _read_all():
+        if r.get("source_sample_id") == sample_id:
+            return StyleTemplate.from_dict(r)
+    return None
+
+
 def save_template(template: StyleTemplate) -> StyleTemplate:
     """新增或更新一条模板记录（按 ID 全量覆盖）。"""
     _ensure_dirs()
