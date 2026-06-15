@@ -12,7 +12,7 @@ import {
   spring,
   Sequence,
 } from "remotion";
-import type { AiNewsVideoProps, KeyPoint, Metric, RemotionStyle, MotionIntensity, CoverStyle, OverviewStyle, MetricAnimation, TransitionStyle } from "./data";
+import type { AiNewsVideoProps, KeyPoint, Metric, RemotionStyle, MotionIntensity, CoverStyle, OverviewStyle, MetricAnimation, TransitionStyle, RemotionFamily } from "./data";
 
 // ─── Highlight Helper (V0.3.6-b1) ────────────────────────────────────────────
 /** Auto-extract numbers, percentages, and key terms from text (fallback). */
@@ -799,7 +799,302 @@ const KeyPointCard: React.FC<{
   );
 };
 
-// V0.3.9: Summary Page with overviewStyle variants (timeline, grid, clean)
+// V0.6.2: Card Stack — renders a single card layer within the card-stack layout
+const CardStackLayer: React.FC<{
+  kp: KeyPoint;
+  index: number;
+  // Stack position: -1 = previous (behind/right), 0 = current (main), 1 = next (preview/left)
+  stackPosition: -1 | 0 | 1;
+  startFrame: number;    // When this layer becomes visible
+  exitFrame: number;     // When this layer starts exiting
+  totalFrames: number;   // Total duration of the stack segment
+  fps: number;
+  vstyle?: RemotionStyle;
+  showDataViz?: boolean;
+}> = ({ kp, index, stackPosition, startFrame, exitFrame, totalFrames, fps, vstyle, showDataViz = true }) => {
+  const frame = useCurrentFrame();
+  const localFrame = Math.max(0, frame - startFrame);
+
+  const tonePreset = TONE_STYLES[(kp.tone || "neutral")] || TONE_STYLES.neutral;
+  const accent = vstyle?.accentColor || tonePreset.accent;
+  const hl = vstyle?.highlightColor || tonePreset.highlight;
+  const fs = vstyle?.fontScale || 1;
+  const showIcon = vstyle?.showIcon ?? true;
+  const iconGlyph = tonePreset.glyph;
+  const metricAnimation = vstyle?.metricAnimation ?? "countup_bar";
+
+  // Card Stack specific positioning
+  const isPrev = stackPosition === -1;
+  const isNext = stackPosition === 1;
+
+  // Previous card: slides out to top-right, shrinks, fades
+  // Current card: slides in from bottom-right, grows, becomes prominent
+  // Next card: peek from left/bottom-left, small preview
+
+  // Animation progress for this layer
+  const entryDuration = 16; // frames to fully enter
+  const exitDuration = 16;  // frames to fully exit
+
+  let scale: number, opacity: number, offsetX: number, offsetY: number;
+
+  if (isPrev) {
+    // Previous card: starts prominent at center, slides up-right and shrinks
+    const progress = Math.min(1, localFrame / entryDuration);
+    const eased = 1 - Math.pow(1 - progress, 2);
+    scale = 1.0 - 0.12 * eased;    // 1.0 → 0.88
+    opacity = 1.0 - 0.5 * eased;    // 1.0 → 0.5
+    offsetX = 60 * eased;            // slides right
+    offsetY = -40 * eased;           // slides up
+  } else if (isNext) {
+    // Next card: small peek that grows slightly then fades as current enters
+    const progress = Math.min(1, localFrame / entryDuration);
+    const eased = 1 - Math.pow(1 - progress, 2);
+    scale = 0.7 + 0.1 * eased;     // 0.7 → 0.8
+    opacity = 0.6 - 0.3 * eased;   // 0.6 → 0.3
+    offsetX = -50 * eased;           // from left
+    offsetY = 30 * eased;            // from bottom
+  } else {
+    // Current card: slides up from bottom, scales in
+    const progress = Math.min(1, localFrame / entryDuration);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    scale = 0.92 + 0.08 * eased;   // 0.92 → 1.0
+    opacity = 0.0 + 1.0 * eased;    // 0 → 1
+    offsetX = 20 * (1 - eased);     // slides from right
+    offsetY = 30 * (1 - eased);     // slides from bottom
+  }
+
+  // Build the card JSX (same content as KeyPointCard but positioned differently)
+  const cardContent = (
+    <div
+      style={{
+        width: "82%",
+        maxWidth: 880,
+        background: C.card,
+        borderRadius: 24,
+        border: `2px solid ${C.border}`,
+        padding: "56px 44px",
+        position: "relative",
+        boxShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        minHeight: 760,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 36 }}>
+        <div style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 72, height: 72, borderRadius: 18,
+          background: `linear-gradient(135deg, ${accent}, ${C.accent2})`,
+          fontSize: 32, fontWeight: 800, color: C.textPrimary,
+          boxShadow: `0 0 30px ${accent}60`,
+        }}>
+          {String(index + 1).padStart(2, "0")}
+        </div>
+        <div style={{
+          fontSize: 16, fontWeight: 700, color: accent,
+          background: `${accent}26`, border: `1px solid ${accent}66`,
+          borderRadius: 999, padding: "6px 16px", letterSpacing: 1.5, textTransform: "uppercase" as const,
+        }}>
+          KEY POINT
+        </div>
+        {showIcon && (
+          <div style={{
+            marginLeft: "auto", width: 48, height: 48, borderRadius: 12,
+            background: `${accent}22`, border: `2px solid ${accent}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: accent, fontSize: 24, fontWeight: 900,
+          }}>
+            {iconGlyph}
+          </div>
+        )}
+      </div>
+
+      <h2 style={{
+        fontSize: Math.round(44 * fs), fontWeight: 800, color: C.textPrimary,
+        margin: 0, marginBottom: 28, lineHeight: 1.3,
+        textShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
+      }}>
+        <HighlightedText text={kp.title} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
+      </h2>
+
+      <div style={{
+        width: 80, height: 3, background: `linear-gradient(90deg, ${accent}, ${C.accent2})`,
+        borderRadius: 2, marginBottom: 28,
+      }} />
+
+      <p style={{
+        fontSize: Math.round(32 * fs), color: C.textSecondary,
+        margin: 0, marginBottom: 28, lineHeight: 1.7,
+      }}>
+        <HighlightedText text={kp.body} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
+      </p>
+
+      {showDataViz && (() => {
+        if (kp.metrics && kp.metrics.length > 0) {
+          const m = kp.metrics[0];
+          const unit = m.unit ?? "";
+          if (m.min !== undefined && m.max !== undefined) {
+            return (
+              <div style={{ marginTop: 6, marginBottom: 8 }}>
+                <RangeBar min={m.min} max={m.max} unit={unit} fromColor={accent} toColor={hl} />
+              </div>
+            );
+          }
+          if (unit === "%") {
+            if (metricAnimation === "none") {
+              return (
+                <div style={{ marginTop: 6, marginBottom: 8 }}>
+                  <div style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
+                    {m.value}{unit}
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div style={{ marginTop: 6, marginBottom: 8 }}>
+                <CountUpNumber value={m.value} suffix={unit} decimals={m.value % 1 === 0 ? 0 : 1}
+                  style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }} />
+                {metricAnimation === "countup_bar" && <DataBar pct={Math.min(100, Math.max(0, m.value))} fromColor={accent} toColor={hl} />}
+              </div>
+            );
+          }
+          return (
+            <div style={{ marginTop: 6, marginBottom: 8 }}>
+              <MetricValueCard label={m.label ?? unit} value={m.value} unit={unit} style={{ color: hl }} />
+            </div>
+          );
+        }
+        const stat = findPrimaryStat(kp);
+        if (!stat) return null;
+        if (metricAnimation === "none") {
+          return (
+            <div style={{ marginTop: 6, marginBottom: 8 }}>
+              <div style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
+                {stat.value}{stat.suffix}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div style={{ marginTop: 6, marginBottom: 8 }}>
+            <CountUpNumber value={stat.value} suffix={stat.suffix} decimals={stat.value % 1 === 0 ? 0 : 1}
+              style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }} />
+            {metricAnimation === "countup_bar" && <DataBar pct={stat.value} fromColor={accent} toColor={hl} />}
+          </div>
+        );
+      })()}
+
+      {kp.source && (
+        <div style={{
+          marginTop: 32, paddingTop: 20, borderTop: `1px solid ${C.border}`,
+          fontSize: 20, color: C.textMuted,
+        }}>
+          来源：{kp.source}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+        opacity,
+        transformOrigin: "center center",
+      }}
+    >
+      {cardContent}
+    </div>
+  );
+};
+
+// V0.6.2: Card Stack layout — renders prev/current/next cards stacked
+// Used when remotionFamily === "card_stack"
+const CardStackLayout: React.FC<{
+  keyPoints: KeyPoint[];
+  cardStarts: number[];
+  cardFramesArr: number[];
+  transitionOverlap: number;
+  fps: number;
+  vstyle?: RemotionStyle;
+  showDataViz?: boolean;
+}> = ({ keyPoints, cardStarts, cardFramesArr, transitionOverlap, fps, vstyle, showDataViz }) => {
+  const frame = useCurrentFrame();
+
+  return (
+    <AbsoluteFill style={{ background: C.bg, justifyContent: "center", alignItems: "center", padding: "60px 40px" }}>
+      {keyPoints.map((kp, i) => {
+        const totalFrames = cardFramesArr[i] + transitionOverlap;
+        const entryWindow = Math.min(20, totalFrames); // previous card visible for ~0.67s
+        const prevVisible = i > 0;
+        const nextVisible = i < keyPoints.length - 1;
+
+        // Previous card layer: appears at start of current card
+        // Current card layer: main
+        // Next card layer: appears at end of current card
+
+        return (
+          <Sequence
+            key={i}
+            from={cardStarts[i]}
+            durationInFrames={totalFrames}
+          >
+            <AbsoluteFill style={{ background: C.bg, justifyContent: "center", alignItems: "center" }}>
+              {/* Previous card (behind, offset top-right) */}
+              {prevVisible && (
+                <CardStackLayer
+                  kp={keyPoints[i - 1]}
+                  index={i - 1}
+                  stackPosition={-1}
+                  startFrame={0}
+                  exitFrame={totalFrames - entryWindow}
+                  totalFrames={totalFrames}
+                  fps={fps}
+                  vstyle={vstyle}
+                  showDataViz={showDataViz}
+                />
+              )}
+
+              {/* Current card (main) */}
+              <CardStackLayer
+                kp={kp}
+                index={i}
+                stackPosition={0}
+                startFrame={0}
+                exitFrame={totalFrames}
+                totalFrames={totalFrames}
+                fps={fps}
+                vstyle={vstyle}
+                showDataViz={showDataViz}
+              />
+
+              {/* Next card preview (peek from left) */}
+              {nextVisible && (
+                <CardStackLayer
+                  kp={keyPoints[i + 1]}
+                  index={i + 1}
+                  stackPosition={1}
+                  startFrame={totalFrames - entryWindow}
+                  exitFrame={totalFrames}
+                  totalFrames={totalFrames}
+                  fps={fps}
+                  vstyle={vstyle}
+                  showDataViz={showDataViz}
+                />
+              )}
+            </AbsoluteFill>
+          </Sequence>
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
 const SummaryPage: React.FC<{
   title: string;
   keyPoints: KeyPoint[];
@@ -998,6 +1293,7 @@ const SummaryPage: React.FC<{
 };
 
 // V0.3.9: Main Video Component with transitionStyle and style variant support
+// V0.6.2: Card Stack support via remotionFamily prop
 export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   title,
   subtitle,
@@ -1006,6 +1302,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   segmentDurations,
   style,
   showDataViz = true,
+  remotionFamily = "data_news",
 }) => {
   const { fps } = useVideoConfig();
 
@@ -1077,23 +1374,36 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
       </Sequence>
 
       {/* Key Point Cards with transition-aware timing */}
-      {keyPoints.map((kp, i) => (
-        <Sequence
-          key={i}
-          from={cardStarts[i]}
-          durationInFrames={cardFramesArr[i] + transitionOverlap}
-        >
-          <KeyPointCard
-            kp={kp}
-            index={i}
-            startFrame={0}
-            totalDuration={cardFramesArr[i]}
-            fps={fps}
-            vstyle={style}
-            showDataViz={showDataViz}
-          />
-        </Sequence>
-      ))}
+      {/* V0.6.2: Card Stack vs default data_news layout */}
+      {remotionFamily === "card_stack" ? (
+        <CardStackLayout
+          keyPoints={keyPoints}
+          cardStarts={cardStarts}
+          cardFramesArr={cardFramesArr}
+          transitionOverlap={transitionOverlap}
+          fps={fps}
+          vstyle={style}
+          showDataViz={showDataViz}
+        />
+      ) : (
+        keyPoints.map((kp, i) => (
+          <Sequence
+            key={i}
+            from={cardStarts[i]}
+            durationInFrames={cardFramesArr[i] + transitionOverlap}
+          >
+            <KeyPointCard
+              kp={kp}
+              index={i}
+              startFrame={0}
+              totalDuration={cardFramesArr[i]}
+              fps={fps}
+              vstyle={style}
+              showDataViz={showDataViz}
+            />
+          </Sequence>
+        ))
+      )}
 
       {/* Summary with transition-aware timing */}
       <Sequence from={summaryStart} durationInFrames={summaryFrames + transitionOverlap}>

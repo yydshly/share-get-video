@@ -135,6 +135,11 @@ def build_remotion_props(
     if style:
         props["style"] = style
 
+    # V0.6.2: Remotion family — selects presentation paradigm (data_news | card_stack)
+    remotion_family = params.get("remotionFamily")
+    if remotion_family in ("data_news", "card_stack"):
+        props["remotionFamily"] = remotion_family
+
     # Write props to runtime directory
     props_path = _write_props_json(experiment_id, props)
     return props

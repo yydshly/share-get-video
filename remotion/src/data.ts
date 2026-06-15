@@ -48,6 +48,9 @@ export type RemotionStyle = {
   transitionStyle?: TransitionStyle;   // 转场风格: slide_fade / fade / slide
 };
 
+// V0.6.2: Remotion family — selects visual presentation paradigm
+export type RemotionFamily = "data_news" | "card_stack";
+
 export type AiNewsVideoProps = {
   title: string;
   subtitle?: string;
@@ -60,6 +63,8 @@ export type AiNewsVideoProps = {
   style?: RemotionStyle;
   // V0.3.6-quality-p0-fix: showDataViz=false suppresses metrics animation
   showDataViz?: boolean;
+  // V0.6.2: Remotion family — data_news (default) | card_stack
+  remotionFamily?: RemotionFamily;
 };
 
 export const defaultProps: AiNewsVideoProps = {

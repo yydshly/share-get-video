@@ -66,7 +66,7 @@ const FAMILIES: StyleFamily[] = [
       "下一张卡片预览",
       "短视频节奏",
     ],
-    currentStatus: "待探索 — 需在现有 AiNewsVideo 基础上增加 variant",
+    currentStatus: "V0.6.2 已验证 — CardStackLayer 已实现，支持 remotionFamily 参数",
     priority: "P1",
     priorityReason: "短视频感最强，适合 AI 新闻信息流方向",
     accentColor: "#2563eb",
@@ -253,8 +253,9 @@ const MIN_SAMPLE = {
   family: "Card Stack",
   reason:
     "1. 与当前 AiNewsVideo 差异明显（卡片 vs 数字）\n2. 短视频感更强\n3. 适合'今日 AI 三件事'\n4. 不需要复杂数据图表\n5. 可复用现有数据结构快速验证",
-  status: "待本轮确认是否实现",
-  alternative: "若本轮仅完成 UI 规划，下一轮可最小实现 Card Stack variant",
+  status: "V0.6.2 已实现 — CardStackLayer + remotionFamily 参数",
+  experimentId: "card_stack_remotion_95e8de24",
+  detail: "remotionFamily=card_stack 时，KeyPointCard 切换为 CardStackLayer：\n- prev/current/next 三层卡片叠加布局\n- 当前卡片居中突出，上一张缩放后退，下一张预览\n- 数字高亮/数据动画保留",
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -622,7 +623,9 @@ export default function RemotionStyleFamilyPage() {
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: "0.2rem" }}>状态：{MIN_SAMPLE.status}</div>
-          {MIN_SAMPLE.alternative}
+          {MIN_SAMPLE.detail?.split("\n").map((line, i) => (
+            <div key={i} style={{ paddingLeft: "0.5rem" }}>{line}</div>
+          ))}
         </div>
       </div>
 
