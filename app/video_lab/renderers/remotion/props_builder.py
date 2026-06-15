@@ -94,6 +94,17 @@ def build_remotion_props(
     }
     if segment_durations_prop:
         props["segmentDurations"] = segment_durations_prop
+        # V0.8.1: timelineDebug snapshot for post-hoc inspection of
+        # remotion_props.json (without touching the frontend). Helps trace
+        # why a given render's visual timeline diverges from audio.
+        props["timelineDebug"] = {
+            "source": "voiceover_segments",
+            "segmentCount": len(segment_durations),
+            "coverSec": segment_durations_prop["coverSec"],
+            "cardSecs": list(segment_durations_prop["cardSecs"]),
+            "summarySec": segment_durations_prop["summarySec"],
+            "totalSec": duration_sec,
+        }
 
     # 可调样式（对应调试台旋钮：配色/字号/图标）
     # V0.3.7: remotionStyle takes priority; top-level params also accepted

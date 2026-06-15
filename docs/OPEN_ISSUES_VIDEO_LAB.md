@@ -40,6 +40,7 @@ Workbench 生成完整视频
 - **部分视频字幕节奏和画面不一致**：字幕条 / 关键点切换不同步。
 - **结构评分不能代表人工观看质量**：video_quality 给出 5.0/5.0/4.87 时人工感觉差距明显大于分数差。
 - **Workbench Pillow preview 文本溢出 / 重叠（V0.7.6 手工验收发现）**：长内容或多要点时，本地图像帧合成 preview 可能出现文字拥挤、重叠、可读性差。
+- **Remotion timeline 对齐问题（V0.8.1 已修复前端模板时间轴计算）**：V0.8.0 人工标注发现 6 个 Remotion 样式普遍存在画面 / 音频 / 字幕 / 结尾总结页不同步。根因为 Remotion 模板在已接收 `voiceover segment duration` 后，又用 `motionIntensity` 缩放 scene duration，并通过 `transitionOverlap` 让 scene start 提前（`acc += f - transitionOverlap`），导致视觉时间轴短于或偏离音频时间轴。V0.8.1 已禁止 `useAligned` 模式下再用 motionIntensity 缩放 scene duration，并改为按真实 `segmentDurations` 累计 scene start；transitionOverlap 在该模式下被夹到 ≤ 6 帧且不再加在 Summary 上。**仍需用户重新跑 Style Sweep 验证**。
 
 ### P1 · UI / 产品流程问题
 

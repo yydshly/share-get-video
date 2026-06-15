@@ -1394,32 +1394,60 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
     Array.isArray(segmentDurations.cardSecs) &&
     segmentDurations.cardSecs.length === keyPoints.length;
 
-  // Scale durations by motion intensity
+  // Scale durations by motion intensity (only for non-aligned fallback mode).
+  // V0.8.1: useAligned mode forbids motionIntensity from scaling scene duration,
+  // because those durations are already aligned with real TTS audio. motionIntensity
+  // may still affect animation speeds inside each scene, but not scene length.
   const scaleDuration = (frames: number) => Math.round(frames / motionScale);
 
-  const coverFrames = scaleDuration(useAligned
+  const coverFrames = useAligned
     ? Math.max(30, Math.round(segmentDurations!.coverSec * fps))
-    : FIXED_COVER);
-  const cardFramesArr = (useAligned
+    : scaleDuration(FIXED_COVER);
+  const cardFramesArr = useAligned
     ? segmentDurations!.cardSecs.map((s) => Math.max(45, Math.round(s * fps)))
-    : keyPoints.map(() => FIXED_CARD)).map(scaleDuration);
-  const summaryFrames = scaleDuration(useAligned
+    : keyPoints.map(() => scaleDuration(FIXED_CARD));
+  const summaryFrames = useAligned
     ? Math.max(30, Math.round(segmentDurations!.summarySec * fps))
-    : FIXED_SUMMARY);
+    : scaleDuration(FIXED_SUMMARY);
 
-  // 累计起点 (with transition overlap for seamless cuts)
+  // Safe overlap: in useAligned mode, clamp to <= 6 to avoid creating timeline
+  // gaps that no longer match audio. Last Summary never relies on overlap to fill tail.
+  const safeOverlap = useAligned
+    ? Math.min(transitionOverlap, 6)
+    : transitionOverlap;
+
+  // V0.8.1: scene semantic start must strictly follow segmentDurations order.
+  // transitionOverlap may visually overlap a scene onto the next, but cannot move
+  // the start of the next scene earlier (which used to cause audio/video desync
+  // and missing summary / premature black screen).
   const cardStarts: number[] = [];
   let acc = coverFrames;
   for (const f of cardFramesArr) {
     cardStarts.push(acc);
-    acc += f - transitionOverlap;
+    acc += f;
   }
-  const summaryStart = acc - transitionOverlap;
+  const summaryStart = acc;
+  const totalVisualFrames =
+    coverFrames + cardFramesArr.reduce((a, b) => a + b, 0) + summaryFrames;
+
+  // V0.8.1 self-check fields (kept as comments / unused-var OK for debugging exports later):
+  // useAligned, coverFrames, cardFramesArr, summaryFrames, summaryStart, totalVisualFrames
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _timelineDebug = {
+    useAligned,
+    coverFrames,
+    cardFramesArr,
+    summaryFrames,
+    cardStarts,
+    summaryStart,
+    totalVisualFrames,
+    safeOverlap,
+  };
 
   return (
     <AbsoluteFill style={{ background: C.bg }}>
       {/* Cover */}
-      <Sequence from={0} durationInFrames={coverFrames + transitionOverlap}>
+      <Sequence from={0} durationInFrames={coverFrames + safeOverlap}>
         <CoverPage
           title={title}
           subtitle={subtitle}
@@ -1437,7 +1465,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
           keyPoints={keyPoints}
           cardStarts={cardStarts}
           cardFramesArr={cardFramesArr}
-          transitionOverlap={transitionOverlap}
+          transitionOverlap={safeOverlap}
           fps={fps}
           vstyle={style}
           showDataViz={showDataViz}
@@ -1447,7 +1475,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
           <Sequence
             key={i}
             from={cardStarts[i]}
-            durationInFrames={cardFramesArr[i] + transitionOverlap}
+            durationInFrames={cardFramesArr[i] + safeOverlap}
           >
             <KeyPointCard
               kp={kp}
@@ -1462,8 +1490,10 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
         ))
       )}
 
-      {/* Summary with transition-aware timing */}
-      <Sequence from={summaryStart} durationInFrames={summaryFrames + transitionOverlap}>
+      {/* Summary with transition-aware timing.
+          V0.8.1: no transitionOverlap on Summary — Summary is the last scene and
+          must exactly match the audio tail; padding it would push it past total duration. */}
+      <Sequence from={summaryStart} durationInFrames={summaryFrames}>
         <SummaryPage
           title={title}
           keyPoints={keyPoints}
