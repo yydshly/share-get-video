@@ -488,28 +488,41 @@ def _draw_lines_with_highlights(
     Returns bottom y.
     """
     import re
-    text_all = " ".join(lines)
-    # V0.3.6-b2: explicit emphasisTerms take priority over auto-extract
+    # V0.5.2: 在整段文本（按行拼接）上定位高亮区间，再按行逐字着色 —— 支持关键词跨行高亮
+    full = "".join(lines)
     if emphasis_terms:
         highlights = list(dict.fromkeys(e for e in emphasis_terms if e and isinstance(e, str)))
     else:
-        highlights = extract_highlights(text_all)
-    pattern = "|".join(re.escape(h) for h in highlights) if highlights else None
+        highlights = extract_highlights(full)
+
+    spans: list[tuple[int, int]] = []
+    if highlights:
+        pattern = "|".join(re.escape(h) for h in sorted(highlights, key=len, reverse=True))
+        for m in re.finditer(pattern, full):
+            spans.append((m.start(), m.end()))
+
+    def _is_hl(gi: int) -> bool:
+        return any(s <= gi < e for s, e in spans)
 
     cur_y = y
+    offset = 0
     for line in lines:
         cur_x = x
-        if pattern:
-            parts = re.split(f"({pattern})", line)
-        else:
-            parts = [line]
-        for part in parts:
-            if not part:
-                continue
-            color = highlight_color if (highlights and part in highlights) else base_color
-            draw.text((cur_x, cur_y), part, font=font, fill=color)
-            cur_x += draw.textbbox((0, 0), part, font=font)[2] - draw.textbbox((0, 0), part, font=font)[0]
+        n = len(line)
+        i = 0
+        while i < n:
+            hl = _is_hl(offset + i)
+            j = i + 1
+            while j < n and _is_hl(offset + j) == hl:
+                j += 1
+            seg = line[i:j]
+            color = highlight_color if hl else base_color
+            draw.text((cur_x, cur_y), seg, font=font, fill=color)
+            bb = draw.textbbox((0, 0), seg, font=font)
+            cur_x += bb[2] - bb[0]
+            i = j
         cur_y += line_h
+        offset += n
     return cur_y
 
 
