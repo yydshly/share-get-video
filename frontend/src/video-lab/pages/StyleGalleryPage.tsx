@@ -4,7 +4,7 @@
  * V0.3.7: 风格样片库 — 每条路线独立风格探索，无数据库，JSONL 存储
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
@@ -382,6 +382,18 @@ function SampleCard({
   const statusInfo = STATUS_LABELS[sample.status] ?? STATUS_LABELS.candidate;
   const videoSrc = resolveUrl(sample.urls.video_url || sample.output.path);
   const posterSrc = resolveUrl(sample.urls.poster_url || sample.output.poster);
+  // V0.7.7: 视频 ref（用于原生全屏）
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const handleFullscreen = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    const req =
+      v.requestFullscreen ||
+      (v as HTMLVideoElement & { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen;
+    if (req) {
+      try { req.call(v); } catch { /* ignore */ }
+    }
+  };
   // V0.7.3: Workbench 样片特殊样式
   const isWb = isWorkbenchSample(sample);
   const wbColor = "#0f766e";
@@ -502,6 +514,7 @@ function SampleCard({
       {videoSrc ? (
         <div style={{ background: "#0f172a", borderRadius: 8, overflow: "hidden" }}>
           <video
+            ref={videoRef}
             controls
             playsInline
             muted
@@ -515,6 +528,44 @@ function SampleCard({
       ) : (
         <div style={{ background: "#f1f5f9", borderRadius: 8, height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "0.8rem" }}>
           暂无预览
+        </div>
+      )}
+
+      {/* V0.7.7: Workbench 样片 — 如何判断效果（轻量提示 + 原生全屏） */}
+      {isWb && videoSrc && (
+        <div
+          style={{
+            background: "#f0fdfa",
+            border: "1px dashed #5eead4",
+            borderRadius: 6,
+            padding: "0.4rem 0.6rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ fontSize: "0.7rem", color: "#0f766e", lineHeight: 1.5 }}>
+            💡 当前为样片卡片预览，如需判断效果，请点击视频全屏播放或进入对比面板。
+          </div>
+          <button
+            onClick={handleFullscreen}
+            style={{
+              background: "white",
+              color: "#0f766e",
+              border: "1px solid #5eead4",
+              borderRadius: 4,
+              padding: "0.2rem 0.5rem",
+              fontSize: "0.7rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+            title="浏览器原生全屏播放"
+          >
+            🔍 全屏观看
+          </button>
         </div>
       )}
 

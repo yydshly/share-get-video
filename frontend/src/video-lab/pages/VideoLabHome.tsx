@@ -421,7 +421,7 @@ export default function VideoLabHome() {
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
           <Link
             to="/video-lab/workbench"
             style={{
@@ -450,6 +450,23 @@ export default function VideoLabHome() {
           >
             查看 Workbench 样片 →
           </Link>
+          {/* V0.7.7: 次级按钮 — 锚点跳到历史/参考/待清理区（不参与主流程） */}
+          <a
+            href="#legacy-entries"
+            style={{
+              background: "transparent",
+              color: "#64748b",
+              textDecoration: "none",
+              border: "1px solid #cbd5e1",
+              borderRadius: 8,
+              padding: "0.55rem 1.05rem",
+              fontSize: "0.82rem",
+              fontWeight: 500,
+            }}
+            title="这些页面不是当前主流程，主要用于参考、旧实验回看或后续清理"
+          >
+            🗄️ 查看历史 / 参考 / 待清理页面 ↓
+          </a>
         </div>
       </div>
 
@@ -490,12 +507,12 @@ export default function VideoLabHome() {
       </div>
 
       {/* ⑤ 历史 / 待清理入口 */}
-      <div style={{ marginBottom: "1.75rem" }}>
+      <div id="legacy-entries" style={{ marginBottom: "1.75rem", scrollMarginTop: "1rem" }}>
         <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.4rem" }}>
           🗄️ 历史 / 参考 / 待清理（不参与主流程）
         </h2>
         <p style={{ fontSize: "0.78rem", color: "#94a3b8", margin: "0 0 0.75rem 0" }}>
-          这些页面仍可访问但已不属于主流程。本轮仅做分组降级，不删除（避免误删历史数据）。后续可按需清理。
+          这些页面不是当前主流程，主要用于参考、旧实验回看或后续清理。
         </p>
         <div
           style={{

@@ -1,7 +1,8 @@
 // Video Advice Page - 总结建议页
+// V0.7.7: 加定位 banner 明确「历史建议页 / 文字规则页，尚未接入完整真实实验数据」
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { SEED_TEST_CASES, getMethodById, METHOD_CATEGORY_LABELS } from "../seedData";
 import { ADVISOR_RULES } from "../methodAdvice";
 import type { VideoMethodAdvice } from "../types";
@@ -70,13 +71,83 @@ export default function VideoAdvicePage() {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto" }}>
-      <div style={{ marginBottom: "2rem" }}>
+      <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
           总结建议
         </h1>
         <p style={{ color: "#64748b" }}>
           根据场景输出方案推荐、备选方案、不推荐方案及技术栈建议
         </p>
+      </div>
+
+      {/* V0.7.7: 定位 banner — 明确告知此页是「历史建议页 / 文字规则页」而非真实数据驱动推荐 */}
+      <div
+        style={{
+          background: "#fffbeb",
+          border: "1px solid #fde68a",
+          borderRadius: 12,
+          padding: "1rem 1.25rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ fontSize: "1.2rem", lineHeight: 1.4 }}>⚠️</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#92400e", marginBottom: 4 }}>
+              当前页面为历史建议页 / 文字规则页，尚未接入完整真实实验数据。
+            </div>
+            <div style={{ fontSize: "0.82rem", color: "#78350f", lineHeight: 1.6, marginBottom: "0.75rem" }}>
+              本页内容来自 <code style={{ background: "white", padding: "1px 5px", borderRadius: 3 }}>ADVISOR_RULES</code> 硬编码规则，并非由真实探测数据计算得出。
+              主流程请优先使用 <b>Workbench</b>、<b>Style Gallery</b> 和 <b>Style Sweep</b>。
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <Link
+                to="/video-lab"
+                style={{
+                  background: "#0f766e",
+                  color: "white",
+                  textDecoration: "none",
+                  borderRadius: 8,
+                  padding: "0.4rem 0.85rem",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                }}
+              >
+                ← 返回 Video Lab 总控台
+              </Link>
+              <Link
+                to="/video-lab/technique-probe"
+                style={{
+                  background: "white",
+                  color: "#0e7490",
+                  textDecoration: "none",
+                  border: "1px solid #0e7490",
+                  borderRadius: 8,
+                  padding: "0.4rem 0.85rem",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                }}
+              >
+                🔎 进入技术探测台
+              </Link>
+              <Link
+                to="/video-lab/workbench"
+                style={{
+                  background: "white",
+                  color: "#475569",
+                  textDecoration: "none",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 8,
+                  padding: "0.4rem 0.85rem",
+                  fontSize: "0.8rem",
+                  fontWeight: 500,
+                }}
+              >
+                🧪 进入 Workbench
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filter */}
