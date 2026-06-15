@@ -5,9 +5,28 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
+
+// ─── V0.7.3: Workbench 样片识别助手 ──────────────────────────────────────────
+
+/** 识别一条样片是否来自 /video-lab/workbench */
+const isWorkbenchSample = (sample: StyleSample): boolean => {
+  const tags = Array.isArray(sample?.tags) ? sample.tags : [];
+  const params = (sample?.params ?? {}) as Record<string, unknown>;
+  return tags.includes("workbench") || params.source === "workbench";
+};
+
+/** Workbench 路线 id → 中文标签 */
+const getWorkbenchRouteLabel = (sample: StyleSample): string => {
+  const params = (sample?.params ?? {}) as Record<string, unknown>;
+  const route = String(params.workbenchRoute || "");
+  if (route === "pillow") return "Pillow 信息卡片";
+  if (route === "remotion_data_news") return "Remotion Data News";
+  if (route === "remotion_card_stack") return "Remotion Card Stack";
+  return route || "未知 Workbench 路线";
+};
 
 // ─── 类型 ────────────────────────────────────────────────────────────────────
 
@@ -345,6 +364,8 @@ function SampleCard({
   onJudge,
   judging,
   onPromote,
+  isHighlighted = false,
+  onOpenCompare,
 }: {
   sample: StyleSample;
   onDelete: (id: string) => void;
@@ -354,17 +375,34 @@ function SampleCard({
   onJudge: (id: string) => void;
   judging: boolean;
   onPromote: (id: string) => void;
+  isHighlighted?: boolean;
+  onOpenCompare?: () => void;
 }) {
   const color = ROUTE_COLORS[sample.route_id] ?? "#64748b";
   const statusInfo = STATUS_LABELS[sample.status] ?? STATUS_LABELS.candidate;
   const videoSrc = resolveUrl(sample.urls.video_url || sample.output.path);
   const posterSrc = resolveUrl(sample.urls.poster_url || sample.output.poster);
+  // V0.7.3: Workbench 样片特殊样式
+  const isWb = isWorkbenchSample(sample);
+  const wbColor = "#0f766e";
+  const wbBg = "#f0fdfa";
+  const cardBorder = isHighlighted
+    ? `2px solid ${wbColor}`
+    : selectedForCompare
+    ? "1px solid #3b82f6"
+    : isWb
+    ? "1px solid #5eead4"
+    : "1px solid #e2e8f0";
+  const cardBg = isHighlighted ? wbBg : "white";
+  const wbRouteLabel = isWb ? getWorkbenchRouteLabel(sample) : "";
+  const wbExperimentId = isWb ? String((sample.params as Record<string, unknown> | undefined)?.experimentId || "") : "";
+  const wbReviewNotes = isWb ? String((sample.params as Record<string, unknown> | undefined)?.reviewNotes || "").trim() : "";
 
   return (
     <div
       style={{
-        background: "white",
-        border: `1px solid ${selectedForCompare ? "#3b82f6" : "#e2e8f0"}`,
+        background: cardBg,
+        border: cardBorder,
         borderRadius: 12,
         padding: "1rem",
         display: "flex",
@@ -374,8 +412,41 @@ function SampleCard({
     >
       {/* 头部 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
-        <div>
-          <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>{sample.style_name}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b" }}>{sample.style_name}</div>
+            {isWb && (
+              <span
+                title="此样片来自 /video-lab/workbench 的人工通过结果"
+                style={{
+                  fontSize: "0.6rem",
+                  background: `${wbColor}15`,
+                  color: wbColor,
+                  border: `1px solid ${wbColor}55`,
+                  borderRadius: 999,
+                  padding: "1px 7px",
+                  fontWeight: 700,
+                }}
+              >
+                🧪 Workbench 样片
+              </span>
+            )}
+            {isHighlighted && (
+              <span
+                style={{
+                  fontSize: "0.6rem",
+                  background: "#fef3c7",
+                  color: "#92400e",
+                  border: "1px solid #f59e0b",
+                  borderRadius: 999,
+                  padding: "1px 7px",
+                  fontWeight: 700,
+                }}
+              >
+                📍 已定位
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: "0.68rem", color: "#64748b" }}>{sample.route_name}</div>
         </div>
         <span style={{
@@ -388,6 +459,44 @@ function SampleCard({
           {statusInfo.label}
         </span>
       </div>
+
+      {/* V0.7.3: Workbench 来源信息块 — 不再藏在 tags / params details */}
+      {isWb && (
+        <div
+          style={{
+            background: wbBg,
+            border: `1px dashed ${wbColor}55`,
+            borderRadius: 8,
+            padding: "0.5rem 0.65rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            fontSize: "0.68rem",
+            color: "#134e4a",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: wbColor, fontWeight: 700 }}>来源：</span>
+            <span>Workbench 人工通过</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: wbColor, fontWeight: 700 }}>Workbench 路线：</span>
+            <span>{wbRouteLabel}</span>
+          </div>
+          {wbExperimentId && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ color: wbColor, fontWeight: 700 }}>experimentId：</span>
+              <span style={{ fontFamily: "monospace", wordBreak: "break-all" }}>{wbExperimentId}</span>
+            </div>
+          )}
+          {wbReviewNotes && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+              <span style={{ color: wbColor, fontWeight: 700, flexShrink: 0 }}>备注：</span>
+              <span style={{ fontStyle: "italic" }}>"{wbReviewNotes}"</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 预览 */}
       {videoSrc ? (
@@ -537,6 +646,43 @@ function SampleCard({
       {sample.duration_sec > 0 && (
         <div style={{ fontSize: "0.68rem", color: "#64748b" }}>
           时长: {Math.round(sample.duration_sec)}s · 音频: {Math.round(sample.audio_duration_sec)}s
+        </div>
+      )}
+
+      {/* V0.7.3: 已加入对比面板提示 + 打开对比按钮（仅 comparing 状态） */}
+      {sample.status === "comparing" && (
+        <div
+          style={{
+            background: "#eff6ff",
+            border: "1px solid #bfdbfe",
+            borderRadius: 8,
+            padding: "0.5rem 0.65rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.5rem",
+          }}
+        >
+          <div style={{ fontSize: "0.7rem", color: "#1d4ed8", fontWeight: 600 }}>
+            ✓ 已加入对比面板
+          </div>
+          {onOpenCompare && (
+            <button
+              onClick={onOpenCompare}
+              style={{
+                background: "#3b82f6",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+                padding: "0.3rem 0.65rem",
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              打开对比面板
+            </button>
+          )}
         </div>
       )}
 
@@ -795,17 +941,30 @@ function CompareCard({
 // ─── 主页面 ──────────────────────────────────────────────────────────────────
 
 export default function StyleGalleryPage() {
+  const [searchParams] = useSearchParams();
   const [presets, setPresets] = useState<PresetStyle[]>([]);
   const [samples, setSamples] = useState<StyleSample[]>([]);
   const [templates, setTemplates] = useState<StyleTemplate[]>([]);
   const [filterRoute, setFilterRoute] = useState<string>("");
   const [filterStatus, setFilterStatus] = useState<string>("");
+  // V0.7.3: 新增来源筛选 + Workbench 高亮定位
+  const [filterSource, setFilterSource] = useState<"" | "workbench" | "gallery">(() => {
+    const v = searchParams.get("source");
+    return v === "workbench" || v === "gallery" ? v : "";
+  });
+  const [highlightSampleId, setHighlightSampleId] = useState<string | null>(
+    () => searchParams.get("sample_id"),
+  );
+  const [highlightDismissed, setHighlightDismissed] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
   const [compareSet, setCompareSet] = useState<Set<string>>(new Set());
   const [judgingSet, setJudgingSet] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare" | "templates">("presets");
+  const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare" | "templates">(() => {
+    const v = searchParams.get("tab");
+    return v === "gallery" || v === "compare" || v === "templates" ? v : "presets";
+  });
   const [scoreSummary, setScoreSummary] = useState<Record<string, RouteScoreSummary>>({});
   const [judgeAvailable, setJudgeAvailable] = useState<boolean>(true);
   const [judgeUnavailableMsg, setJudgeUnavailableMsg] = useState<string>("");
@@ -1079,6 +1238,19 @@ export default function StyleGalleryPage() {
     { value: "ai_asset_then_compose", label: "AI 素材氛围" },
   ];
 
+  // V0.7.3: 二次过滤（路线/状态由后端过滤，来源在前端过滤）
+  const visibleSamples = samples.filter((s) => {
+    if (filterSource === "workbench") return isWorkbenchSample(s);
+    if (filterSource === "gallery") return !isWorkbenchSample(s);
+    return true;
+  });
+
+  // V0.7.3: Workbench 样片统计（基于后端已返回的 samples 计算）
+  const workbenchSamples = samples.filter(isWorkbenchSample);
+  const workbenchCount = workbenchSamples.length;
+  const workbenchComparing = workbenchSamples.filter((s) => s.status === "comparing").length;
+  const workbenchApproved = workbenchSamples.filter((s) => s.status === "approved").length;
+
   const filteredPresets = filterRoute ? presets.filter((p) => p.route_id === filterRoute) : presets;
   const filteredTemplates = filterRoute ? templates.filter((t) => t.route_id === filterRoute) : templates;
   const groupedPresets = filteredPresets.reduce((acc, p) => {
@@ -1098,8 +1270,58 @@ export default function StyleGalleryPage() {
       <Link to="/video-lab" style={{ color: "#64748b", fontSize: "0.85rem", textDecoration: "none" }}>← 返回首页</Link>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginTop: "0.5rem" }}>路线风格样片库</h1>
       <p style={{ color: "#64748b", fontSize: "0.9rem", marginTop: "0.25rem" }}>
-        V0.4.2 · 无数据库 · 风格探索 · 视觉评分 · 对比选优 · 模板沉淀
+        V0.7.3 · 无数据库 · 风格探索 · 视觉评分 · 对比选优 · 模板沉淀 · Workbench 样片识别
       </p>
+
+      {/* V0.7.3: 顶部 — 已定位到 Workbench 保存的样片（来自 URL ?sample_id=） */}
+      {highlightSampleId && !highlightDismissed && (
+        <div
+          style={{
+            marginTop: "1rem",
+            background: "#f0fdfa",
+            border: "1px solid #0f766e",
+            borderRadius: 10,
+            padding: "0.75rem 1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.75rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ fontSize: "0.82rem", color: "#0f766e", fontWeight: 600 }}>
+            📍 已定位到 Workbench 保存的样片：<code style={{ background: "white", padding: "1px 6px", borderRadius: 4, color: "#0f766e" }}>{highlightSampleId}</code>
+            {visibleSamples.find((s) => s.id === highlightSampleId) ? null : (
+              <span style={{ marginLeft: 8, color: "#dc2626", fontWeight: 400 }}>
+                （当前筛选下未显示 — 切换「全部来源」或调整路线/状态筛选可查看）
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => { setFilterSource("workbench"); setActiveTab("gallery"); }}
+              style={{
+                background: "#0f766e", color: "white", border: "none",
+                borderRadius: 6, padding: "0.3rem 0.75rem",
+                fontSize: "0.75rem", fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              查看 Workbench 样片
+            </button>
+            <button
+              onClick={() => setHighlightDismissed(true)}
+              style={{
+                background: "transparent", color: "#0f766e",
+                border: "1px solid #0f766e55",
+                borderRadius: 6, padding: "0.3rem 0.6rem",
+                fontSize: "0.75rem", cursor: "pointer",
+              }}
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tab 切换 */}
       <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", borderBottom: "1px solid #e2e8f0", paddingBottom: "0.75rem" }}>
@@ -1181,6 +1403,25 @@ export default function StyleGalleryPage() {
           <option value="rejected">已放弃</option>
           <option value="comparing">对比中</option>
         </select>
+        {/* V0.7.3: 来源筛选（仅样片库 tab 有意义，其它 tab 会忽略） */}
+        <select
+          value={filterSource}
+          onChange={(e) => setFilterSource(e.target.value as "" | "workbench" | "gallery")}
+          style={{
+            padding: "0.4rem 0.75rem",
+            border: `1px solid ${filterSource === "workbench" ? "#0f766e" : "#e2e8f0"}`,
+            background: filterSource === "workbench" ? "#f0fdfa" : "white",
+            color: filterSource === "workbench" ? "#0f766e" : "#475569",
+            borderRadius: 8,
+            fontSize: "0.8rem",
+            fontWeight: filterSource === "workbench" ? 600 : 400,
+            cursor: "pointer",
+          }}
+        >
+          <option value="">全部来源</option>
+          <option value="workbench">🧪 Workbench 样片</option>
+          <option value="gallery">样片库生成</option>
+        </select>
         <button
           onClick={() => { if (activeTab === "gallery") loadSamples(); else loadPresets(); }}
           style={{
@@ -1246,13 +1487,60 @@ export default function StyleGalleryPage() {
       {/* 样片库 Tab */}
       {activeTab === "gallery" && (
         <div style={{ marginTop: "1rem" }}>
-          {samples.length === 0 ? (
+          {/* V0.7.3: Workbench 样片说明区 — 仅当筛选 workbench 或 URL 带 source=workbench 时显示 */}
+          {(filterSource === "workbench" || searchParams.get("source") === "workbench") && (
+            <div
+              style={{
+                background: "#f0fdfa",
+                border: "1px solid #5eead4",
+                borderRadius: 12,
+                padding: "0.85rem 1rem",
+                marginBottom: "1rem",
+              }}
+            >
+              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#0f766e", marginBottom: 4 }}>
+                🧪 Workbench 样片说明
+              </div>
+              <div style={{ fontSize: "0.78rem", color: "#134e4a", lineHeight: 1.55 }}>
+                这些样片来自 <code style={{ background: "white", padding: "1px 5px", borderRadius: 3 }}>/video-lab/workbench</code> 的人工通过结果。
+                它们代表已经生成完整视频，并经过人工确认。可在对比面板中并排查看，或升级为模板。
+              </div>
+              <div
+                style={{
+                  marginTop: "0.6rem",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.6rem",
+                  fontSize: "0.75rem",
+                }}
+              >
+                <span style={{ background: "white", border: "1px solid #5eead4", borderRadius: 6, padding: "2px 8px", color: "#0f766e" }}>
+                  Workbench 样片数量：<b>{workbenchCount}</b>
+                </span>
+                <span style={{ background: "white", border: "1px solid #5eead4", borderRadius: 6, padding: "2px 8px", color: "#0f766e" }}>
+                  对比中：<b>{workbenchComparing}</b>
+                </span>
+                <span style={{ background: "white", border: "1px solid #5eead4", borderRadius: 6, padding: "2px 8px", color: "#0f766e" }}>
+                  已确认：<b>{workbenchApproved}</b>
+                </span>
+                <span style={{ background: "white", border: "1px solid #5eead4", borderRadius: 6, padding: "2px 8px", color: "#0f766e" }}>
+                  当前可见：<b>{visibleSamples.length}</b>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {visibleSamples.length === 0 ? (
             <div style={{ textAlign: "center", padding: "3rem 0", color: "#94a3b8", fontSize: "0.9rem" }}>
-              暂无样片，请先在「预置风格」中生成
+              {samples.length === 0
+                ? "暂无样片，请先在「预置风格」中生成"
+                : filterSource === "workbench"
+                ? "当前筛选下没有 Workbench 样片，可切回「全部来源」或前往 /video-lab/workbench 生成并通过一条"
+                : "当前来源筛选下没有样片"}
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1rem" }}>
-              {samples.map((s) => (
+              {visibleSamples.map((s) => (
                 <SampleCard
                   key={s.id}
                   sample={s}
@@ -1263,6 +1551,8 @@ export default function StyleGalleryPage() {
                   onJudge={handleJudge}
                   judging={judgingSet.has(s.id)}
                   onPromote={handlePromote}
+                  isHighlighted={highlightSampleId === s.id}
+                  onOpenCompare={() => setActiveTab("compare")}
                 />
               ))}
             </div>

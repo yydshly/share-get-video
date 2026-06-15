@@ -873,7 +873,11 @@ export default function VideoGenerationWorkbenchPage() {
 
                   {compareSuccess && (
                     <Link
-                      to="/video-lab/style-gallery"
+                      to={
+                        savedSampleId
+                          ? `/video-lab/style-gallery?tab=gallery&source=workbench&sample_id=${encodeURIComponent(savedSampleId)}`
+                          : "/video-lab/style-gallery?tab=gallery&source=workbench"
+                      }
                       style={{
                         fontSize: "0.78rem", color: "#7c3aed",
                         textDecoration: "none", border: "1px solid #7c3aed",
