@@ -1,5 +1,5 @@
-// Remotion Style Family Page - V0.6.5.2 / V0.8.7
-// V0.8.7: 升级为「Remotion 表现范式研究台」 —
+// Remotion Style Family Page - V0.6.5.2 / V0.8.8
+// V0.8.8: 升级为「Remotion 表现范式研究台」 —
 //   - 扩展 StyleFamily：referenceExamples / implementationPattern / requiredComponents / styleSweepMapping / nextExperiment
 //   - 新增「参考样例 → 可落地范式」「当前实现覆盖度」「下一步最小实验推荐」三个区块
 //   - 参考来源（人工整理）：
@@ -45,7 +45,7 @@ interface StyleFamily {
   accentColor: string;
   icon: string;
 
-  // V0.8.7: 参考样例 / 实现映射（来自 Remotion 官方模板 / Showcase / Prompt Showcase 抽象）
+  // V0.8.8: 参考样例 / 实现映射（来自 Remotion 官方模板 / Showcase / Prompt Showcase 抽象）
   referenceExamples?: string[];
   implementationPattern?: string[];
   requiredComponents?: string[];
@@ -501,7 +501,7 @@ function FamilyCard({ family }: { family: StyleFamily }) {
   );
 }
 
-// ─── V0.8.7: 当前实现覆盖度面板 ───────────────────────────────────────────────
+// ─── V0.8.8: 当前实现覆盖度面板 ───────────────────────────────────────────────
 
 function CoveragePanel() {
   // 已实现基础：Data News / Card Stack
@@ -602,7 +602,7 @@ function CoverageColumn({
   );
 }
 
-// ─── V0.8.7: 下一步最小实验推荐 ───────────────────────────────────────────────
+// ─── V0.8.8: 下一步最小实验推荐 ───────────────────────────────────────────────
 
 function NextExperimentPanel() {
   return (
@@ -653,7 +653,7 @@ function NextExperimentPanel() {
   );
 }
 
-// ─── V0.8.7: 参考样例 → 可落地范式 映射 ────────────────────────────────────────
+// ─── V0.8.8: 参考样例 → 可落地范式 映射 ────────────────────────────────────────
 
 const REFERENCE_MAPPING: {
   referenceExample: string;
@@ -921,14 +921,14 @@ export default function RemotionStyleFamilyPage() {
       {/* Header */}
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-          Remotion 表现范式研究台 · V0.8.7
+          Remotion 表现范式研究台 · V0.8.8
         </h1>
         <p style={{ color: "#64748b", fontSize: "0.95rem" }}>
           将 Remotion 从单一路线升级为可编程视频表现系统 — 本页是"设计方向研究"，批量生成验证请去 Style Sweep，沉淀样片请去 Style Gallery。
         </p>
       </div>
 
-      {/* V0.8.7: 主流程入口 */}
+      {/* V0.8.8: 主流程入口 */}
       <div
         data-testid="remotion-family-top-entries"
         style={{
@@ -1010,13 +1010,13 @@ export default function RemotionStyleFamilyPage() {
         </div>
       </div>
 
-      {/* V0.8.7: 当前实现覆盖度（避免用户误以为 family 都已可生成） */}
+      {/* V0.8.8: 当前实现覆盖度（避免用户误以为 family 都已可生成） */}
       <CoveragePanel />
 
-      {/* V0.8.7: 下一步最小实验推荐 */}
+      {/* V0.8.8: 下一步最小实验推荐 */}
       <NextExperimentPanel />
 
-      {/* V0.8.7: 参考样例 → 可落地范式 映射表 */}
+      {/* V0.8.8: 参考样例 → 可落地范式 映射表 */}
       <ReferenceMappingPanel />
 
       {/* Section 2: Comparison Matrix */}
