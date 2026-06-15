@@ -382,6 +382,37 @@ function SampleCard({
   const statusInfo = STATUS_LABELS[sample.status] ?? STATUS_LABELS.candidate;
   const videoSrc = resolveUrl(sample.urls.video_url || sample.output.path);
   const posterSrc = resolveUrl(sample.urls.poster_url || sample.output.poster);
+  // V0.8.7: 资产缺失诊断 —— 区分 video / poster 各自是否存在
+  const hasVideo = Boolean(sample.urls.video_url || sample.output.path);
+  const hasPoster = Boolean(sample.urls.poster_url || sample.output.poster);
+  const hasPreview = hasVideo || hasPoster;
+  // V0.8.7: 复制样片诊断 JSON —— 用于截图反馈时直接粘给开发
+  const handleCopyDiagnostic = () => {
+    const diagnostic = {
+      id: sample.id,
+      route_id: sample.route_id,
+      route_name: sample.route_name,
+      style_name: sample.style_name,
+      status: sample.status,
+      hasVideo,
+      hasPoster,
+      video_url: sample.urls.video_url || "",
+      output_path: sample.output.path || "",
+      poster_url: sample.urls.poster_url || "",
+      output_poster: sample.output.poster || "",
+      audio_url: sample.urls.audio_url || sample.output.audio_url || "",
+      srt_url: sample.urls.srt_url || sample.output.srt_url || "",
+      manifest_url: sample.urls.manifest_url || sample.output.manifest_url || "",
+      duration_sec: sample.duration_sec,
+      audio_duration_sec: sample.audio_duration_sec,
+      params: sample.params,
+    };
+    try {
+      navigator.clipboard.writeText(JSON.stringify(diagnostic, null, 2));
+    } catch {
+      // ignore
+    }
+  };
   // V0.7.7: 视频 ref（用于原生全屏）
   const videoRef = useRef<HTMLVideoElement>(null);
   const handleFullscreen = () => {
@@ -526,8 +557,52 @@ function SampleCard({
       ) : posterSrc ? (
         <img src={posterSrc} alt={sample.style_name} style={{ width: "100%", borderRadius: 8 }} />
       ) : (
-        <div style={{ background: "#f1f5f9", borderRadius: 8, height: 120, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "0.8rem" }}>
-          暂无预览
+        // V0.8.7: 样片资产缺失提示 —— 不再只显示"暂无预览"
+        <div
+          data-testid="sample-asset-missing"
+          style={{
+            background: "#fef2f2",
+            border: "1px dashed #fecaca",
+            borderRadius: 8,
+            padding: "0.7rem 0.85rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            color: "#991b1b",
+            fontSize: "0.7rem",
+            lineHeight: 1.5,
+          }}
+        >
+          <div style={{ fontWeight: 700, fontSize: "0.78rem" }}>
+            ⚠️ 样片资产缺失
+          </div>
+          <div style={{ color: "#b91c1c" }}>
+            当前记录没有 video_url / output.path / poster_url。这条记录可能是早期生成或保存字段缺失导致。
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 8, rowGap: 2, color: "#7f1d1d", fontSize: "0.65rem" }}>
+            <span style={{ color: "#94a3b8" }}>id</span>
+            <span style={{ fontFamily: "monospace", wordBreak: "break-all" }}>{sample.id}</span>
+            <span style={{ color: "#94a3b8" }}>route_id</span>
+            <span style={{ fontFamily: "monospace", wordBreak: "break-all" }}>{sample.route_id}</span>
+            <span style={{ color: "#94a3b8" }}>style_name</span>
+            <span style={{ wordBreak: "break-all" }}>{sample.style_name}</span>
+            <span style={{ color: "#94a3b8" }}>manifest_url</span>
+            <span style={{ fontFamily: "monospace", wordBreak: "break-all" }}>
+              {sample.urls.manifest_url || sample.output.manifest_url || "—"}
+            </span>
+            <span style={{ color: "#94a3b8" }}>audio_url</span>
+            <span style={{ fontFamily: "monospace", wordBreak: "break-all" }}>
+              {sample.urls.audio_url || sample.output.audio_url || "—"}
+            </span>
+            <span style={{ color: "#94a3b8" }}>srt_url</span>
+            <span style={{ fontFamily: "monospace", wordBreak: "break-all" }}>
+              {sample.urls.srt_url || sample.output.srt_url || "—"}
+            </span>
+            <span style={{ color: "#94a3b8" }}>duration_sec</span>
+            <span>{sample.duration_sec}</span>
+            <span style={{ color: "#94a3b8" }}>audio_duration_sec</span>
+            <span>{sample.audio_duration_sec}</span>
+          </div>
         </div>
       )}
 
@@ -739,6 +814,22 @@ function SampleCard({
 
       {/* 操作按钮 */}
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "auto" }}>
+        <button
+          onClick={handleCopyDiagnostic}
+          data-testid="copy-sample-diagnostic"
+          style={{
+            background: hasPreview ? "#f1f5f9" : "#fef3c7",
+            color: hasPreview ? "#475569" : "#92400e",
+            border: hasPreview ? "none" : "1px solid #fde68a",
+            borderRadius: 6,
+            padding: "0.35rem 0.75rem",
+            fontSize: "0.72rem",
+            cursor: "pointer",
+          }}
+          title="复制样片诊断 JSON，用于反馈样片资产问题"
+        >
+          🩺 复制样片诊断 JSON
+        </button>
         <button
           onClick={() => navigator.clipboard.writeText(JSON.stringify(sample.params, null, 2))}
           style={{
@@ -1121,8 +1212,23 @@ export default function StyleGalleryPage() {
       const data: GenerateResult = await resp.json();
       if (!resp.ok) throw new Error(data.failed_reason || `${resp.status}`);
 
+      // V0.8.7: 保存字段 fallback —— 优先 final_video_url / cover_url，回落 data.output.path
+      const outputPath = data.output?.path || data.final_video_url || "";
+      const posterPath = data.output?.poster || data.cover_url || "";
+      const audioUrl = data.audio_url || data.output?.audio_url || "";
+      const srtUrl = data.srt_url || data.output?.srt_url || "";
+      const manifestUrl = data.manifest_url || data.output?.manifest_url || "";
+
+      // V0.8.7: 生成接口"成功"但缺视频路径时，不再静默保存无预览样片
+      if (!outputPath && !data.final_video_url) {
+        throw new Error(
+          "生成接口成功返回，但缺少 final_video_url / output.path，无法保存为可预览样片。" +
+            "请检查 /style-samples/generate 返回值。",
+        );
+      }
+
       // 自动保存到样片库
-      await fetch(`${API_BASE}/style-samples`, {
+      const saveResp = await fetch(`${API_BASE}/style-samples`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1134,17 +1240,22 @@ export default function StyleGalleryPage() {
           status: "candidate",
           params: data.params,
           output_type: data.output.type,
-          output_path: data.output.path,
-          poster_path: data.output.poster,
-          audio_url: data.audio_url,
-          srt_url: data.srt_url,
-          manifest_url: data.manifest_url,
+          output_path: outputPath,
+          poster_path: posterPath,
+          audio_url: audioUrl,
+          srt_url: srtUrl,
+          manifest_url: manifestUrl,
           content_preview: data.content_preview,
           duration_sec: data.duration_sec,
           audio_duration_sec: data.audio_duration_sec,
           tags: opts.tags,
         }),
       });
+      // V0.8.7: 保存接口 resp.ok 检查，避免生成成功 / 保存失败时 UI 误报成功
+      if (!saveResp.ok) {
+        const text = await saveResp.text().catch(() => "");
+        throw new Error(`保存样片失败: HTTP ${saveResp.status} ${text}`);
+      }
       loadSamples();
       setActiveTab("gallery");
       if (opts.successMsg) setSuccessMsg(opts.successMsg);
@@ -1508,6 +1619,44 @@ export default function StyleGalleryPage() {
       {/* 预置风格 Tab */}
       {activeTab === "presets" && (
         <div style={{ marginTop: "1rem" }}>
+          {/* V0.8.7: 区分"生成样片"与"探索 Remotion" */}
+          <div
+            data-testid="preset-tab-hint"
+            style={{
+              background: "#eff6ff",
+              border: "1px solid #bfdbfe",
+              borderRadius: 10,
+              padding: "0.7rem 0.9rem",
+              marginBottom: "1rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+              color: "#1d4ed8",
+              fontSize: "0.78rem",
+              lineHeight: 1.5,
+            }}
+          >
+            <div>
+              这里可以单独生成某个预置风格样片；如果要系统比较 Remotion 多个风格，请使用 Style Sweep。
+            </div>
+            <Link
+              to="/video-lab/style-sweep"
+              style={{
+                background: "#3b82f6",
+                color: "white",
+                textDecoration: "none",
+                borderRadius: 6,
+                padding: "0.35rem 0.85rem",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+            >
+              进入 Style Sweep
+            </Link>
+          </div>
           {Object.entries(groupedPresets).map(([routeId, routePresets]) => {
             const color = ROUTE_COLORS[routeId] ?? "#64748b";
             return (
@@ -1538,6 +1687,31 @@ export default function StyleGalleryPage() {
       {/* 样片库 Tab */}
       {activeTab === "gallery" && (
         <div style={{ marginTop: "1rem" }}>
+          {/* V0.8.7: 样片库定位提示 */}
+          <div
+            data-testid="gallery-tab-hint"
+            style={{
+              background: "#fffbeb",
+              border: "1px solid #fbbf24",
+              borderRadius: 10,
+              padding: "0.7rem 0.9rem",
+              marginBottom: "1rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              color: "#92400e",
+              fontSize: "0.78rem",
+              lineHeight: 1.6,
+            }}
+          >
+            <div>
+              样片库用于沉淀已经生成或人工通过的样片。每条可用样片应至少包含 <code>video_url</code> 或 <code>poster_url</code>。
+              如果卡片显示「样片资产缺失」，说明记录存在但预览路径缺失，建议删除后重新生成或回到 Workbench / Style Sweep 生成新样片。
+            </div>
+            <div style={{ color: "#78350f" }}>
+              Style Gallery 不是 Remotion 批量探索入口；Remotion 能力探索请使用 <Link to="/video-lab/style-sweep" style={{ color: "#1d4ed8", fontWeight: 600 }}>Style Sweep</Link>。
+            </div>
+          </div>
           {/* V0.7.3: Workbench 样片说明区 — 仅当筛选 workbench 或 URL 带 source=workbench 时显示 */}
           {(filterSource === "workbench" || searchParams.get("source") === "workbench") && (
             <div
