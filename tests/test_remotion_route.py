@@ -329,6 +329,148 @@ def test_remotion_adapter_with_mocked_render():
     assert result.assets.get("routeReal") is True
 
 
+# ─────────────────────────────────────────
+# 8. V0.3.9: Style parameters propagation tests
+# ─────────────────────────────────────────
+def test_remotion_props_builder_style_motion_intensity():
+    """Props builder should carry motionIntensity to props['style']."""
+    from app.video_lab.renderers.remotion.props_builder import build_remotion_props
+
+    structured = {"lead": "测试", "totalItems": 1}
+    key_points = {"keyPoints": [{"title": "Point 1", "body": "Body 1", "source": ""}]}
+    params = {"targetDuration": 30, "motionIntensity": "high"}
+
+    with patch("app.video_lab.renderers.remotion.props_builder.get_experiment_dir") as mock_dir:
+        mock_dir.return_value = MagicMock()
+        mock_path = MagicMock()
+        mock_path.__truediv__ = MagicMock(return_value=mock_path)
+        mock_path.open = MagicMock()
+
+        with patch("builtins.open", mock_path.open):
+            props = build_remotion_props("test_exp", structured, key_points, params)
+
+    assert "style" in props
+    assert props["style"].get("motionIntensity") == "high"
+
+
+def test_remotion_props_builder_style_cover_style():
+    """Props builder should carry coverStyle to props['style']."""
+    from app.video_lab.renderers.remotion.props_builder import build_remotion_props
+
+    structured = {"lead": "测试", "totalItems": 1}
+    key_points = {"keyPoints": [{"title": "Point 1", "body": "Body 1", "source": ""}]}
+    params = {"targetDuration": 30, "coverStyle": "cinematic"}
+
+    with patch("app.video_lab.renderers.remotion.props_builder.get_experiment_dir") as mock_dir:
+        mock_dir.return_value = MagicMock()
+        mock_path = MagicMock()
+        mock_path.__truediv__ = MagicMock(return_value=mock_path)
+        mock_path.open = MagicMock()
+
+        with patch("builtins.open", mock_path.open):
+            props = build_remotion_props("test_exp", structured, key_points, params)
+
+    assert "style" in props
+    assert props["style"].get("coverStyle") == "cinematic"
+
+
+def test_remotion_props_builder_style_overview_style():
+    """Props builder should carry overviewStyle to props['style']."""
+    from app.video_lab.renderers.remotion.props_builder import build_remotion_props
+
+    structured = {"lead": "测试", "totalItems": 1}
+    key_points = {"keyPoints": [{"title": "Point 1", "body": "Body 1", "source": ""}]}
+    params = {"targetDuration": 30, "overviewStyle": "grid"}
+
+    with patch("app.video_lab.renderers.remotion.props_builder.get_experiment_dir") as mock_dir:
+        mock_dir.return_value = MagicMock()
+        mock_path = MagicMock()
+        mock_path.__truediv__ = MagicMock(return_value=mock_path)
+        mock_path.open = MagicMock()
+
+        with patch("builtins.open", mock_path.open):
+            props = build_remotion_props("test_exp", structured, key_points, params)
+
+    assert "style" in props
+    assert props["style"].get("overviewStyle") == "grid"
+
+
+def test_remotion_props_builder_style_metric_animation():
+    """Props builder should carry metricAnimation to props['style']."""
+    from app.video_lab.renderers.remotion.props_builder import build_remotion_props
+
+    structured = {"lead": "测试", "totalItems": 1}
+    key_points = {"keyPoints": [{"title": "Point 1", "body": "Body 1", "source": ""}]}
+    params = {"targetDuration": 30, "metricAnimation": "none"}
+
+    with patch("app.video_lab.renderers.remotion.props_builder.get_experiment_dir") as mock_dir:
+        mock_dir.return_value = MagicMock()
+        mock_path = MagicMock()
+        mock_path.__truediv__ = MagicMock(return_value=mock_path)
+        mock_path.open = MagicMock()
+
+        with patch("builtins.open", mock_path.open):
+            props = build_remotion_props("test_exp", structured, key_points, params)
+
+    assert "style" in props
+    assert props["style"].get("metricAnimation") == "none"
+
+
+def test_remotion_props_builder_style_transition_style():
+    """Props builder should carry transitionStyle to props['style']."""
+    from app.video_lab.renderers.remotion.props_builder import build_remotion_props
+
+    structured = {"lead": "测试", "totalItems": 1}
+    key_points = {"keyPoints": [{"title": "Point 1", "body": "Body 1", "source": ""}]}
+    params = {"targetDuration": 30, "transitionStyle": "fade"}
+
+    with patch("app.video_lab.renderers.remotion.props_builder.get_experiment_dir") as mock_dir:
+        mock_dir.return_value = MagicMock()
+        mock_path = MagicMock()
+        mock_path.__truediv__ = MagicMock(return_value=mock_path)
+        mock_path.open = MagicMock()
+
+        with patch("builtins.open", mock_path.open):
+            props = build_remotion_props("test_exp", structured, key_points, params)
+
+    assert "style" in props
+    assert props["style"].get("transitionStyle") == "fade"
+
+
+def test_remotion_props_builder_style_remotion_style_dict():
+    """Props builder should carry all style params via remotionStyle dict."""
+    from app.video_lab.renderers.remotion.props_builder import build_remotion_props
+
+    structured = {"lead": "测试", "totalItems": 1}
+    key_points = {"keyPoints": [{"title": "Point 1", "body": "Body 1", "source": ""}]}
+    params = {
+        "targetDuration": 30,
+        "remotionStyle": {
+            "motionIntensity": "low",
+            "coverStyle": "minimal",
+            "overviewStyle": "clean",
+            "metricAnimation": "countup_number",
+            "transitionStyle": "slide",
+        }
+    }
+
+    with patch("app.video_lab.renderers.remotion.props_builder.get_experiment_dir") as mock_dir:
+        mock_dir.return_value = MagicMock()
+        mock_path = MagicMock()
+        mock_path.__truediv__ = MagicMock(return_value=mock_path)
+        mock_path.open = MagicMock()
+
+        with patch("builtins.open", mock_path.open):
+            props = build_remotion_props("test_exp", structured, key_points, params)
+
+    assert "style" in props
+    assert props["style"].get("motionIntensity") == "low"
+    assert props["style"].get("coverStyle") == "minimal"
+    assert props["style"].get("overviewStyle") == "clean"
+    assert props["style"].get("metricAnimation") == "countup_number"
+    assert props["style"].get("transitionStyle") == "slide"
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

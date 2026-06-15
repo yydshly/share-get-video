@@ -12,7 +12,7 @@ import {
   spring,
   Sequence,
 } from "remotion";
-import type { AiNewsVideoProps, KeyPoint, Metric, RemotionStyle } from "./data";
+import type { AiNewsVideoProps, KeyPoint, Metric, RemotionStyle, MotionIntensity, CoverStyle, OverviewStyle, MetricAnimation, TransitionStyle } from "./data";
 
 // ─── Highlight Helper (V0.3.6-b1) ────────────────────────────────────────────
 /** Auto-extract numbers, percentages, and key terms from text (fallback). */
@@ -100,6 +100,19 @@ const TONE_STYLES: Record<string, { accent: string; highlight: string; glyph: st
   negative: { accent: "#f59e0b", highlight: "#fcd34d", glyph: "!" },
   neutral: { accent: "#3b82f6", highlight: "#60a5fa", glyph: "✦" },
 };
+
+// V0.3.9: Motion intensity scale mapping
+const MOTION_SCALE: Record<MotionIntensity, number> = {
+  low: 0.75,
+  medium: 1.0,
+  high: 1.25,
+};
+
+// V0.3.9: Get effective motion scale from style props
+function getMotionScale(vstyle?: RemotionStyle): number {
+  const intensity = vstyle?.motionIntensity ?? "medium";
+  return MOTION_SCALE[intensity] ?? 1.0;
+}
 
 // ─── Data motion helpers (count-up number + growing bar) ─────────────────────
 // Remotion 特有：把百分比做成"数字滚动 + 数据条生长"，这是静态卡(Pillow)做不到的动画。
@@ -192,21 +205,127 @@ const DataBar: React.FC<{ pct: number; startFrame?: number; durationFrames?: num
   );
 };
 
-// ─── Cover Page (V0.3.8: compact, includes 3-point preview list) ─────────────
+// V0.3.9: Cover Page with style variants
 const CoverPage: React.FC<{
   title: string;
   subtitle?: string;
   keyPoints: KeyPoint[];
   duration: number;
-}> = ({ title, subtitle, keyPoints, duration }) => {
+  coverStyle?: CoverStyle;
+  vstyle?: RemotionStyle;
+}> = ({ title, subtitle, keyPoints, duration, coverStyle = "editorial", vstyle }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const motionScale = getMotionScale(vstyle);
 
-  const titleOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
-  const titleY = interpolate(frame, [0, 15], [30, 0], { extrapolateRight: "clamp" });
-  const subtitleOpacity = interpolate(frame, [10, 25], [0, 1], { extrapolateRight: "clamp" });
-  const listOpacity = interpolate(frame, [20, 40], [0, 1], { extrapolateRight: "clamp" });
+  // Scale animation frames by motion intensity
+  const scaleFrames = (frames: number[]) => frames.map(f => f / motionScale);
 
+  const [titleFadeStart, titleFadeEnd] = scaleFrames([0, 15]);
+  const [subtitleFadeStart, subtitleFadeEnd] = scaleFrames([10, 25]);
+  const [listFadeStart, listFadeEnd] = scaleFrames([20, 40]);
+
+  const titleOpacity = interpolate(frame, [titleFadeStart, titleFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+  const titleY = interpolate(frame, [titleFadeStart, titleFadeEnd], [30, 0], { extrapolateRight: "clamp" });
+  const subtitleOpacity = interpolate(frame, [subtitleFadeStart, subtitleFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+  const listOpacity = interpolate(frame, [listFadeStart, listFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+
+  const accent = vstyle?.accentColor || C.accent;
+  const hl = vstyle?.highlightColor || C.highlight;
+
+  // V0.3.9: Different cover styles
+  if (coverStyle === "cinematic") {
+    // Cinematic: stronger background, larger title, more dramatic lighting
+    return (
+      <AbsoluteFill
+        style={{
+          background: C.bg,
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "60px 50px",
+        }}
+      >
+        {/* Stronger glow layers */}
+        <div style={{ position: "absolute", top: "5%", left: "20%", width: 700, height: 700, borderRadius: "50%", background: `radial-gradient(circle, ${accent}22 0%, transparent 70%)`, filter: "blur(120px)" }} />
+        <div style={{ position: "absolute", bottom: "10%", right: "10%", width: 600, height: 600, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent2}18 0%, transparent 70%)`, filter: "blur(100px)" }} />
+        {/* Overlay gradient */}
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(10,14,26,0.3) 0%, rgba(10,14,26,0.8) 100%)" }} />
+
+        <div style={{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 950 }}>
+          {/* Top label */}
+          <div style={{ fontSize: 22, color: accent, fontWeight: 700, letterSpacing: 6, textTransform: "uppercase", opacity: subtitleOpacity, marginBottom: 20 }}>
+            AI 前沿 · 速览
+          </div>
+
+          {/* Large cinematic title */}
+          <h1 style={{ fontSize: 80, fontWeight: 900, color: C.textPrimary, margin: 0, lineHeight: 1.1, opacity: titleOpacity, transform: `translateY(${titleY}px)`, textShadow: `0 0 120px ${accent}66` }}>
+            {title}
+          </h1>
+
+          {/* Subtitle */}
+          {subtitle && (
+            <p style={{ fontSize: 32, color: C.textSecondary, marginTop: 24, opacity: subtitleOpacity, lineHeight: 1.5 }}>
+              {subtitle}
+            </p>
+          )}
+
+          {/* Keypoint preview - minimal */}
+          <div style={{ marginTop: 50, opacity: listOpacity, display: "flex", justifyContent: "center", gap: 20 }}>
+            {keyPoints.slice(0, 3).map((kp, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${accent}, ${C.accent2})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: C.textPrimary }}>
+                  {String(i + 1).padStart(2, "0")}
+                </div>
+                <span style={{ fontSize: 22, fontWeight: 600, color: C.textPrimary }}>{kp.title}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom info */}
+        <div style={{ position: "absolute", bottom: 40, left: 50, right: 50, fontSize: 20, color: C.textMuted, opacity: interpolate(frame, [30 / motionScale, 50 / motionScale], [0, 1], { extrapolateRight: "clamp" }), display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: accent, boxShadow: `0 0 8px ${accent}` }} />
+          <span>{keyPoints.length} 条要点 · 今日速览</span>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (coverStyle === "minimal") {
+    // Minimal: less decoration, only essential title and minimal info
+    return (
+      <AbsoluteFill
+        style={{
+          background: C.bg,
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "60px 80px",
+        }}
+      >
+        <div style={{ maxWidth: 800, textAlign: "center" }}>
+          {/* Title - clean and large */}
+          <h1 style={{ fontSize: 72, fontWeight: 800, color: C.textPrimary, margin: 0, lineHeight: 1.15, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
+            {title}
+          </h1>
+
+          {/* Subtitle */}
+          {subtitle && (
+            <p style={{ fontSize: 28, color: C.textSecondary, marginTop: 20, opacity: subtitleOpacity, lineHeight: 1.4 }}>
+              {subtitle}
+            </p>
+          )}
+        </div>
+
+        {/* Bottom - minimal indicator */}
+        <div style={{ position: "absolute", bottom: 40, fontSize: 18, color: C.textMuted, opacity: interpolate(frame, [30 / motionScale, 50 / motionScale], [0, 1], { extrapolateRight: "clamp" }) }}>
+          {keyPoints.length} 条要点
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  // Default: editorial style (original behavior)
+  // editorial: current default news cover style with clear title, subtitle, and preview list
   return (
     <AbsoluteFill
       style={{
@@ -234,7 +353,7 @@ const CoverPage: React.FC<{
       <div
         style={{
           fontSize: 20,
-          color: C.accent,
+          color: accent,
           fontWeight: 700,
           letterSpacing: 4,
           textTransform: "uppercase",
@@ -256,7 +375,7 @@ const CoverPage: React.FC<{
           lineHeight: 1.15,
           opacity: titleOpacity,
           transform: `translateY(${titleY}px)`,
-          textShadow: "0 0 80px rgba(59, 130, 246, 0.4)",
+          textShadow: `0 0 80px ${accent}66`,
         }}
       >
         {title}
@@ -282,10 +401,11 @@ const CoverPage: React.FC<{
       {/* Timeline preview of 3 keypoints */}
       <div style={{ marginTop: 60, opacity: listOpacity }}>
         {keyPoints.slice(0, 3).map((kp, i) => {
-          const itemOpacity = interpolate(frame, [25 + i * 5, 35 + i * 5], [0, 1], {
+          const [itemFadeStart, itemFadeEnd] = scaleFrames([25 + i * 5, 35 + i * 5]);
+          const itemOpacity = interpolate(frame, [itemFadeStart, itemFadeEnd], [0, 1], {
             extrapolateRight: "clamp",
           });
-          const itemX = interpolate(frame, [25 + i * 5, 35 + i * 5], [-20, 0], {
+          const itemX = interpolate(frame, [itemFadeStart, itemFadeEnd], [-20, 0], {
             extrapolateRight: "clamp",
           });
           return (
@@ -305,7 +425,7 @@ const CoverPage: React.FC<{
                   width: 40,
                   height: 40,
                   borderRadius: 12,
-                  background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
+                  background: `linear-gradient(135deg, ${accent}, ${C.accent2})`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -343,7 +463,7 @@ const CoverPage: React.FC<{
           right: 50,
           fontSize: 20,
           color: C.textMuted,
-          opacity: interpolate(frame, [30, 50], [0, 1], { extrapolateRight: "clamp" }),
+          opacity: interpolate(frame, [30 / motionScale, 50 / motionScale], [0, 1], { extrapolateRight: "clamp" }),
           display: "flex",
           alignItems: "center",
           gap: 8,
@@ -354,8 +474,8 @@ const CoverPage: React.FC<{
             width: 8,
             height: 8,
             borderRadius: "50%",
-            background: C.accent,
-            boxShadow: `0 0 8px ${C.accent}`,
+            background: accent,
+            boxShadow: `0 0 8px ${accent}`,
           }}
         />
         <span>{keyPoints.length} 条要点 · 今日速览</span>
@@ -364,7 +484,7 @@ const CoverPage: React.FC<{
   );
 };
 
-// ─── Key Point Card (V0.3.8.2: bigger card, denser, full-screen info) ───────
+// V0.3.9: Key Point Card with motionIntensity and metricAnimation support
 const KeyPointCard: React.FC<{
   kp: KeyPoint;
   index: number;
@@ -377,6 +497,10 @@ const KeyPointCard: React.FC<{
   const frame = useCurrentFrame();
   const localFrame = Math.max(0, frame - startFrame);
 
+  // V0.3.9: Motion scaling
+  const motionScale = getMotionScale(vstyle);
+  const scaleFrames = (frames: number[]) => frames.map(f => f / motionScale);
+
   // 主题自适应 + 可调样式（显式 vstyle 优先，否则按该条 tone 配色/图标）
   const tonePreset = TONE_STYLES[(kp.tone || "neutral")] || TONE_STYLES.neutral;
   const accent = vstyle?.accentColor || tonePreset.accent;
@@ -384,13 +508,21 @@ const KeyPointCard: React.FC<{
   const fs = vstyle?.fontScale || 1;
   const showIcon = vstyle?.showIcon ?? true;
   const iconGlyph = tonePreset.glyph;
+  const metricAnimation = vstyle?.metricAnimation ?? "countup_bar";
 
-  const cardOpacity = interpolate(localFrame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
-  const cardY = interpolate(localFrame, [0, 12], [40, 0], { extrapolateRight: "clamp" });
-  const indexOpacity = interpolate(localFrame, [5, 15], [0, 1], { extrapolateRight: "clamp" });
-  const titleOpacity = interpolate(localFrame, [8, 20], [0, 1], { extrapolateRight: "clamp" });
-  const bodyOpacity = interpolate(localFrame, [15, 27], [0, 1], { extrapolateRight: "clamp" });
-  const sourceOpacity = interpolate(localFrame, [20, 32], [0, 1], { extrapolateRight: "clamp" });
+  // V0.3.9: Scale animation frames by motion intensity
+  const [cardFadeStart, cardFadeEnd] = scaleFrames([0, 12]);
+  const [indexFadeStart, indexFadeEnd] = scaleFrames([5, 15]);
+  const [titleFadeStart, titleFadeEnd] = scaleFrames([8, 20]);
+  const [bodyFadeStart, bodyFadeEnd] = scaleFrames([15, 27]);
+  const [sourceFadeStart, sourceFadeEnd] = scaleFrames([20, 32]);
+
+  const cardOpacity = interpolate(localFrame, [cardFadeStart, cardFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+  const cardY = interpolate(localFrame, [cardFadeStart, cardFadeEnd], [40, 0], { extrapolateRight: "clamp" });
+  const indexOpacity = interpolate(localFrame, [indexFadeStart, indexFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+  const titleOpacity = interpolate(localFrame, [titleFadeStart, titleFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+  const bodyOpacity = interpolate(localFrame, [bodyFadeStart, bodyFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+  const sourceOpacity = interpolate(localFrame, [sourceFadeStart, sourceFadeEnd], [0, 1], { extrapolateRight: "clamp" });
 
   // Subtle pulse on the card border
   const borderPulse = interpolate(
@@ -543,6 +675,7 @@ const KeyPointCard: React.FC<{
         {/* V0.3.6-quality-p0: kp.metrics takes priority */}
         {/* V0.3.6-quality-p0-fix: only % metrics show DataBar; non-% show MetricValueCard */}
         {/* V0.3.6-quality-p0-fix: showDataViz=false suppresses all metrics visualization */}
+        {/* V0.3.9: metricAnimation controls animation style: countup_bar / countup_number / none */}
         {(() => {
           if (!showDataViz) return null;
           // Priority 1: kp.metrics with range (57-77%)
@@ -563,8 +696,19 @@ const KeyPointCard: React.FC<{
                 </div>
               );
             }
-            // Simple metric: % → count-up + bar; non-% → MetricValueCard (no bar)
+            // Simple metric: % → count-up + bar or countup_number or none
             if (unit === "%") {
+              if (metricAnimation === "none") {
+                // Show final value directly without animation
+                return (
+                  <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
+                    <div style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
+                      {m.value}{unit}
+                    </div>
+                    {motionScale > 0.9 && motionScale < 1.1 && <DataBar pct={Math.min(100, Math.max(0, m.value))} fromColor={accent} toColor={hl} />}
+                  </div>
+                );
+              }
               return (
                 <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
                   <CountUpNumber
@@ -573,11 +717,25 @@ const KeyPointCard: React.FC<{
                     decimals={m.value % 1 === 0 ? 0 : 1}
                     style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}
                   />
-                  <DataBar pct={Math.min(100, Math.max(0, m.value))} fromColor={accent} toColor={hl} />
+                  {metricAnimation === "countup_bar" && (
+                    <DataBar pct={Math.min(100, Math.max(0, m.value))} fromColor={accent} toColor={hl} />
+                  )}
                 </div>
               );
             }
             // Non-% metric: just big number + unit + label (no bar)
+            if (metricAnimation === "none") {
+              return (
+                <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
+                  <MetricValueCard
+                    label={m.label ?? unit}
+                    value={m.value}
+                    unit={unit}
+                    style={{ color: hl }}
+                  />
+                </div>
+              );
+            }
             return (
               <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
                 <MetricValueCard
@@ -589,9 +747,18 @@ const KeyPointCard: React.FC<{
               </div>
             );
           }
-          // Priority 2: auto-extract fallback (always %, so show bar)
+          // Priority 2: auto-extract fallback (always %, so show bar or number only)
           const stat = findPrimaryStat(kp);
           if (!stat) return null;
+          if (metricAnimation === "none") {
+            return (
+              <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
+                <div style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
+                  {stat.value}{stat.suffix}
+                </div>
+              </div>
+            );
+          }
           return (
             <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
               <CountUpNumber
@@ -600,7 +767,9 @@ const KeyPointCard: React.FC<{
                 decimals={stat.value % 1 === 0 ? 0 : 1}
                 style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}
               />
-              <DataBar pct={stat.value} fromColor={accent} toColor={hl} />
+              {metricAnimation === "countup_bar" && (
+                <DataBar pct={stat.value} fromColor={accent} toColor={hl} />
+              )}
             </div>
           );
         })()}
@@ -625,16 +794,103 @@ const KeyPointCard: React.FC<{
   );
 };
 
-// ─── Summary Page (V0.3.8: timeline recap) ───────────────────────────────────
-const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
-  title,
-  keyPoints,
-}) => {
+// V0.3.9: Summary Page with overviewStyle variants (timeline, grid, clean)
+const SummaryPage: React.FC<{
+  title: string;
+  keyPoints: KeyPoint[];
+  overviewStyle?: OverviewStyle;
+  vstyle?: RemotionStyle;
+}> = ({ title, keyPoints, overviewStyle = "timeline", vstyle }) => {
   const frame = useCurrentFrame();
+  const motionScale = getMotionScale(vstyle);
+  const scaleFrames = (frames: number[]) => frames.map(f => f / motionScale);
 
-  const titleOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
-  const titleY = interpolate(frame, [0, 15], [30, 0], { extrapolateRight: "clamp" });
-  const listOpacity = interpolate(frame, [10, 30], [0, 1], { extrapolateRight: "clamp" });
+  const [titleFadeStart, titleFadeEnd] = scaleFrames([0, 15]);
+  const titleOpacity = interpolate(frame, [titleFadeStart, titleFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+  const titleY = interpolate(frame, [titleFadeStart, titleFadeEnd], [30, 0], { extrapolateRight: "clamp" });
+
+  const accent = vstyle?.accentColor || C.accent;
+  const hl = vstyle?.highlightColor || C.highlight;
+
+  // V0.3.9: grid style - 2-column card layout
+  if (overviewStyle === "grid") {
+    const [listFadeStart, listFadeEnd] = scaleFrames([10, 30]);
+    const listOpacity = interpolate(frame, [listFadeStart, listFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+
+    return (
+      <AbsoluteFill
+        style={{
+          background: C.bg,
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "60px 50px",
+        }}
+      >
+        <div style={{ maxWidth: 950, width: "100%" }}>
+          <h2 style={{ fontSize: 48, fontWeight: 800, color: C.textPrimary, margin: 0, marginBottom: 32, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
+            今日回顾
+          </h2>
+
+          <div style={{ opacity: listOpacity, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            {keyPoints.map((kp, i) => {
+              const itemOpacity = interpolate(frame, [10 + i * 5, 20 + i * 5], [0, 1], { extrapolateRight: "clamp" });
+              const itemY = interpolate(frame, [10 + i * 5, 20 + i * 5], [20, 0], { extrapolateRight: "clamp" });
+              return (
+                <div key={i} style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: "24px 28px", opacity: itemOpacity, transform: `translateY(${itemY}px)` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${accent}, ${C.accent2})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: C.textPrimary }}>
+                      {String(i + 1).padStart(2, "0")}
+                    </div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary }}>{kp.title}</div>
+                  </div>
+                  <div style={{ fontSize: 18, color: C.textSecondary, lineHeight: 1.5 }}>{kp.body}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  // V0.3.9: clean style - minimal list with title only
+  if (overviewStyle === "clean") {
+    const [listFadeStart, listFadeEnd] = scaleFrames([10, 30]);
+    const listOpacity = interpolate(frame, [listFadeStart, listFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+
+    return (
+      <AbsoluteFill
+        style={{
+          background: C.bg,
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "80px 100px",
+        }}
+      >
+        <div style={{ maxWidth: 800, width: "100%" }}>
+          <h2 style={{ fontSize: 48, fontWeight: 800, color: C.textPrimary, margin: 0, marginBottom: 40, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
+            今日回顾
+          </h2>
+
+          <div style={{ opacity: listOpacity }}>
+            {keyPoints.map((kp, i) => {
+              const itemOpacity = interpolate(frame, [12 + i * 6, 22 + i * 6], [0, 1], { extrapolateRight: "clamp" });
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 24, opacity: itemOpacity }}>
+                  <span style={{ fontSize: 28, fontWeight: 800, color: accent }}>{String(i + 1).padStart(2, "0")}</span>
+                  <span style={{ fontSize: 26, fontWeight: 600, color: C.textPrimary }}>{kp.title}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  // Default: timeline style (original behavior)
+  const [listFadeStart, listFadeEnd] = scaleFrames([10, 30]);
+  const listOpacity = interpolate(frame, [listFadeStart, listFadeEnd], [0, 1], { extrapolateRight: "clamp" });
 
   return (
     <AbsoluteFill
@@ -676,10 +932,11 @@ const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
 
         <div style={{ opacity: listOpacity }}>
           {keyPoints.map((kp, i) => {
-            const itemOpacity = interpolate(frame, [15 + i * 8, 25 + i * 8], [0, 1], {
+            const [itemFadeStart, itemFadeEnd] = scaleFrames([15 + i * 8, 25 + i * 8]);
+            const itemOpacity = interpolate(frame, [itemFadeStart, itemFadeEnd], [0, 1], {
               extrapolateRight: "clamp",
             });
-            const itemX = interpolate(frame, [15 + i * 8, 25 + i * 8], [-20, 0], {
+            const itemX = interpolate(frame, [itemFadeStart, itemFadeEnd], [-20, 0], {
               extrapolateRight: "clamp",
             });
             return (
@@ -699,7 +956,7 @@ const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
                     width: 32,
                     height: 32,
                     borderRadius: 8,
-                    background: `linear-gradient(135deg, ${C.accent}, ${C.accent2})`,
+                    background: `linear-gradient(135deg, ${accent}, ${C.accent2})`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -735,7 +992,7 @@ const SummaryPage: React.FC<{ title: string; keyPoints: KeyPoint[] }> = ({
   );
 };
 
-// ─── Main Video Component ────────────────────────────────────────────────────
+// V0.3.9: Main Video Component with transitionStyle and style variant support
 export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   title,
   subtitle,
@@ -747,6 +1004,27 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
 }) => {
   const { fps } = useVideoConfig();
 
+  // V0.3.9: Extract style variants
+  const motionScale = getMotionScale(style);
+  const transitionStyle = style?.transitionStyle ?? "slide_fade";
+  const coverStyle = style?.coverStyle ?? "editorial";
+  const overviewStyle = style?.overviewStyle ?? "timeline";
+
+  // Calculate transition overlap based on transitionStyle
+  // V0.3.9: Different transition modes - fade has more overlap, slide has less
+  const getTransitionOverlap = () => {
+    switch (transitionStyle) {
+      case "fade":
+        return 20; // More overlap for pure fade
+      case "slide":
+        return 8;  // Less overlap for pure slide
+      case "slide_fade":
+      default:
+        return 12; // Balanced slide+fade
+    }
+  };
+  const transitionOverlap = getTransitionOverlap();
+
   // 每段时长：优先使用与旁白对齐的 segmentDurations，否则回退固定时长
   const FIXED_COVER = 75;   // 2.5s
   const FIXED_CARD = 135;   // 4.5s
@@ -757,43 +1035,48 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
     Array.isArray(segmentDurations.cardSecs) &&
     segmentDurations.cardSecs.length === keyPoints.length;
 
-  const coverFrames = useAligned
-    ? Math.max(30, Math.round(segmentDurations!.coverSec * fps))
-    : FIXED_COVER;
-  const cardFramesArr = useAligned
-    ? segmentDurations!.cardSecs.map((s) => Math.max(45, Math.round(s * fps)))
-    : keyPoints.map(() => FIXED_CARD);
-  const summaryFrames = useAligned
-    ? Math.max(30, Math.round(segmentDurations!.summarySec * fps))
-    : FIXED_SUMMARY;
+  // Scale durations by motion intensity
+  const scaleDuration = (frames: number) => Math.round(frames / motionScale);
 
-  // 累计起点
+  const coverFrames = scaleDuration(useAligned
+    ? Math.max(30, Math.round(segmentDurations!.coverSec * fps))
+    : FIXED_COVER);
+  const cardFramesArr = (useAligned
+    ? segmentDurations!.cardSecs.map((s) => Math.max(45, Math.round(s * fps)))
+    : keyPoints.map(() => FIXED_CARD)).map(scaleDuration);
+  const summaryFrames = scaleDuration(useAligned
+    ? Math.max(30, Math.round(segmentDurations!.summarySec * fps))
+    : FIXED_SUMMARY);
+
+  // 累计起点 (with transition overlap for seamless cuts)
   const cardStarts: number[] = [];
   let acc = coverFrames;
   for (const f of cardFramesArr) {
     cardStarts.push(acc);
-    acc += f;
+    acc += f - transitionOverlap;
   }
-  const summaryStart = acc;
+  const summaryStart = acc - transitionOverlap;
 
   return (
     <AbsoluteFill style={{ background: C.bg }}>
-      {/* Cover - now shows 3-point timeline */}
-      <Sequence from={0} durationInFrames={coverFrames}>
+      {/* Cover */}
+      <Sequence from={0} durationInFrames={coverFrames + transitionOverlap}>
         <CoverPage
           title={title}
           subtitle={subtitle}
           keyPoints={keyPoints}
           duration={coverFrames}
+          coverStyle={coverStyle}
+          vstyle={style}
         />
       </Sequence>
 
-      {/* Key Point Cards */}
+      {/* Key Point Cards with transition-aware timing */}
       {keyPoints.map((kp, i) => (
         <Sequence
           key={i}
           from={cardStarts[i]}
-          durationInFrames={cardFramesArr[i]}
+          durationInFrames={cardFramesArr[i] + transitionOverlap}
         >
           <KeyPointCard
             kp={kp}
@@ -807,9 +1090,14 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
         </Sequence>
       ))}
 
-      {/* Summary */}
-      <Sequence from={summaryStart} durationInFrames={summaryFrames}>
-        <SummaryPage title={title} keyPoints={keyPoints} />
+      {/* Summary with transition-aware timing */}
+      <Sequence from={summaryStart} durationInFrames={summaryFrames + transitionOverlap}>
+        <SummaryPage
+          title={title}
+          keyPoints={keyPoints}
+          overviewStyle={overviewStyle}
+          vstyle={style}
+        />
       </Sequence>
     </AbsoluteFill>
   );
