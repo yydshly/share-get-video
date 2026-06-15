@@ -95,6 +95,27 @@ def render_single_frame(
             background_path=bg_path,
         )
     else:
+        # V0.5.0: 预览忠实还原真实出片 —— 应用 themeAdaptive(tone 配色/图标) + showDataViz(数据图)
+        from app.video_lab.renderers.theme_presets import resolve_shot_tone, tone_to_style
+        from app.video_lab.planners.llm_content_planner import _extract_metrics
+
+        eff_highlight = _parse_color(params.get("highlightColor"))
+        eff_icon = params.get("icon", "")
+        theme_adaptive = params.get("themeAdaptive", True) not in (False, "false", "False", 0)
+        if theme_adaptive:
+            preset = tone_to_style(resolve_shot_tone(shot))
+            if eff_highlight is None:
+                eff_highlight = _parse_color(preset["highlight"])
+            if not eff_icon:
+                eff_icon = preset["icon"]
+
+        show_data_viz = params.get("showDataViz", True) not in (False, "false", "False", 0)
+        metrics = shot.get("metrics")
+        if metrics is None and show_data_viz:
+            metrics = _extract_metrics(f"{headline} {display}")
+        if not show_data_viz:
+            metrics = None
+
         result = render_keypoint_template(
             index=int(params.get("index", 1)),
             total=int(params.get("total", 6)),
@@ -108,9 +129,10 @@ def render_single_frame(
             emphasis_terms=emphasis,
             title_color=_parse_color(params.get("titleColor")),
             body_color=_parse_color(params.get("bodyColor")),
-            highlight_color=_parse_color(params.get("highlightColor")),
+            highlight_color=eff_highlight,
             content_align=params.get("contentAlign", "top"),
-            icon=params.get("icon", ""),
+            icon=eff_icon,
+            metrics=metrics,
         )
 
     warnings.extend(result.get("warnings", []))
