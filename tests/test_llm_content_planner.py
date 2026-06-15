@@ -303,6 +303,50 @@ def test_fallback_plan_produces_shots_with_metrics():
         assert isinstance(s["metrics"], list)
 
 
+# ─── V0.3.6-quality-p0-fix: long unit priority tests ───────────────────────────
+
+def test_long_currency_unit_priority():
+    """千万美元 should be captured as unit, not split into 万 + 美元"""
+    shot = _shot_from_item({"title": "项目获1000万美元融资"})
+    metrics = shot["metrics"]
+    # Should capture 1000万美元 not just 万
+    assert len(metrics) >= 1
+    m = metrics[0]
+    assert m["unit"] == "万美元"
+    assert m["value"] == 1000
+
+
+def test_亿_unit_priority():
+    """10亿美元 should capture as 亿美元, not 亿"""
+    shot = _shot_from_item({"title": "融资10亿美元"})
+    metrics = shot["metrics"]
+    assert len(metrics) >= 1
+    m = metrics[0]
+    assert m["unit"] == "亿美元"
+    assert m["value"] == 10
+
+
+def test_万_unit_not_confused_with_万美元():
+    """10万员工 (no 美元) should be unit=万, not 万美元"""
+    shot = _shot_from_item({"title": "部署ChatGPT至10万员工"})
+    metrics = shot["metrics"]
+    assert len(metrics) >= 1
+    # unit should be 万 (plain, no 美元 suffix)
+    m = metrics[0]
+    assert m["unit"] == "万"
+    assert m["value"] == 10
+
+
+def test_个_unit():
+    """5个维度 should have unit=个"""
+    shot = _shot_from_item({"title": "评估5个维度"})
+    metrics = shot["metrics"]
+    assert len(metrics) >= 1
+    m = metrics[0]
+    assert m["unit"] == "个"
+    assert m["value"] == 5
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

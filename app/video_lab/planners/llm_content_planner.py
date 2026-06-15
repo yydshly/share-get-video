@@ -195,17 +195,20 @@ def _extract_metrics(text: str, max_metrics: int = 2) -> list[dict]:
                     break
 
     # 2. Numbers with units: 10倍, 100万, 5620亿, 5个, 千万美元
+    # V0.3.6-quality-p0-fix: long currency units before short to prevent early capture
     if len(metrics) < max_metrics:
-        for m in re.finditer(r"(\d+\.?\d*)\s*(倍|x|万|亿|千|个|美元|千万美元|百万美元)", text):
+        for m in re.finditer(r"(\d+\.?\d*)\s*(千万美元|百万美元|万美元|亿美元|倍|x|万|亿|千|个|美元)", text):
             val_str, unit = m.group(1), m.group(2)
             key = f"{val_str}{unit}"
             if key not in seen_vals:
                 seen_vals.add(key)
                 val = float(val_str)
-                if unit in ("万", "亿", "千万美元", "百万美元"):
-                    label = "金额" if unit in ("万美元", "亿美元", "千万美元", "百万美元") else "数值"
+                if unit in ("千万美元", "百万美元", "万美元", "亿美元", "万", "亿"):
+                    label = "金额"
+                elif unit in ("倍", "x"):
+                    label = "倍数"
                 else:
-                    label = "倍数" if unit in ("倍", "x") else "数量"
+                    label = "数量"
                 metrics.append({
                     "label": label,
                     "value": val,

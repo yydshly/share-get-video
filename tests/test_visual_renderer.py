@@ -179,6 +179,111 @@ def test_pillow_keypoint_highlights_priority_over_auto():
     assert result["highlights"] == ["自定义词", "突出显示"]
 
 
+# ─── V0.3.6-quality-p0-fix: showDataViz tests ──────────────────────────────────
+
+def test_pillow_keypoint_template_accepts_metrics():
+    """render_keypoint_template should accept metrics and return them in result."""
+    import tempfile
+    from pathlib import Path
+    from app.video_lab.renderers.frame_templates import render_keypoint_template
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = render_keypoint_template(
+            index=1,
+            total=2,
+            category="突破",
+            title="ProReviewer评审突破",
+            body="质量提升39%",
+            source="",
+            frames_dir=Path(tmpdir),
+            metrics=[{"label": "质量提升", "value": 39, "unit": "%"}],
+        )
+    assert "metrics" in result
+    assert result["metrics"] is not None
+    assert len(result["metrics"]) == 1
+    assert result["metrics"][0]["value"] == 39
+    assert result["metrics"][0]["unit"] == "%"
+
+
+def test_pillow_keypoint_template_showdataviz_false_no_metrics():
+    """When metrics=None (showDataViz suppressed), result.metrics should be None."""
+    import tempfile
+    from pathlib import Path
+    from app.video_lab.renderers.frame_templates import render_keypoint_template
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result = render_keypoint_template(
+            index=1,
+            total=2,
+            category="突破",
+            title="ProReviewer评审突破",
+            body="质量提升39%",
+            source="",
+            frames_dir=Path(tmpdir),
+            metrics=None,  # showDataViz=false
+        )
+    # metrics card should not be drawn
+    assert result.get("metrics") is None
+
+
+def test_generate_frames_respects_showdataviz_false():
+    """generate_frames with showDataViz=false should not pass metrics to frames."""
+    from app.video_lab.renderers.local_frame_renderer import generate_frames
+
+    kps = [{
+        "headline": "测试",
+        "display": "质量39%提升",
+        "metrics": [{"label": "提升", "value": 39, "unit": "%"}],
+    }]
+    key_points = {"keyPoints": kps, "key_points": kps}
+    structured = {"lead": "测试"}
+
+    result = generate_frames(
+        experiment_id="test_showdataviz",
+        structured=structured,
+        key_points=key_points,
+        target_duration_sec=10,
+        resolution=(1080, 1920),
+        enable_transitions=False,
+        include_overview=False,
+        include_summary=False,
+        style_params={"showDataViz": False},
+    )
+    kp_frames = [f for f in result["frames"] if f["type"] == "keypoint"]
+    assert len(kp_frames) == 1
+    # showDataViz=false suppresses metrics in Pillow
+    assert kp_frames[0].get("metrics") is None
+
+
+def test_generate_frames_showdataviz_default_includes_metrics():
+    """generate_frames with default showDataViz=true should include metrics."""
+    from app.video_lab.renderers.local_frame_renderer import generate_frames
+
+    kps = [{
+        "headline": "测试",
+        "display": "质量39%提升",
+        "metrics": [{"label": "提升", "value": 39, "unit": "%"}],
+    }]
+    key_points = {"keyPoints": kps, "key_points": kps}
+    structured = {"lead": "测试"}
+
+    result = generate_frames(
+        experiment_id="test_showdataviz_on",
+        structured=structured,
+        key_points=key_points,
+        target_duration_sec=10,
+        resolution=(1080, 1920),
+        enable_transitions=False,
+        include_overview=False,
+        include_summary=False,
+        style_params={},  # showDataViz defaults to True
+    )
+    kp_frames = [f for f in result["frames"] if f["type"] == "keypoint"]
+    assert len(kp_frames) == 1
+    # Default: metrics shown
+    assert kp_frames[0].get("metrics") is not None
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

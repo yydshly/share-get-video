@@ -45,6 +45,8 @@ export type AiNewsVideoProps = {
   segmentDurations?: SegmentDurations;
   // 可调样式（对应调试台旋钮：配色/字号/图标）
   style?: RemotionStyle;
+  // V0.3.6-quality-p0-fix: showDataViz=false suppresses metrics animation
+  showDataViz?: boolean;
 };
 
 export const defaultProps: AiNewsVideoProps = {

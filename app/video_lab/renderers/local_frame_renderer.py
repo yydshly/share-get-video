@@ -174,6 +174,8 @@ def generate_frames(
     kp_highlight_color = _color(sp.get("highlightColor"))
     kp_content_align = sp.get("contentAlign", "top")
     kp_icon = sp.get("icon", "")
+    # V0.3.6-quality-p0-fix: showDataViz=false disables metrics visualization
+    show_data_viz = sp.get("showDataViz", True) not in (False, "false", "False", 0)
     # 主题自适应：按每条语义自动配高亮色/图标（显式样式优先，可用 themeAdaptive=false 关闭）
     theme_adaptive = sp.get("themeAdaptive", True) not in (False, "false", "False", 0)
     from app.video_lab.renderers.theme_presets import resolve_shot_tone, tone_to_style
@@ -305,7 +307,8 @@ def generate_frames(
             highlight_color=eff_highlight,
             content_align=kp_content_align,
             icon=eff_icon,
-            metrics=kp.get("metrics"),  # V0.3.6-quality-p0
+            # V0.3.6-quality-p0-fix: showDataViz=false suppresses metrics card
+            metrics=kp.get("metrics") if show_data_viz else None,
         )
         frame_name = frame_result["frame_name"]
         frame_outputs.append({

@@ -89,6 +89,8 @@ def build_remotion_props(
         "keyPoints": key_points_list,
         "durationSec": duration_sec,
         "stylePreset": "ai_frontier_dark",
+        # V0.3.6-quality-p0-fix: showDataViz flag for metric visualization
+        "showDataViz": params.get("showDataViz", True) is not False,
     }
     if segment_durations_prop:
         props["segmentDurations"] = segment_durations_prop
