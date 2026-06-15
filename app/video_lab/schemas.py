@@ -124,6 +124,27 @@ class TechniqueProbeRequest(BaseModel):
     }
 
 
+class StyleSweepRequest(BaseModel):
+    """JSON body for POST /video-lab/style-sweep (同一路线的样式对比：每样式各出一片)"""
+
+    content: str = Field(..., min_length=1, description="报告原文")
+    routeId: str = Field(..., min_length=1, description="技术路线 routeId（取其全部预置样式）")
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="生成参数 (targetDuration, aspectRatio, keyPointCount, useLlmPlan...)；样式自带参数会覆盖其上",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "content": "今日 AI 前沿...",
+                "routeId": "local_frame_compose",
+                "params": {"targetDuration": 45, "aspectRatio": "9:16", "keyPointCount": 3},
+            }
+        }
+    }
+
+
 class FramePreviewRequest(BaseModel):
     """JSON body for POST /video-lab/frame-preview (单帧快速预览，调试台)"""
 

@@ -9,7 +9,7 @@ from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResu
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
-from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest, StyleSampleGenerateRequest, StyleSampleSaveRequest, StyleFamilyCompareRequest, TechniqueProbeRequest
+from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest, StyleSampleGenerateRequest, StyleSampleSaveRequest, StyleFamilyCompareRequest, TechniqueProbeRequest, StyleSweepRequest
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -570,6 +570,26 @@ def technique_probe(request: TechniqueProbeRequest) -> dict[str, Any]:
             params=request.params,
             compose_fn=_run_visual_compose,
             judge_fn=_judge_probe_result,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/style-sweep")
+def style_sweep(request: StyleSweepRequest) -> dict[str, Any]:
+    """样式对比：选一条技术路线 → 用同一内容把它的每个预置样式各出一片 → 并排返回。
+
+    同步执行：每个样式都跑完整出片(TTS/渲染/合成)，N 个样式约 N 倍耗时。
+    单样式失败不影响其它样式，整批仍返回。
+    """
+    from app.video_lab.style_sweep import run_style_sweep
+
+    try:
+        return run_style_sweep(
+            content=request.content,
+            route_id=request.routeId,
+            params=request.params,
+            render_fn=_run_visual_compose,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
