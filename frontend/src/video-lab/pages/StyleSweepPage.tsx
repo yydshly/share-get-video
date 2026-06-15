@@ -264,11 +264,16 @@ export default function StyleSweepPage() {
     lines.push("");
     lines.push("## 如何继续排查");
     lines.push("");
-    lines.push("1. 先打开 manifestUrl，检查 planDebug.coverTitle / opening / closing 是否符合内容。");
+    lines.push("1. 先打开 manifestUrl，检查 planDebug.coverTitle / opening / closing / budgetDebug 是否符合内容。");
     lines.push("2. 再打开对应实验目录下 remotion_props.json，检查 contentDebug.title / keyPointTitles / metricsByKeyPoint / timelineDebug。");
     lines.push("3. 如果标题不对，优先查 plan_shots / coverTitle。");
-    lines.push("4. 如果数字图缺失，优先查 metricsByKeyPoint 是否为空或单位异常。");
+    lines.push("4. 如果数字图缺失，优先查 metricsByKeyPoint 是否为空或单位异常，并检查下方「样式参数说明」。");
     lines.push("5. 如果音画不同步，优先查 timelineDebug 与 voiceoverSegments。");
+    lines.push("6. 如果数字图或横线没显示，先检查 params.showDataViz 和 params.metricAnimation：");
+    lines.push("   - showDataViz=false：该样式本来不显示数据图");
+    lines.push("   - metricAnimation=countup_number：只显示数字，不显示进度条");
+    lines.push("   - metricAnimation=countup_bar：显示数字 + 进度条");
+    lines.push("7. 如果实际音频时长明显超过 targetDuration，检查 manifest.planDebug.budgetDebug 是否标记 overBudget=true。");
     lines.push("");
     lines.push("## 结果统计");
     lines.push("");
@@ -312,6 +317,11 @@ export default function StyleSweepPage() {
       lines.push(`- params: ${paramsStr}`);
       lines.push(`- 人工问题：${issueLabels}`);
       lines.push(`- 人工备注：${mark.note || "（无）"}`);
+      // V0.8.3: failedReason + logsTail (last 10 lines only) for failed renders
+      lines.push(`- failedReason: ${r.failedReason || "无"}`);
+      const fullLogs = Array.isArray(r.logs) ? r.logs : [];
+      const lastLogs = fullLogs.slice(-10);
+      lines.push(`- logsTail: ${lastLogs.length > 0 ? lastLogs.join(" | ") : "（无）"}`);
     });
     lines.push("");
     try {
@@ -420,6 +430,9 @@ export default function StyleSweepPage() {
             padding: "0.85rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", color: "#1e3a8a",
           }}>
             🔍 定位标题错误、数字图缺失、音画不同步时，请复制排查 JSON 或 Markdown 报告，并检查 <code>manifestUrl</code> / <code>remotion_props.json</code> 中的 <strong>planDebug</strong>、<strong>contentDebug</strong>、<strong>timelineDebug</strong>。
+            <div style={{ marginTop: "0.4rem" }}>
+              💡 <strong>数字图缺失不一定是生成失败</strong>，也可能是当前样式参数关闭了数据可视化（<code>showDataViz=false</code> 或 <code>metricAnimation=countup_number</code>）。
+            </div>
           </div>
 
           {/* 任务四：标注统计 + 任务五：复制报告按钮 */}

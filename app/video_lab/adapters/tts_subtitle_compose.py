@@ -171,6 +171,7 @@ def run_tts_subtitle_compose(
         max_items=render_params.key_point_count,
         test_case_id=test_case_id,
         use_llm=use_llm_plan,
+        target_duration_sec=float(target_duration),  # V0.8.3: 旁白时长预算
     )
     plan_shots_list = plan.get("shots", [])
     # 用规划好的封面标题作为 lead（封面更干净）
@@ -685,6 +686,26 @@ def run_tts_subtitle_compose(
                 "startSec": _seg.get("startSec", 0),
                 "durationSec": _seg.get("durationSec", 0),
             })
+
+        # V0.8.3: budgetDebug — narration 字数预算 vs 实际音频时长
+        _opening_len = len(opening) if opening else 0
+        _closing_len = len(closing) if closing else 0
+        _narration_lengths = [len((s.get("narration") or "").strip()) for s in plan_shots_list]
+        _total_vo_chars = _opening_len + sum(_narration_lengths) + _closing_len
+        _actual_audio = float(tts_result.get("durationSec", 0) or 0) if "tts_result" in locals() else 0.0
+        _target_dur = float(target_duration) if target_duration else 0.0
+        # V0.8.3: 超预算 = 实际音频超过目标时长 10%（允许 TTS 节奏浮动）
+        _over_budget = bool(_actual_audio > 0 and _target_dur > 0 and _actual_audio > _target_dur * 1.1)
+        _budget_debug = {
+            "targetDurationSec": _target_dur,
+            "openingLength": _opening_len,
+            "closingLength": _closing_len,
+            "narrationLengths": _narration_lengths,
+            "totalVoiceoverChars": _total_vo_chars,
+            "actualAudioDurationSec": round(_actual_audio, 2),
+            "overBudget": _over_budget,
+        }
+
         manifest["planDebug"] = {
             "planSource": plan.get("source", "fallback"),
             "coverTitle": plan.get("coverTitle", ""),
@@ -693,6 +714,7 @@ def run_tts_subtitle_compose(
             "shotCount": len(plan_shots_list),
             "shots": _plan_debug_shots,
             "voiceoverSegments": _plan_debug_segments,
+            "budgetDebug": _budget_debug,
         }
         # Persist updated manifest (with planDebug) back to disk
         write_manifest(experiment_id, manifest)

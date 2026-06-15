@@ -51,28 +51,63 @@ _SYSTEM_PROMPT = (
     "[{\"label\": \"质量提升\", \"value\": 39, \"unit\": \"%\"}] 或 "
     "[{\"label\": \"通过率\", \"value\": 77, \"min\": 57, \"max\": 77, \"unit\": \"%\"}]。"
     "metrics 必须来自原文，不允许编造数值。"
+    "\n"
+    # V0.8.3: coverTitle must NOT just be the first item's headline
+    "重要：coverTitle 必须概括整组内容的共同主题或趋势，不得只使用第一条要点标题。"
+    "如果内容包含多个方向，coverTitle 应表达整体趋势，例如「AI评估与落地加速」「AI应用走向真实场景」。"
 )
 
 
-def _build_user_prompt(lead: str, items: list[dict]) -> str:
+def _build_user_prompt(lead: str, items: list[dict], target_duration_sec: float | None = None) -> str:
     n = len(items)
     lines = []
     for i, it in enumerate(items, 1):
         lines.append(f"{i}. {it.get('title', '').strip()}")
     items_block = "\n".join(lines)
+
+    # V0.8.3: 旁白时长预算。如果 target_duration_sec 未传，给一个保守默认 45。
+    target = float(target_duration_sec) if target_duration_sec and target_duration_sec > 0 else 45.0
+    # 按"约 3.5 字/秒"估一个保守的字符预算（中文 TTS 实测值）
+    if target <= 45 and n <= 3:
+        # 默认 / 紧凑预算
+        opening_max = 18
+        narration_max = 45
+        closing_max = 16
+    elif target <= 60 and n <= 4:
+        opening_max = 22
+        narration_max = 60
+        closing_max = 18
+    else:
+        opening_max = 28
+        narration_max = 75
+        closing_max = 22
+    budget_lines = [
+        f"本视频目标总时长约 {target:.0f} 秒。",
+        "opening + 所有 narration + closing 必须控制在目标时长内。",
+        f"opening 不超过 {opening_max} 个中文字符。",
+        f"每条 narration 不超过 {narration_max} 个中文字符。",
+        f"closing 不超过 {closing_max} 个中文字符。",
+        "display 可以相对完整，但 narration 必须更短、更适合口播。",
+        "不要把所有细节都塞进口播，优先保留主体、关键数字、核心结论。",
+    ]
+    budget_block = "\n".join(budget_lines)
+
     return (
         f"下面是一份 AI 资讯报告，共 {n} 条要点（总起：{lead}）。\n"
         f"请严格按顺序逐条改写，输出**恰好 {n} 条** shots，与下面编号一一对应，不要合并/增删/调序。\n"
+        f"【旁白时长预算】\n{budget_block}\n"
         "每条输出字段：\n"
         "- headline: 6-14 字短标题，体现该条的具体主体（如系统名/机构名），不要写成笼统的大类\n"
         "- display: 卡片正文，用通顺的一句话**完整呈现该条核心信息**，必须包含关键数字/百分比/机构名/核心结论，"
         "不要为了短而省略关键事实（长度以信息完整为准，约 30-80 字）\n"
-        "- narration: 口播文案，自然口语，完整传达该条信息（保留关键数字），可比 display 略详细\n"
+        "- narration: 口播文案，自然口语，受字数预算限制（见上），完整传达该条信息（保留关键数字）\n"
         "- emphasisTerms: 数组，该条最值得突出的 1-4 个关键词，优先数字/百分比/模型名/系统名/机构名，如 []\n"
         "- tone: 该条的语义基调，只能取 positive（突破/提升/达成）/ negative（短板/漏洞/落后/风险）/ neutral（合作/发布/中性）之一\n"
         "- metrics: 数组，该条的关键数据可视化指标（最多2个），如 [{\"label\":\"质量提升\",\"value\":39,\"unit\":\"%\"}]；"
         "区间值用 {\"label\":\"通过率\",\"value\":77,\"min\":57,\"max\":77,\"unit\":\"%\"}；无数据则填 []\n"
-        "再输出：coverTitle（<=16字封面标题）、opening（<=30字开场钩子句，要有观点/冲突/趋势，不要流水账）、closing（<=24字收尾口播）。\n"
+        "再输出：coverTitle（**必须概括整组内容的共同主题或趋势，不得只使用第一条要点标题**；≤16字封面标题）、"
+        "opening（见上字数上限，开场钩子句，要有观点/冲突/趋势，不要流水账）、"
+        "closing（见上字数上限，收尾口播）。\n"
         "严格输出 JSON：\n"
         '{"coverTitle":"...","opening":"...","shots":[{"headline":"...","display":"...","narration":"...","emphasisTerms":["..."],"tone":"positive","metrics":[{"label":"...","value":0,"unit":"..."}]}],"closing":"..."}\n\n'
         f"待改写的 {n} 条要点：\n{items_block}"
@@ -88,6 +123,14 @@ def _clamp(s: str, n: int) -> str:
 # 18 字上限会把"ProReviewer论文评审系统发布"这类常见标题截成"…"。
 # 放宽到 24，让简洁标题完整呈现，仍足够短以适配各页排版。
 HEADLINE_MAX = 24
+
+# V0.8.3: 旁白时长预算硬保护（即使 LLM 不听话也要截断）。
+# display 故意不截断，因为它用于画面展示；narration 必须更短以匹配音频时长。
+NARRATION_MAX = 48
+OPENING_MAX = 22
+CLOSING_MAX = 18
+# 保守兜底封面标题：当 LLM 返回的 coverTitle 不可靠或与第一条要点强绑定时使用。
+COVER_TITLE_FALLBACK = "AI前沿趋势速览"
 
 
 # V0.3.6-b1: emphasisTerms extraction
@@ -276,8 +319,12 @@ def plan_shots(
     max_items: int = 6,
     test_case_id: str = "",
     use_llm: bool = True,
+    target_duration_sec: float | None = None,  # V0.8.3: 旁白时长预算
 ) -> dict[str, Any]:
-    """把报告规划成 ShotPlan，逐条 1:1 处理，保证信息完整不丢条。"""
+    """把报告规划成 ShotPlan，逐条 1:1 处理，保证信息完整不丢条。
+
+    V0.8.3: 新增 target_duration_sec 用于约束 opening/narration/closing 字符预算。
+    """
     structured = structure_content(raw_content, test_case_id or "ai_insight_summary")
     items = structured.get("items", [])[:max_items]
     lead = structured.get("lead", "")
@@ -288,7 +335,7 @@ def plan_shots(
             result = client.chat_json(
                 messages=[
                     {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": _build_user_prompt(lead, items)},
+                    {"role": "user", "content": _build_user_prompt(lead, items, target_duration_sec)},
                 ],
                 temperature=0.2,
                 max_tokens=6000,
@@ -300,7 +347,7 @@ def plan_shots(
                     return plan
 
     # 回退：确定性规划
-    return _fallback_plan(raw_content, max_items, test_case_id)
+    return _fallback_plan(raw_content, max_items, test_case_id, target_duration_sec)
 
 
 def _find_shot_list(raw: dict) -> list:
@@ -325,10 +372,16 @@ def _normalize_plan(raw: dict, items: list[dict], lead: str) -> dict[str, Any]:
     - LLM 缺失/为空的条目，用源条目确定性补全（保证信息完整）；
     - display/narration 不做硬截断（卡片自适应字号承载完整文本），仅 headline 适度收敛。
     - emphasisTerms: 优先使用 LLM 返回的，否则从 headline+display 自动提取。
+
+    V0.8.3:
+    - 对 narration / opening / closing 做硬字数截断（保护音频时长）；
+    - coverTitle 拒绝直接取 lead 的第一句或第一条要点 headline，
+      优先 LLM 返回的概要式标题，否则用兜底 "AI前沿趋势速览"。
     """
     shots_in = _find_shot_list(raw)
     n = len(items)
     shots = []
+    first_headline_norm = ""  # 用于 V0.8.3 coverTitle 与"第一条要点绑死"检测
     for i in range(n):
         src = items[i]
         s = shots_in[i] if i < len(shots_in) and isinstance(shots_in[i], dict) else {}
@@ -344,6 +397,9 @@ def _normalize_plan(raw: dict, items: list[dict], lead: str) -> dict[str, Any]:
             display = det["display"]
         if not narration:
             narration = display or det["narration"]
+
+        if i == 0:
+            first_headline_norm = re.sub(r"\s+", "", headline or "")
 
         # V0.3.6-b1-fix: emphasisTerms - use LLM value or auto-extract from resolved text
         raw_emphasis = s.get("emphasisTerms")
@@ -365,34 +421,83 @@ def _normalize_plan(raw: dict, items: list[dict], lead: str) -> dict[str, Any]:
         tone = (s.get("tone") or "").strip().lower()
         if tone not in ("positive", "negative", "neutral"):
             tone = ""  # 留空，渲染器按文本推断
+
+        # V0.8.3: narration 硬截断保护（决定 TTS 时长，不能太长）
+        narration_clamped = _clamp(narration, NARRATION_MAX)
+
         shots.append({
             "headline": _clamp(headline, HEADLINE_MAX),
-            "display": display,          # 不截断
-            "narration": narration,      # 不截断
+            "display": display,          # 不截断（用于画面展示）
+            "narration": narration_clamped,  # V0.8.3: 硬截断保护
             "emphasisTerms": emp,
             "tone": tone,
             "metrics": metrics,          # V0.3.6-quality-p0
         })
 
+    # V0.8.3: coverTitle 偏好"概要式"，避免被第一条要点绑死
+    raw_cover = (raw.get("coverTitle") or raw.get("title") or "").strip()
+    raw_cover_norm = re.sub(r"\s+", "", raw_cover)
     cover_default, _ = split_headline_and_detail(lead)
+    cover_default_norm = re.sub(r"\s+", "", cover_default or "")
+    if raw_cover:
+        # 拒绝"完全等于第一条要点"的标题（典型 LLM 错误）
+        if first_headline_norm and raw_cover_norm == first_headline_norm:
+            cover_title = COVER_TITLE_FALLBACK
+        else:
+            cover_title = raw_cover
+    elif cover_default_norm and first_headline_norm and cover_default_norm == first_headline_norm:
+        cover_title = COVER_TITLE_FALLBACK
+    elif cover_default:
+        cover_title = cover_default
+    else:
+        cover_title = COVER_TITLE_FALLBACK
+    # V0.8.3: opening / closing 同样做硬截断
+    opening_raw = (raw.get("opening") or "").strip() or "今天AI圈的重点，正在从能力走向落地。"
+    closing_raw = (raw.get("closing") or "").strip() or "以上就是今天的要点，感谢观看。"
     return {
-        "coverTitle": _clamp(raw.get("coverTitle") or raw.get("title") or cover_default or "今日AI前沿速览", 18),
-        "opening": (raw.get("opening") or "").strip() or "今天AI圈的重点，正在从能力走向落地。",
+        "coverTitle": _clamp(cover_title, 18),
+        "opening": _clamp(opening_raw, OPENING_MAX),
         "shots": shots,
-        "closing": (raw.get("closing") or "").strip() or "以上就是今天的要点，感谢观看。",
+        "closing": _clamp(closing_raw, CLOSING_MAX),
     }
 
 
-def _fallback_plan(raw_content: str, max_items: int, test_case_id: str) -> dict[str, Any]:
-    """确定性兜底：用 content_structurer 拆分，标题/详情切分。"""
+def _fallback_plan(
+    raw_content: str,
+    max_items: int,
+    test_case_id: str,
+    target_duration_sec: float | None = None,  # V0.8.3
+) -> dict[str, Any]:
+    """确定性兜底：用 content_structurer 拆分，标题/详情切分。
+
+    V0.8.3: narration / opening / closing 也走硬截断；coverTitle 不再直接取第一条要点。
+    """
     structured = structure_content(raw_content, test_case_id or "ai_insight_summary")
     lead = structured.get("lead", "")
     cover_headline, _ = split_headline_and_detail(lead)
-    shots = [_shot_from_item(item) for item in structured.get("items", [])[:max_items]]
+    items = structured.get("items", [])[:max_items]
+
+    # V0.8.3: 如果 lead 解析出的 cover_headline 与第一条 item 标题相同，强制用兜底
+    first_item_title_norm = re.sub(r"\s+", "", (items[0].get("title", "") if items else "").strip())
+    cover_headline_norm = re.sub(r"\s+", "", (cover_headline or ""))
+    if cover_headline_norm and first_item_title_norm and cover_headline_norm == first_item_title_norm:
+        cover_title = COVER_TITLE_FALLBACK
+    elif cover_headline:
+        cover_title = cover_headline
+    else:
+        cover_title = COVER_TITLE_FALLBACK
+
+    shots = []
+    for item in items:
+        s = _shot_from_item(item)
+        # V0.8.3: narration 硬截断保护
+        s["narration"] = _clamp(s.get("narration", ""), NARRATION_MAX)
+        shots.append(s)
+
     return {
-        "coverTitle": _clamp(cover_headline or "今日AI前沿速览", 18),
-        "opening": _clamp(lead, 50) if lead else "今天AI圈的重点，正在从能力走向落地。",
+        "coverTitle": _clamp(cover_title, 18),
+        "opening": _clamp(lead or "今天AI圈的重点，正在从能力走向落地。", OPENING_MAX),
         "shots": shots,
-        "closing": "以上就是今天的要点，感谢观看。",
+        "closing": _clamp("以上就是今天的要点，感谢观看。", CLOSING_MAX),
         "source": "fallback",
     }
