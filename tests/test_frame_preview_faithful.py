@@ -58,6 +58,24 @@ def test_preview_theme_adaptive_off_no_auto_icon():
     assert not kw.get("icon")
 
 
+def test_summary_frame_preview_renders():
+    """V0.5.3: 总结页预览可渲染（含 conclusions + cta）。"""
+    r = frame_preview.render_single_frame(
+        "local_frame_compose", "summary", {"headline": "今日回顾"}, "",
+        {"conclusions": ["要点一39%", "要点二57-77%", "要点三"], "cta": "分享模板"},
+    )
+    assert r.get("success") is True
+    assert r.get("imageUrl", "").endswith("summary.png")
+
+
+def test_summary_accepts_newline_string_conclusions():
+    r = frame_preview.render_single_frame(
+        "local_frame_compose", "summary", {"headline": "回顾"}, "",
+        {"conclusions": "第一条\n第二条\n第三条"},
+    )
+    assert r.get("success") is True
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

@@ -94,6 +94,26 @@ def render_single_frame(
             resolution=resolution,
             background_path=bg_path,
         )
+    elif frame_type == "summary":
+        # 总结页：列出回顾要点 + CTA（用于体检总结页排版）
+        raw_c = params.get("conclusions")
+        if isinstance(raw_c, str):
+            conclusions = [ln.strip() for ln in raw_c.splitlines() if ln.strip()]
+        elif isinstance(raw_c, list):
+            conclusions = [str(c).strip() for c in raw_c if str(c).strip()]
+        else:
+            conclusions = []
+        if not conclusions:
+            # 兜底：用标题 + 正文分句
+            parts = [headline] + [s.strip() for s in display.replace("。", "。\n").splitlines()]
+            conclusions = [p for p in parts if p][:4] or ["要点一", "要点二", "要点三"]
+        from app.video_lab.renderers.frame_templates import render_summary_template
+        result = render_summary_template(
+            conclusions=conclusions[:6],
+            cta=params.get("cta") or "适合作为今日 AI 前沿分享模板",
+            frames_dir=frames_dir,
+            resolution=resolution,
+        )
     else:
         # V0.5.0: 预览忠实还原真实出片 —— 应用 themeAdaptive(tone 配色/图标) + showDataViz(数据图)
         from app.video_lab.renderers.theme_presets import resolve_shot_tone, tone_to_style

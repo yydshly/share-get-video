@@ -27,7 +27,9 @@ interface PreviewResult {
 export default function FramePreviewPage() {
   const [routes, setRoutes] = useState<VisualRoute[]>([]);
   const [route, setRoute] = useState("local_frame_compose");
-  const [frameType, setFrameType] = useState<"keypoint" | "cover">("keypoint");
+  const [frameType, setFrameType] = useState<"keypoint" | "cover" | "summary">("keypoint");
+  const [summaryConclusions, setSummaryConclusions] = useState("ProReviewer评审超越39%\n购物AI通过率仅57-77%\nSICI揭示三阶段相变\n企业级AI加速落地");
+  const [summaryCta, setSummaryCta] = useState("适合作为今日 AI 前沿分享模板");
   const [headline, setHeadline] = useState("ProReviewer突破评审质量");
   const [display, setDisplay] = useState("ProReviewer系统将评审建模为马尔可夫决策过程，在五个质量维度超越传统方法39%，为AI学术评审提供新范式。");
   const [emphasis, setEmphasis] = useState("39%, ProReviewer");
@@ -119,6 +121,7 @@ export default function FramePreviewPage() {
         total,
         category,
         imageStyle,
+        ...(frameType === "summary" ? { conclusions: summaryConclusions, cta: summaryCta } : {}),
         ...routeStyleParams,
       });
       const resp = await fetch(`${API_BASE}/frame-preview`, {
@@ -228,9 +231,10 @@ export default function FramePreviewPage() {
             </div>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>帧类型</label>
-              <select value={frameType} onChange={(e) => setFrameType(e.target.value as "keypoint" | "cover")} style={inputStyle}>
+              <select value={frameType} onChange={(e) => setFrameType(e.target.value as "keypoint" | "cover" | "summary")} style={inputStyle}>
                 <option value="keypoint">关键点卡</option>
                 <option value="cover">封面</option>
+                <option value="summary">总结页</option>
               </select>
             </div>
           </div>
@@ -307,10 +311,25 @@ export default function FramePreviewPage() {
                 </div>
               )}
 
-              <div>
-                <label style={labelStyle}>强调词 emphasisTerms（逗号分隔，会高亮）</label>
-                <input value={emphasis} onChange={(e) => setEmphasis(e.target.value)} style={inputStyle} placeholder="39%, ProReviewer" />
-              </div>
+              {frameType === "summary" && (
+                <>
+                  <div>
+                    <label style={labelStyle}>回顾要点（每行一条）</label>
+                    <textarea value={summaryConclusions} onChange={(e) => setSummaryConclusions(e.target.value)} rows={4} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>CTA 结语</label>
+                    <input value={summaryCta} onChange={(e) => setSummaryCta(e.target.value)} style={inputStyle} />
+                  </div>
+                </>
+              )}
+
+              {frameType !== "summary" && (
+                <div>
+                  <label style={labelStyle}>强调词 emphasisTerms（逗号分隔，会高亮）</label>
+                  <input value={emphasis} onChange={(e) => setEmphasis(e.target.value)} style={inputStyle} placeholder="39%, ProReviewer" />
+                </div>
+              )}
 
               <div style={{ display: "flex", gap: "1rem" }}>
                 <div style={{ flex: 1 }}>
