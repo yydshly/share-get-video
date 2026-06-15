@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { resolveUrl } from "../utils/url";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -152,9 +153,6 @@ interface StyleTemplate {
 }
 
 // ─── 工具 ────────────────────────────────────────────────────────────────────
-
-const resolveUrl = (u: string) =>
-  u && u.startsWith("/runtime/") ? `${API_BASE.replace(/\/video-lab$/, "")}${u}` : u;
 
 interface BgmInfo {
   enabled: boolean;

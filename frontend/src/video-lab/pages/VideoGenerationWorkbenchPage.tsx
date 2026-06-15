@@ -3,8 +3,7 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
+import { resolveUrl, API_BASE } from "../utils/url";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -284,9 +283,6 @@ export default function VideoGenerationWorkbenchPage() {
     setCompareError("");
     setCompareSuccess(false);
   };
-
-  const resolveUrl = (u: string) =>
-    u && u.startsWith("/runtime/") ? `${API_BASE.replace(/\/video-lab$/, "")}${u}` : u || "";
 
   const routeToVisualRoute: Record<RouteId, string> = {
     pillow: "local_frame_compose",

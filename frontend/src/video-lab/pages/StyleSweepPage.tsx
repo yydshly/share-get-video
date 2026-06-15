@@ -5,11 +5,7 @@
 // 注意：人工标注当前只在前端 state，不持久化；刷新页面后丢失。
 
 import { useMemo, useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
-
-const resolveUrl = (u: string) =>
-  u && u.startsWith("/runtime/") ? `${API_BASE.replace(/\/video-lab$/, "")}${u}` : u;
+import { resolveUrl, API_BASE } from "../utils/url";
 
 const DEFAULT_CONTENT = `今日AI前沿三条要点。
 第一，ProReviewer论文评审系统发布，在五个质量维度上超越传统自动评审方法，平均提升39%，已在两千篇论文上验证。

@@ -23,8 +23,9 @@ from fastapi.staticfiles import StaticFiles
 from app.video_lab.router import router as video_lab_router
 
 # Ensure runtime directory exists
-RUNTIME_BASE = Path("runtime/video_lab/experiments")
-RUNTIME_BASE.mkdir(parents=True, exist_ok=True)
+from app.video_lab.config import RUNTIME_DIR, VIDEO_LAB_EXPERIMENTS_DIR, PUBLIC_RUNTIME_URL_PREFIX
+
+RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 
 app = FastAPI(
@@ -43,7 +44,7 @@ app.add_middleware(
 )
 
 # Mount runtime directory for static file access
-app.mount("/runtime", StaticFiles(directory="runtime"), name="runtime")
+app.mount(f"{PUBLIC_RUNTIME_URL_PREFIX}", StaticFiles(directory=str(RUNTIME_DIR)), name="runtime")
 
 # Routers
 app.include_router(video_lab_router)

@@ -1,12 +1,13 @@
 """
-File Store - Manages runtime output directories for experiments
+File Store - Manages runtime output directories for experiments.
+Runtime paths are configured in app.video_lab.config.
 """
 
 import json
 from pathlib import Path
 
-
-RUNTIME_BASE = Path("runtime/video_lab/experiments")
+from app.video_lab.config import VIDEO_LAB_EXPERIMENTS_DIR as RUNTIME_BASE
+from app.video_lab.config import PUBLIC_RUNTIME_URL_PREFIX
 
 
 def get_experiment_dir(experiment_id: str) -> Path:
@@ -29,27 +30,30 @@ def ensure_runtime_exists() -> None:
 
 def path_to_url(file_path: Path | str) -> str:
     """
-    Convert filesystem path to a URL-compatible path under /runtime/.
+    Convert filesystem path to a URL-compatible path under PUBLIC_RUNTIME_URL_PREFIX.
 
     Handles:
     - POSIX paths: runtime/video_lab/experiments/exp_abc/output.mp4
     - Windows paths: runtime\\video_lab\\experiments\\exp_abc\\output.mp4
-    - Absolute paths containing /runtime/
+    - Absolute paths containing the runtime marker
     """
     path = Path(file_path)
     path_str = path.as_posix()
 
+    prefix = PUBLIC_RUNTIME_URL_PREFIX.rstrip("/")
+
     # If already under runtime/, keep the full relative path from runtime/.
     if path_str.startswith("runtime/"):
-        return "/" + path_str
+        return f"{prefix}/{path_str}"
 
     # Normalize Windows backslashes and look for /runtime/ marker.
     normalized = path_str.replace("\\", "/")
-    if "/runtime/" in normalized:
-        return "/runtime/" + normalized.split("/runtime/", 1)[1]
+    runtime_marker = "/runtime/"
+    if runtime_marker in normalized:
+        return f"{prefix}/" + normalized.split(runtime_marker, 1)[1]
 
-    # Fallback: strip leading slashes and use basename under /runtime/.
-    return "/runtime/" + normalized.lstrip("/")
+    # Fallback: strip leading slashes and use basename under the prefix.
+    return f"{prefix}/" + normalized.lstrip("/")
 
 
 def write_manifest(experiment_id: str, manifest: dict) -> Path:

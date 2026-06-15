@@ -16,6 +16,88 @@ router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
 
 
 # ─────────────────────────────────────────────
+# Shared helpers (also usable in tests)
+# ─────────────────────────────────────────────
+def _safe_get(obj, name: str, default=None):
+    """Access attribute or dict key, handling None gracefully."""
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+def _artifact_type_value(artifact) -> str:
+    """Normalize artifact type: enum.value or string."""
+    raw = _safe_get(artifact, "type", "")
+    return getattr(raw, "value", raw) or ""
+
+
+def extract_style_sample_assets(result) -> dict[str, str]:
+    """
+    Extract URL assets from a VideoExperimentResult (or any object/dict with
+    the same field layout).
+
+    Returns dict with keys: final_video_url, cover_url, audio_url, srt_url,
+    manifest_url, duration_sec, audio_duration_sec, failed, failed_reason.
+    """
+    raw = _safe_get(result, "rawOutput", {}) or {}
+    assets = _safe_get(result, "assets", {}) or {}
+
+    final_video_url = _safe_get(result, "videoUrl", "") or ""
+    cover_url = _safe_get(result, "coverUrl", "") or ""
+    audio_url = ""
+    srt_url = ""
+    manifest_url = ""
+
+    duration_sec = float(assets.get("durationSec", 0) or 0)
+    audio_duration_sec = float(assets.get("audioDurationSec", 0) or 0)
+
+    steps = _safe_get(result, "productionSteps", []) or []
+
+    for step in steps:
+        artifacts = _safe_get(step, "artifacts", []) or []
+        for art in artifacts:
+            atype = _artifact_type_value(art)
+            payload = _safe_get(art, "payload", {}) or {}
+            url = _safe_get(payload, "url", "") if isinstance(payload, dict) else ""
+            if not url:
+                continue
+
+            if atype == "video_output" and not final_video_url:
+                final_video_url = url
+            elif atype == "cover_image" and not cover_url:
+                cover_url = url
+            elif atype == "audio_output" and not audio_url:
+                audio_url = url
+            elif atype == "subtitle_file" and not srt_url:
+                srt_url = url
+            elif atype == "manifest" and not manifest_url:
+                manifest_url = url
+
+    status_ok = raw.get("status") == "succeeded"
+    failed = not status_ok
+
+    if status_ok and not final_video_url:
+        failed = True
+        failed_reason = raw.get("error") or "生成成功但无法提取 final_video_url，请检查 productionSteps 中 video_output artifact"
+    else:
+        failed_reason = raw.get("error") or ("生成失败" if failed else "")
+
+    return {
+        "final_video_url": final_video_url,
+        "cover_url": cover_url,
+        "audio_url": audio_url,
+        "srt_url": srt_url,
+        "manifest_url": manifest_url,
+        "duration_sec": duration_sec,
+        "audio_duration_sec": audio_duration_sec,
+        "failed": failed,
+        "failed_reason": failed_reason,
+    }
+
+
+# ─────────────────────────────────────────────
 # 测试用例
 # ─────────────────────────────────────────────
 @router.get("/test-cases")
@@ -759,64 +841,34 @@ def generate_style_sample(request: StyleSampleGenerateRequest) -> dict[str, Any]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    final_video_url = ""
-    cover_url = ""
-    audio_url = ""
-    srt_url = ""
-    manifest_url = ""
-    duration_sec = 0.0
-    audio_duration_sec = 0.0
-
-    raw = result.raw_output if hasattr(result, "raw_output") else {}
-    steps = getattr(result, "production_steps", [])
-
-    for step in steps:
-        for art in step.get("artifacts", []):
-            atype = art.get("type", "")
-            payload = art.get("payload", {})
-            url = payload.get("url", "") if isinstance(payload, dict) else ""
-            if not url:
-                continue
-            if atype == "final_video":
-                final_video_url = url
-            elif atype == "cover":
-                cover_url = url
-            elif atype == "manifest":
-                manifest_url = url
-            elif atype == "audio" and not audio_url:
-                audio_url = url
-            elif atype == "subtitle_srt" and not srt_url:
-                srt_url = url
-
-    assets = getattr(result, "assets", {}) or {}
-    audio_duration_sec = float(assets.get("audioDurationSec", 0) or 0)
-    duration_sec = float(assets.get("durationSec", audio_duration_sec) or audio_duration_sec)
+    # ── extract URLs and build response ─────────────────────────────────────────
+    extracted = extract_style_sample_assets(result)
 
     return {
         "sample_id": sample_id,
         "route_id": request.route_id,
         "style_name": request.style_name,
         "description": request.description,
-        "status": "generated",
+        "status": "generated" if not extracted["failed"] else "failed",
         "params": params,
         "output": {
             "type": "mp4",
-            "path": final_video_url.replace("/runtime/", ""),
-            "poster": cover_url.replace("/runtime/", ""),
-            "audio_url": audio_url.replace("/runtime/", ""),
-            "srt_url": srt_url.replace("/runtime/", ""),
-            "manifest_url": manifest_url.replace("/runtime/", ""),
+            "path": extracted["final_video_url"].replace("/runtime/", "") if extracted["final_video_url"] else "",
+            "poster": extracted["cover_url"].replace("/runtime/", "") if extracted["cover_url"] else "",
+            "audio_url": extracted["audio_url"].replace("/runtime/", "") if extracted["audio_url"] else "",
+            "srt_url": extracted["srt_url"].replace("/runtime/", "") if extracted["srt_url"] else "",
+            "manifest_url": extracted["manifest_url"].replace("/runtime/", "") if extracted["manifest_url"] else "",
         },
-        "duration_sec": duration_sec,
-        "audio_duration_sec": audio_duration_sec,
+        "duration_sec": extracted["duration_sec"],
+        "audio_duration_sec": extracted["audio_duration_sec"],
         "content_preview": content[:100],
-        "final_video_url": final_video_url,
-        "cover_url": cover_url,
-        "audio_url": audio_url,
-        "srt_url": srt_url,
-        "manifest_url": manifest_url,
-        "failed": raw.get("status") != "succeeded",
-        "failed_reason": raw.get("error") or ("生成失败" if raw.get("status") == "failed" else ""),
+        "final_video_url": extracted["final_video_url"],
+        "cover_url": extracted["cover_url"],
+        "audio_url": extracted["audio_url"],
+        "srt_url": extracted["srt_url"],
+        "manifest_url": extracted["manifest_url"],
+        "failed": extracted["failed"],
+        "failed_reason": extracted["failed_reason"],
     }
 
 
