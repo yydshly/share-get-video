@@ -189,7 +189,44 @@ def test_fallback_plan_has_emphasis_terms():
     plan = plan_shots(REPORT, max_items=6, use_llm=False)
     for s in plan["shots"]:
         assert "emphasisTerms" in s
-        assert isinstance(s["emphasisTerms"], list)
+
+
+# ─── V0.3.6-b1-fix tests ────────────────────────────────────────────────────
+
+def test_normalize_plan_extracts_emphasis_after_fallback_fill():
+    """When LLM returns empty headline/display and no emphasisTerms,
+    normalize should fill from source AND extract emphasisTerms from filled text."""
+    items = [{"title": "ProReviewer评审突破，错误拒绝率从88.9%降至16%"}]
+    raw = {
+        "shots": [{
+            "headline": "",    # empty → will be filled from source
+            "display": "",     # empty → will be filled from source
+            "narration": "",
+            # no emphasisTerms
+        }],
+    }
+    plan = _normalize_plan(raw, items, "")
+    shot = plan["shots"][0]
+    # headline and display should be filled from source
+    assert shot["headline"] != ""
+    assert shot["display"] != ""
+    # emphasisTerms should be extracted from filled content (not empty strings)
+    emp = shot["emphasisTerms"]
+    assert isinstance(emp, list)
+    # Must extract either ProReviewer or 88.9% or 16%
+    found = any(t in ["ProReviewer", "88.9%", "16%"] for t in emp)
+    assert found, f"Expected ProReviewer or 88.9% or 16% in {emp}"
+
+
+def test_default_opening_is_not_boring_template():
+    """Default opening should not be the boring template phrase."""
+    items = [{"title": "Test item"}]
+    raw = {"shots": [{"headline": "h", "display": "d", "narration": "n"}]}
+    plan = _normalize_plan(raw, items, "")
+    opening = plan["opening"]
+    assert opening != ""
+    assert "今天为你梳理" not in opening
+    assert "今天AI圈的重点，正在从能力走向落地。" in opening
 
 
 if __name__ == "__main__":

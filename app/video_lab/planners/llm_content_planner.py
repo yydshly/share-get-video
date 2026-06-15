@@ -208,16 +208,7 @@ def _normalize_plan(raw: dict, items: list[dict], lead: str) -> dict[str, Any]:
         display = (s.get("display") or s.get("body") or "").strip()
         narration = (s.get("narration") or s.get("voiceover") or "").strip()
 
-        # V0.3.6-b1: emphasisTerms - use LLM value or auto-extract
-        raw_emphasis = s.get("emphasisTerms")
-        if isinstance(raw_emphasis, list) and raw_emphasis:
-            # Deduplicate, remove empty strings, cap at 4
-            emp = list(dict.fromkeys(e.strip() for e in raw_emphasis if isinstance(e, str) and e.strip()))[:4]
-        else:
-            # Auto-extract from resolved content
-            emp = _extract_emphasis_terms(f"{headline} {display}", max_terms=4)
-
-        # 缺失则用源条目确定性补全，避免丢信息
+        # V0.3.6-b1-fix: 先完成 fallback 补全，再提取 emphasisTerms
         det = _shot_from_item(src)
         if not headline:
             headline = det["headline"]
@@ -225,6 +216,15 @@ def _normalize_plan(raw: dict, items: list[dict], lead: str) -> dict[str, Any]:
             display = det["display"]
         if not narration:
             narration = display or det["narration"]
+
+        # V0.3.6-b1-fix: emphasisTerms - use LLM value or auto-extract from resolved text
+        raw_emphasis = s.get("emphasisTerms")
+        if isinstance(raw_emphasis, list) and raw_emphasis:
+            # Deduplicate, remove empty strings, cap at 4
+            emp = list(dict.fromkeys(e.strip() for e in raw_emphasis if isinstance(e, str) and e.strip()))[:4]
+        else:
+            # Auto-extract from resolved content (after fallback fill)
+            emp = _extract_emphasis_terms(f"{headline} {display} {narration}", max_terms=4)
 
         shots.append({
             "headline": _clamp(headline, 18),
@@ -236,7 +236,7 @@ def _normalize_plan(raw: dict, items: list[dict], lead: str) -> dict[str, Any]:
     cover_default, _ = split_headline_and_detail(lead)
     return {
         "coverTitle": _clamp(raw.get("coverTitle") or raw.get("title") or cover_default or "今日AI前沿速览", 18),
-        "opening": (raw.get("opening") or "").strip() or "今天为你梳理今日AI前沿要点。",
+        "opening": (raw.get("opening") or "").strip() or "今天AI圈的重点，正在从能力走向落地。",
         "shots": shots,
         "closing": (raw.get("closing") or "").strip() or "以上就是今天的要点，感谢观看。",
     }
@@ -250,7 +250,7 @@ def _fallback_plan(raw_content: str, max_items: int, test_case_id: str) -> dict[
     shots = [_shot_from_item(item) for item in structured.get("items", [])[:max_items]]
     return {
         "coverTitle": _clamp(cover_headline or "今日AI前沿速览", 18),
-        "opening": _clamp(lead, 50) if lead else "今天为你梳理今日AI前沿要点。",
+        "opening": _clamp(lead, 50) if lead else "今天AI圈的重点，正在从能力走向落地。",
         "shots": shots,
         "closing": "以上就是今天的要点，感谢观看。",
         "source": "fallback",
