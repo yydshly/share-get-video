@@ -84,6 +84,12 @@ def _clamp(s: str, n: int) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+# V0.5.7: 关键点卡标题可换行、封面/总结列表宽度可容 ~30 字，
+# 18 字上限会把"ProReviewer论文评审系统发布"这类常见标题截成"…"。
+# 放宽到 24，让简洁标题完整呈现，仍足够短以适配各页排版。
+HEADLINE_MAX = 24
+
+
 # V0.3.6-b1: emphasisTerms extraction
 # Priority: percentages > number+unit > english model/system names > key terms
 _KNOWN_MODELS = {
@@ -360,7 +366,7 @@ def _normalize_plan(raw: dict, items: list[dict], lead: str) -> dict[str, Any]:
         if tone not in ("positive", "negative", "neutral"):
             tone = ""  # 留空，渲染器按文本推断
         shots.append({
-            "headline": _clamp(headline, 18),
+            "headline": _clamp(headline, HEADLINE_MAX),
             "display": display,          # 不截断
             "narration": narration,      # 不截断
             "emphasisTerms": emp,

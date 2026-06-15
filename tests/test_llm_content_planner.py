@@ -68,9 +68,19 @@ def test_normalize_plan_aligns_to_items_and_clamps():
     }
     plan = _normalize_plan(raw, items, "总起")
     assert len(plan["shots"]) == 1  # 与源条目数一致
-    assert len(plan["shots"][0]["headline"]) <= 18
+    assert len(plan["shots"][0]["headline"]) <= 24
     assert plan["opening"] == "开场"
     assert plan["closing"] == "收尾"
+
+
+def test_normalize_plan_keeps_concise_headline_intact():
+    """V0.5.7: 19~24 字的简洁标题应完整保留，不再被截成 '…'。"""
+    items = [{"title": "ProReviewer论文评审系统发布"}]  # 19 字
+    raw = {"shots": [{"headline": "ProReviewer论文评审系统发布", "display": "d", "narration": "n"}]}
+    plan = _normalize_plan(raw, items, "总起")
+    hl = plan["shots"][0]["headline"]
+    assert hl == "ProReviewer论文评审系统发布"
+    assert "…" not in hl
 
 
 def test_normalize_plan_fills_missing_from_source():
