@@ -108,6 +108,14 @@ interface RouteScoreSummary {
   count: number;
 }
 
+interface RouteFit {
+  routeName: string;
+  sampleCount: number;
+  scoredCount: number;
+  avgScore: number | null;
+  best: { sampleId: string; styleName: string; score: number; grade: string; poster: string } | null;
+}
+
 interface StyleTemplate {
   id: string;
   name: string;
@@ -801,6 +809,7 @@ export default function StyleGalleryPage() {
   const [scoreSummary, setScoreSummary] = useState<Record<string, RouteScoreSummary>>({});
   const [judgeAvailable, setJudgeAvailable] = useState<boolean>(true);
   const [judgeUnavailableMsg, setJudgeUnavailableMsg] = useState<string>("");
+  const [routeFit, setRouteFit] = useState<Record<string, RouteFit>>({});
 
   const loadPresets = useCallback(async () => {
     try {
@@ -846,6 +855,14 @@ export default function StyleGalleryPage() {
     } catch { /* ignore */ }
   }, []);
 
+  const loadRouteFit = useCallback(async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/style-gallery/route-fit`);
+      const data = await resp.json();
+      setRouteFit(data ?? {});
+    } catch { /* ignore */ }
+  }, []);
+
   const loadTemplates = useCallback(async () => {
     try {
       const resp = await fetch(`${API_BASE}/style-templates`);
@@ -862,6 +879,7 @@ export default function StyleGalleryPage() {
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
   useEffect(() => { loadScoreHistory(); }, [loadScoreHistory]);
   useEffect(() => { loadJudgeAvailability(); }, [loadJudgeAvailability]);
+  useEffect(() => { loadRouteFit(); }, [loadRouteFit]);
 
   // 通用：生成一条样片并自动保存到样片库（预置风格 / 模板复用共用，避免复制粘贴）
   const generateAndSaveSample = async (opts: {
@@ -997,6 +1015,7 @@ export default function StyleGalleryPage() {
       }
       loadSamples();
       loadScoreHistory();
+      loadRouteFit();
     } catch (e) {
       const msg = String(e).replace(/^Error:\s*/, "");
       if (msg.includes("MINIMAX_API_KEY") || msg.includes("视觉评分")) {
@@ -1271,6 +1290,35 @@ export default function StyleGalleryPage() {
                         <span style={{ fontSize: "0.72rem", color: deltaColor }}>{deltaText}</span>
                       </div>
                       <div style={{ fontSize: "0.62rem", color: "#94a3b8" }}>均 {s.average ?? "—"} · {s.count} 次</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* V0.4.9: 每条路线最适合风格（宏观目标①：沉淀"哪条路线适合什么"）*/}
+          {Object.values(routeFit).some((r) => r.best) && (
+            <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "0.75rem 1rem", marginBottom: "1rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.5rem" }}>🏆 各路线最适合风格（按最高视觉评分）</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+                {Object.entries(routeFit).filter(([, r]) => r.best).map(([rid, r]) => {
+                  const color = ROUTE_COLORS[rid] ?? "#64748b";
+                  const b = r.best!;
+                  const gradeColor = b.score >= 70 ? "#10b981" : b.score >= 55 ? "#f59e0b" : "#ef4444";
+                  return (
+                    <div key={rid} style={{ border: `1px solid ${color}33`, borderRadius: 8, padding: "0.5rem 0.7rem", minWidth: 200, display: "flex", gap: "0.6rem", alignItems: "center" }}>
+                      {b.poster && (
+                        <img src={resolveUrl(b.poster)} alt="" style={{ width: 44, height: 78, objectFit: "cover", borderRadius: 4, background: "#0f172a", flexShrink: 0 }} />
+                      )}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "0.7rem", color: "#64748b" }}>{r.routeName}</div>
+                        <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.styleName}</div>
+                        <div style={{ fontSize: "0.72rem" }}>
+                          <span style={{ color: gradeColor, fontWeight: 700 }}>{b.score}</span>
+                          <span style={{ color: "#94a3b8" }}> · 均 {r.avgScore ?? "—"} · {r.scoredCount}/{r.sampleCount} 已评</span>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}

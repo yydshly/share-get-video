@@ -970,6 +970,46 @@ def judge_availability() -> dict[str, Any]:
     }
 
 
+@router.get("/style-gallery/route-fit")
+def style_gallery_route_fit() -> dict[str, Any]:
+    """每条路线"最适合风格"判定（宏观目标①）。
+
+    基于已评分样片，给出每条路线得分最高的样片/风格 + 平均分 + 数量，
+    用于沉淀"哪条路线适合什么风格"的探索结论。
+    """
+    from app.video_lab.style_gallery import store as sg_store
+
+    samples = sg_store.list_samples(limit=10000)
+    grouped: dict[str, dict[str, Any]] = {}
+    for s in samples:
+        g = grouped.setdefault(s.route_id, {"route_name": s.route_name, "samples": []})
+        g["samples"].append(s)
+
+    out: dict[str, Any] = {}
+    for rid, g in grouped.items():
+        scored = [s for s in g["samples"] if s.visual_judgement]
+        best = max(scored, key=lambda s: s.visual_judgement.score) if scored else None
+        avg = round(sum(s.visual_judgement.score for s in scored) / len(scored), 1) if scored else None
+        best_d = None
+        if best:
+            urls = sg_store.resolve_sample_urls(best)
+            best_d = {
+                "sampleId": best.id,
+                "styleName": best.style_name,
+                "score": best.visual_judgement.score,
+                "grade": best.visual_judgement.grade,
+                "poster": urls.get("poster_url", ""),
+            }
+        out[rid] = {
+            "routeName": g["route_name"],
+            "sampleCount": len(g["samples"]),
+            "scoredCount": len(scored),
+            "avgScore": avg,
+            "best": best_d,
+        }
+    return out
+
+
 @router.get("/style-gallery/score-history")
 def style_gallery_score_history(route_id: str = "", sample_id: str = "", limit: int = 200) -> dict[str, Any]:
     """样片评分历史 + 按路线趋势聚合（历史可分析）。"""
