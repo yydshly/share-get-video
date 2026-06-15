@@ -74,6 +74,13 @@ const NAV_CARDS = [
     color: "#0891b2",
   },
   {
+    to: "/video-lab/remotion-style-family",
+    title: "Remotion 表现范式",
+    desc: "V0.6.1 · Data News / Timeline / Card Stack / Dashboard / Subtitle Story",
+    icon: "🎞️",
+    color: "#7c3aed",
+  },
+  {
     to: "/video-lab/compare",
     title: "结果对比",
     desc: "对比不同方案的实验结果",
