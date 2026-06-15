@@ -4,6 +4,13 @@ import { Link } from "react-router-dom";
 
 const NAV_CARDS = [
   {
+    to: "/video-lab/technique-probe",
+    title: "最佳技术探测台",
+    desc: "一份内容 → 三技术各出整片 → 统一打分排名 → 推荐最佳，并排比成片",
+    icon: "🔎",
+    color: "#0ea5e9",
+  },
+  {
     to: "/video-lab/workbench",
     title: "视频生成实验台",
     desc: "V0.7.0 · 输入内容，选择路线，生成预览，人工观察确认",
