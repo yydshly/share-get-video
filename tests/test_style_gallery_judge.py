@@ -302,3 +302,61 @@ class TestJudgeEndpoint:
             sg_store.delete_sample("sample_judge_ok")
             if poster_file.exists():
                 poster_file.unlink()
+
+    def test_judge_extracts_frame_when_only_video(self, monkeypatch, tmp_path):
+        """V0.4.5: 无 poster、只有视频时，judge 应先抽帧（送评委的是 .png 而非 .mp4）。"""
+        import shutil
+        import subprocess
+        from pathlib import Path
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.video_lab.style_gallery.models import StyleSample, StyleSampleOutput, SampleStatus
+        from app.video_lab.style_gallery import store as sg_store, score_history
+
+        if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+            import pytest as _pytest
+            _pytest.skip("ffmpeg/ffprobe not available")
+
+        # 隔离评分历史，避免污染 runtime
+        monkeypatch.setattr(score_history, "_JSONL_PATH", tmp_path / "sh.jsonl")
+        monkeypatch.setattr(score_history, "_RECORDS_DIR", tmp_path)
+
+        vid_rel = "style_gallery/test/judge_vid.mp4"
+        vid_abs = Path("runtime") / vid_rel
+        vid_abs.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=duration=2:size=320x240:rate=10",
+             "-pix_fmt", "yuv420p", vid_abs.as_posix()],
+            capture_output=True, timeout=60,
+        )
+        assert vid_abs.exists(), "failed to create test video"
+
+        out = StyleSampleOutput(type="mp4", path=vid_rel, poster="")
+        sample = StyleSample(
+            id="sample_vidjudge", route_id="local_frame_compose", route_name="T",
+            style_name="T", status=SampleStatus.CANDIDATE, params={}, output=out, tags=[],
+        )
+        sg_store.save_sample(sample)
+
+        captured = {}
+
+        def mock_ok(path):
+            captured["path"] = path
+            return {"success": True, "scores": {"layout": 4.0, "readability": 4.0},
+                    "overall": 4.0, "suggestions": [], "judge": "test"}
+
+        try:
+            with patch("app.video_lab.quality.visual_judge.assess_visual_quality", mock_ok):
+                client = TestClient(app)
+                resp = client.post("/video-lab/style-samples/sample_vidjudge/judge")
+                assert resp.status_code == 200, resp.text
+                # 关键：送给评委的是抽出的帧（.png），不是原始 mp4
+                assert captured["path"].lower().endswith(".png"), captured.get("path")
+        finally:
+            sg_store.delete_sample("sample_vidjudge")
+            # 清理测试视频和抽出的帧
+            for f in vid_abs.parent.glob("*"):
+                try:
+                    f.unlink()
+                except OSError:
+                    pass

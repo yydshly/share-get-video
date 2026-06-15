@@ -798,6 +798,43 @@ def update_sample_status(sample_id: str, request: dict[str, str]) -> dict[str, A
     return d
 
 
+def _extract_video_frame(video_path: str, fraction: float = 0.4) -> str | None:
+    """从视频抽取一帧用于视觉评分（assess_visual_quality 适合图片/帧，不适合 mp4）。
+
+    在视频 fraction 处抽一帧；无法取时长则用 1.5s。失败返回 None。
+    """
+    import subprocess
+    import uuid
+    from pathlib import Path
+
+    vp = Path(video_path)
+    if not vp.exists():
+        return None
+    # 取时长
+    at_sec = 1.5
+    try:
+        probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", vp.as_posix()],
+            capture_output=True, text=True, timeout=20,
+        )
+        dur = float((probe.stdout or "0").strip() or 0)
+        if dur > 0:
+            at_sec = max(0.0, dur * fraction)
+    except Exception:
+        pass
+    out = vp.parent / f"_judge_frame_{uuid.uuid4().hex[:6]}.png"
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-ss", f"{at_sec:.2f}", "-i", vp.as_posix(),
+             "-vframes", "1", out.as_posix()],
+            capture_output=True, timeout=60,
+        )
+    except Exception:
+        return None
+    return str(out) if out.exists() else None
+
+
 @router.post("/style-samples/{sample_id}/judge")
 def judge_style_sample(sample_id: str) -> dict[str, Any]:
     """对样片进行视觉评分。
@@ -835,6 +872,17 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
         image_path = image_path[len("/runtime/"):]
     if not image_path.startswith(runtime_prefix):
         image_path = runtime_prefix + image_path
+
+    # V0.4.5: 只有视频没有 poster 时，先抽一帧再评（mp4 不能直接送视觉模型）
+    from pathlib import Path as _Path
+    if _Path(image_path).suffix.lower() in (".mp4", ".webm", ".mov"):
+        frame_path = _extract_video_frame(image_path)
+        if not frame_path:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to extract a frame from video for judging (no poster available).",
+            )
+        image_path = frame_path
 
     # 调用视觉评分
     judge_result = assess_visual_quality(image_path)
