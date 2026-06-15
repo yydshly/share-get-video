@@ -798,6 +798,152 @@ def update_sample_status(sample_id: str, request: dict[str, str]) -> dict[str, A
     return d
 
 
+@router.post("/style-samples/{sample_id}/judge")
+def judge_style_sample(sample_id: str) -> dict[str, Any]:
+    """对样片进行视觉评分。
+
+    V0.4.0: 使用 AI 视觉模型对 poster 进行感知质量评分，
+    结果保存到 StyleSample.visual_judgement。
+
+    优先使用 poster_url，没有时使用 video_url。
+    """
+    from datetime import datetime
+    from app.video_lab.style_gallery import store as sg_store
+    from app.video_lab.style_gallery.models import VisualJudgement
+    from app.video_lab.quality.visual_judge import assess_visual_quality
+
+    sample = sg_store.get_sample(sample_id)
+    if not sample:
+        raise HTTPException(status_code=404, detail=f"Sample not found: {sample_id}")
+
+    # V0.4.0: 获取图片路径进行评分
+    poster_path = sample.output.poster
+    video_path = sample.output.path
+
+    if not poster_path and not video_path:
+        raise HTTPException(
+            status_code=400,
+            detail="No poster or video available for judging. Sample may still be generating.",
+        )
+
+    # 优先使用 poster_path
+    image_path = poster_path if poster_path else video_path
+
+    # 将 /runtime/ 路径转换为实际文件路径
+    runtime_prefix = "runtime/"
+    if image_path.startswith("/runtime/"):
+        image_path = image_path[len("/runtime/"):]
+    if not image_path.startswith(runtime_prefix):
+        image_path = runtime_prefix + image_path
+
+    # 调用视觉评分
+    judge_result = assess_visual_quality(image_path)
+
+    if not judge_result.get("success"):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Visual judge failed: {judge_result.get('message', 'unknown error')}",
+        )
+
+    scores = judge_result.get("scores", {})
+    overall_1to5 = judge_result.get("overall", 3.0)
+
+    # 将 1-5 分转换为 0-100 分
+    raw_score = round(overall_1to5 * 20, 1)
+
+    # 计算等级
+    if raw_score >= 85:
+        grade = "excellent"
+    elif raw_score >= 70:
+        grade = "good"
+    elif raw_score >= 55:
+        grade = "ok"
+    else:
+        grade = "poor"
+
+    # 生成 strengths / weaknesses / suggestions
+    suggestions = judge_result.get("suggestions", [])
+    strengths = _infer_strengths_from_scores(scores)
+    weaknesses = _infer_weaknesses_from_scores(scores)
+
+    # 构建 summary
+    summary = _build_summary(grade, scores, raw_score)
+
+    # 保存评分结果
+    judgement = VisualJudgement(
+        score=raw_score,
+        grade=grade,
+        summary=summary,
+        strengths=strengths,
+        weaknesses=weaknesses,
+        suggestions=[str(s) for s in suggestions],
+        judged_at=datetime.utcnow().isoformat(),
+        dimensions={k: float(v) for k, v in scores.items()},
+    )
+
+    sample.visual_judgement = judgement
+    sg_store.save_sample(sample)
+
+    d = sample.to_dict()
+    d["urls"] = sg_store.resolve_sample_urls(sample)
+    return d
+
+
+def _infer_strengths_from_scores(scores: dict[str, float]) -> list[str]:
+    """从各维度分数推断优点（分数 >= 4 视为优点）。"""
+    strengths = []
+    labels = {
+        "layout": "排版留白合理",
+        "readability": "文字清晰可读",
+        "hierarchy": "信息层级清晰",
+        "aesthetics": "整体美观专业",
+        "consistency": "风格一致稳定",
+    }
+    for dim, score in scores.items():
+        if score >= 4.0:
+            strengths.append(labels.get(dim, f"{dim}表现良好"))
+    if not strengths:
+        strengths.append("整体无明显缺陷")
+    return strengths
+
+
+def _infer_weaknesses_from_scores(scores: dict[str, float]) -> list[str]:
+    """从各维度分数推断问题（分数 <= 2.5 视为问题）。"""
+    weaknesses = []
+    labels = {
+        "layout": "排版略显拥挤",
+        "readability": "文字清晰度不足",
+        "hierarchy": "信息层级不够突出",
+        "aesthetics": "美观度有提升空间",
+        "consistency": "风格不够统一",
+    }
+    for dim, score in scores.items():
+        if score <= 2.5:
+            weaknesses.append(labels.get(dim, f"{dim}有待改善"))
+    return weaknesses
+
+
+def _build_summary(grade: str, scores: dict[str, float], raw_score: float) -> str:
+    """基于等级和分数生成中文摘要。"""
+    grade_labels = {
+        "excellent": "优秀",
+        "good": "良好",
+        "ok": "一般",
+        "poor": "较差",
+    }
+    label = grade_labels.get(grade, grade)
+    top_dim = max(scores.items(), key=lambda x: x[1])[0] if scores else "整体"
+    dim_labels = {
+        "layout": "排版",
+        "readability": "可读性",
+        "hierarchy": "层级",
+        "aesthetics": "美观度",
+        "consistency": "一致性",
+    }
+    top_name = dim_labels.get(top_dim, top_dim)
+    return f"{label}水准（{raw_score}分），{top_name}表现最佳，适合资讯类内容分享。"
+
+
 @router.get("/style-gallery/preset-styles")
 def list_preset_styles() -> list[dict[str, Any]]:
     """

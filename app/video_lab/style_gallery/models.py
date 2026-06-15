@@ -35,6 +35,19 @@ class StyleSampleOutput(BaseModel):
     manifest_url: str = Field(default="", description="清单文件路径")
 
 
+# V0.4.0: Visual judgement result from AI judge
+class VisualJudgement(BaseModel):
+    score: float = Field(..., description="总分 0-100")
+    grade: str = Field(..., description="等级: excellent/good/ok/poor")
+    summary: str = Field(default="", description="整体评价摘要")
+    strengths: list[str] = Field(default_factory=list, description="优点列表")
+    weaknesses: list[str] = Field(default_factory=list, description="问题列表")
+    suggestions: list[str] = Field(default_factory=list, description="改进建议")
+    judged_at: str = Field(default="", description="评分时间 ISO 格式")
+    # 详细维度分 (来自 visual_judge.py 的原始分数，1-5)
+    dimensions: dict[str, float] = Field(default_factory=dict, description="各维度分数")
+
+
 class StyleSample(BaseModel):
     """一条风格样片记录。"""
 
@@ -52,6 +65,8 @@ class StyleSample(BaseModel):
     duration_sec: float = Field(default=0.0, description="视频时长（秒）")
     audio_duration_sec: float = Field(default=0.0, description="音频时长（秒）")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="创建时间")
+    # V0.4.0: 视觉评分结果 (可选，兼容旧记录)
+    visual_judgement: VisualJudgement | None = Field(default=None, description="AI 视觉评分结果")
 
     def to_dict(self) -> dict[str, Any]:
         d = self.model_dump(mode="json")
@@ -62,4 +77,7 @@ class StyleSample(BaseModel):
     def from_dict(cls, d: dict) -> "StyleSample":
         if isinstance(d.get("created_at"), str):
             d["created_at"] = datetime.fromisoformat(d["created_at"])
+        # V0.4.0: visual_judgement is optional - pass through if missing (backward compat)
+        if "visual_judgement" not in d:
+            d["visual_judgement"] = None
         return cls(**d)

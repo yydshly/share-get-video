@@ -48,6 +48,17 @@ interface Evaluation {
   notes: string;
 }
 
+interface VisualJudgement {
+  score: number;
+  grade: string;
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  suggestions: string[];
+  judged_at: string;
+  dimensions: Record<string, number>;
+}
+
 interface StyleSample {
   id: string;
   route_id: string;
@@ -64,6 +75,7 @@ interface StyleSample {
   duration_sec: number;
   audio_duration_sec: number;
   created_at: string;
+  visual_judgement: VisualJudgement | null;
 }
 
 interface GenerateResult {
@@ -268,12 +280,16 @@ function SampleCard({
   onCompare,
   onSave,
   selectedForCompare,
+  onJudge,
+  judging,
 }: {
   sample: StyleSample;
   onDelete: (id: string) => void;
   onCompare: (id: string) => void;
   onSave: (s: StyleSample) => void;
   selectedForCompare: boolean;
+  onJudge: (id: string) => void;
+  judging: boolean;
 }) {
   const color = ROUTE_COLORS[sample.route_id] ?? "#64748b";
   const statusInfo = STATUS_LABELS[sample.status] ?? STATUS_LABELS.candidate;
@@ -355,6 +371,55 @@ function SampleCard({
           </div>
         )}
       </div>
+
+      {/* V0.4.0: 视觉评分 */}
+      {sample.visual_judgement ? (
+        <div style={{ background: "#f8fafc", borderRadius: 8, padding: "0.6rem" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.3rem" }}>
+            <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#475569" }}>视觉评分</div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <span style={{
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                color: sample.visual_judgement.score >= 70 ? "#10b981" : sample.visual_judgement.score >= 55 ? "#f59e0b" : "#ef4444",
+              }}>
+                {sample.visual_judgement.score} / {sample.visual_judgement.grade}
+              </span>
+            </div>
+          </div>
+          <div style={{ fontSize: "0.68rem", color: "#64748b", marginBottom: "0.3rem" }}>
+            {sample.visual_judgement.summary}
+          </div>
+          {sample.visual_judgement.strengths.length > 0 && (
+            <div style={{ fontSize: "0.65rem", color: "#10b981", marginBottom: "0.15rem" }}>
+              ✓ {sample.visual_judgement.strengths.slice(0, 2).join(" · ")}
+            </div>
+          )}
+          {sample.visual_judgement.weaknesses.length > 0 && (
+            <div style={{ fontSize: "0.65rem", color: "#ef4444" }}>
+              ✗ {sample.visual_judgement.weaknesses.slice(0, 2).join(" · ")}
+            </div>
+          )}
+        </div>
+      ) : (
+        <button
+          onClick={() => onJudge(sample.id)}
+          disabled={judging}
+          style={{
+            background: judging ? "#94a3b8" : "#f0fdf4",
+            color: judging ? "#cbd5e1" : "#16a34a",
+            border: "1px solid",
+            borderColor: judging ? "#e2e8f0" : "#bbf7d0",
+            borderRadius: 6,
+            padding: "0.4rem 0.75rem",
+            fontSize: "0.72rem",
+            cursor: judging ? "wait" : "pointer",
+            width: "100%",
+          }}
+        >
+          {judging ? "评分中..." : "🔍 视觉评分"}
+        </button>
+      )}
 
       {/* 标签 */}
       {(sample.tags.length > 0 || (() => { const b = getBgmInfo(sample.params); return b.enabled; })()) && (
@@ -469,6 +534,7 @@ export default function StyleGalleryPage() {
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [generating, setGenerating] = useState<string | null>(null);
   const [compareSet, setCompareSet] = useState<Set<string>>(new Set());
+  const [judgingSet, setJudgingSet] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"presets" | "gallery">("presets");
 
@@ -585,6 +651,27 @@ export default function StyleGalleryPage() {
     }
     setCompareSet(next);
     loadSamples();
+  };
+
+  const handleJudge = async (id: string) => {
+    setJudgingSet((prev) => new Set(prev).add(id));
+    setError("");
+    try {
+      const resp = await fetch(`${API_BASE}/style-samples/${id}/judge`, { method: "POST" });
+      if (!resp.ok) {
+        const data = await resp.json();
+        throw new Error(data.detail || `HTTP ${resp.status}`);
+      }
+      loadSamples();
+    } catch (e) {
+      setError("评分失败: " + String(e));
+    } finally {
+      setJudgingSet((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   const routeOptions = [
@@ -736,6 +823,8 @@ export default function StyleGalleryPage() {
                   onCompare={handleCompare}
                   onSave={() => {}}
                   selectedForCompare={compareSet.has(s.id)}
+                  onJudge={handleJudge}
+                  judging={judgingSet.has(s.id)}
                 />
               ))}
             </div>
