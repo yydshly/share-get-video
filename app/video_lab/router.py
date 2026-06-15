@@ -10,6 +10,7 @@ from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_tes
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
 from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest, StyleSampleGenerateRequest, StyleSampleSaveRequest, StyleFamilyCompareRequest, TechniqueProbeRequest, StyleSweepRequest
+from app.video_lab.config import PUBLIC_RUNTIME_URL_PREFIX
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -31,6 +32,25 @@ def _artifact_type_value(artifact) -> str:
     """Normalize artifact type: enum.value or string."""
     raw = _safe_get(artifact, "type", "")
     return getattr(raw, "value", raw) or ""
+
+
+def _strip_runtime_url_prefix(url: str) -> str:
+    """
+    Strip the PUBLIC_RUNTIME_URL_PREFIX from a URL to get the stored path.
+
+    Examples:
+      "/runtime/video_lab/x.mp4" → "video_lab/x.mp4"
+      "/assets/video_lab/x.mp4"  → "video_lab/x.mp4"
+      ""                        → ""
+    """
+    if not url:
+        return ""
+    prefix = PUBLIC_RUNTIME_URL_PREFIX.rstrip("/")
+    if prefix and url.startswith(prefix + "/"):
+        return url[len(prefix) + 1:]
+    if url.startswith("/runtime/"):
+        return url[len("/runtime/"):]
+    return url.lstrip("/")
 
 
 def extract_style_sample_assets(result) -> dict[str, str]:
@@ -853,11 +873,11 @@ def generate_style_sample(request: StyleSampleGenerateRequest) -> dict[str, Any]
         "params": params,
         "output": {
             "type": "mp4",
-            "path": extracted["final_video_url"].replace("/runtime/", "") if extracted["final_video_url"] else "",
-            "poster": extracted["cover_url"].replace("/runtime/", "") if extracted["cover_url"] else "",
-            "audio_url": extracted["audio_url"].replace("/runtime/", "") if extracted["audio_url"] else "",
-            "srt_url": extracted["srt_url"].replace("/runtime/", "") if extracted["srt_url"] else "",
-            "manifest_url": extracted["manifest_url"].replace("/runtime/", "") if extracted["manifest_url"] else "",
+            "path": _strip_runtime_url_prefix(extracted["final_video_url"]),
+            "poster": _strip_runtime_url_prefix(extracted["cover_url"]),
+            "audio_url": _strip_runtime_url_prefix(extracted["audio_url"]),
+            "srt_url": _strip_runtime_url_prefix(extracted["srt_url"]),
+            "manifest_url": _strip_runtime_url_prefix(extracted["manifest_url"]),
         },
         "duration_sec": extracted["duration_sec"],
         "audio_duration_sec": extracted["audio_duration_sec"],

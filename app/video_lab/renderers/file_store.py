@@ -8,6 +8,7 @@ from pathlib import Path
 
 from app.video_lab.config import VIDEO_LAB_EXPERIMENTS_DIR as RUNTIME_BASE
 from app.video_lab.config import PUBLIC_RUNTIME_URL_PREFIX
+from app.video_lab.config import RUNTIME_DIR
 
 
 def get_experiment_dir(experiment_id: str) -> Path:
@@ -30,29 +31,45 @@ def ensure_runtime_exists() -> None:
 
 def path_to_url(file_path: Path | str) -> str:
     """
-    Convert filesystem path to a URL-compatible path under PUBLIC_RUNTIME_URL_PREFIX.
+    Convert a filesystem path to a URL path under PUBLIC_RUNTIME_URL_PREFIX.
 
-    Handles:
-    - POSIX paths: runtime/video_lab/experiments/exp_abc/output.mp4
-    - Windows paths: runtime\\video_lab\\experiments\\exp_abc\\output.mp4
-    - Absolute paths containing the runtime marker
+    Strategy:
+    1. If the resolved path is inside RUNTIME_DIR, use relative_to to get a clean
+       path (works even with custom RUNTIME_DIR like D:/video-lab-runtime).
+    2. Fallback: strip any existing /runtime/ prefix and rebuild with the
+       current PUBLIC_RUNTIME_URL_PREFIX.
+
+    Examples:
+      path_to_url("runtime/video_lab/experiments/exp/final.mp4")
+        → "/runtime/video_lab/experiments/exp/final.mp4"
+
+      path_to_url("D:/video-lab-runtime/video_lab/experiments/exp/final.mp4")
+        → "/runtime/video_lab/experiments/exp/final.mp4"
     """
     path = Path(file_path)
-    path_str = path.as_posix()
+    prefix = PUBLIC_RUNTIME_URL_PREFIX.rstrip("/") or "/runtime"
 
-    prefix = PUBLIC_RUNTIME_URL_PREFIX.rstrip("/")
+    try:
+        resolved = path.resolve()
+    except Exception:
+        resolved = path
 
-    # If already under runtime/, keep the full relative path from runtime/.
-    if path_str.startswith("runtime/"):
-        return f"{prefix}/{path_str}"
+    # 1. If path is inside RUNTIME_DIR, use relative_to for a clean sub-path.
+    try:
+        rel = resolved.relative_to(RUNTIME_DIR.resolve())
+        return f"{prefix}/{rel.as_posix()}"
+    except ValueError:
+        pass
 
-    # Normalize Windows backslashes and look for /runtime/ marker.
-    normalized = path_str.replace("\\", "/")
-    runtime_marker = "/runtime/"
-    if runtime_marker in normalized:
-        return f"{prefix}/" + normalized.split(runtime_marker, 1)[1]
+    # 2. Normalize to forward slashes and strip any existing /runtime/ prefix.
+    normalized = resolved.as_posix().replace("\\", "/")
 
-    # Fallback: strip leading slashes and use basename under the prefix.
+    # Strip /runtime/ if it appears after the mount point
+    marker = "/runtime/"
+    if marker in normalized:
+        return f"{prefix}/" + normalized.split(marker, 1)[1]
+
+    # 3. Fallback: strip leading slashes and put everything under the prefix.
     return f"{prefix}/" + normalized.lstrip("/")
 
 

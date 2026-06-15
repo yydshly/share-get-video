@@ -52,10 +52,10 @@ def main() -> int:
     # Health endpoint
     print("\n[ Health ]")
     try:
-        resp = httpx.get(f"{VIDEO_LAB_BASE}/health", timeout=10)
-        all_ok &= check("GET /video-lab/health returns 200", resp.status_code == 200, f"{resp.status_code}")
+        resp = httpx.get(f"{BASE_URL}/health", timeout=10)
+        all_ok &= check("GET /health returns 200", resp.status_code == 200, f"{resp.status_code}")
     except Exception as e:
-        all_ok &= check("GET /video-lab/health", False, str(e))
+        all_ok &= check("GET /health", False, str(e))
 
     # Static runtime mount — create a temp file and try to fetch it
     print("\n[ Static mount ]")
@@ -89,10 +89,9 @@ if __name__ == "__main__":
         import httpx
         httpx.get("http://localhost:8000/", timeout=2)
     except Exception:
-        print("[WARN] Backend server not running at http://localhost:8000")
-        print("       Skipping HTTP checks — start the server and re-run.")
-        print("\nTo start the server:")
-        print("  cd app && uvicorn main:app --reload --port 8000")
+        print("[INFO] Backend server not running — skipping HTTP smoke checks.")
+        print("       Start the server with: cd app && uvicorn main:app --reload --port 8000")
+        print("       Then re-run this script to verify /health and /runtime.")
         sys.exit(0)
 
     sys.exit(main())

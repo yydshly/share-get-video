@@ -224,3 +224,125 @@ class TestExtractStyleSampleAssets:
         assert extracted["final_video_url"] == "/runtime/video_lab/experiments/exp_abc/final.mp4"
         assert extracted["cover_url"] == "/runtime/video_lab/experiments/exp_abc/cover.png"
         assert extracted["failed"] is False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# _strip_runtime_url_prefix tests
+# ─────────────────────────────────────────────────────────────────────────────
+class TestStripRuntimeUrlPrefix:
+    def test_strip_default_runtime_prefix(self):
+        """Default /runtime/ prefix should be stripped."""
+        from app.video_lab.router import _strip_runtime_url_prefix
+        assert _strip_runtime_url_prefix("/runtime/video_lab/x.mp4") == "video_lab/x.mp4"
+        assert _strip_runtime_url_prefix("/runtime/video_lab/experiments/exp_a/final.mp4") == "video_lab/experiments/exp_a/final.mp4"
+
+    def test_strip_custom_prefix(self, monkeypatch):
+        """Custom PUBLIC_RUNTIME_URL_PREFIX should be stripped."""
+        import importlib
+        import app.video_lab.router as router_module
+        import app.video_lab.config as config_module
+
+        monkeypatch.setenv("PUBLIC_RUNTIME_URL_PREFIX", "/assets")
+        importlib.reload(config_module)
+        importlib.reload(router_module)
+
+        from app.video_lab.router import _strip_runtime_url_prefix
+
+        assert _strip_runtime_url_prefix("/assets/video_lab/x.mp4") == "video_lab/x.mp4"
+        assert _strip_runtime_url_prefix("/assets/video_lab/experiments/exp_a/final.mp4") == "video_lab/experiments/exp_a/final.mp4"
+
+        # Restore
+        monkeypatch.delenv("PUBLIC_RUNTIME_URL_PREFIX", raising=False)
+        importlib.reload(config_module)
+        importlib.reload(router_module)
+
+    def test_strip_empty_url(self):
+        """Empty URL should return empty string."""
+        from app.video_lab.router import _strip_runtime_url_prefix
+        assert _strip_runtime_url_prefix("") == ""
+        assert _strip_runtime_url_prefix(None) == ""  # type: ignore
+
+    def test_strip_fallback_without_prefix(self):
+        """URL without /runtime/ prefix should be returned as-is after stripping leading slash."""
+        from app.video_lab.router import _strip_runtime_url_prefix
+        assert _strip_runtime_url_prefix("/other/video_lab/x.mp4") == "other/video_lab/x.mp4"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# path_to_url tests (custom RUNTIME_DIR and default)
+# ─────────────────────────────────────────────────────────────────────────────
+class TestPathToUrl:
+    def test_path_to_url_default_runtime_no_double_prefix(self):
+        """
+        path_to_url with default RUNTIME_DIR should not produce /runtime/runtime/...
+        """
+        import importlib
+        import app.video_lab.config as config_module
+        import app.video_lab.renderers.file_store as file_store_module
+
+        # Ensure default settings
+        import os
+        monkeypatch = pytest_import_or_skip()
+        monkeypatch.delenv("VIDEO_LAB_RUNTIME_DIR", raising=False)
+        monkeypatch.delenv("PUBLIC_RUNTIME_URL_PREFIX", raising=False)
+
+        importlib.reload(config_module)
+        importlib.reload(file_store_module)
+
+        from app.video_lab.renderers.file_store import path_to_url
+
+        # A path that starts with "runtime/" should not produce /runtime/runtime/...
+        url = path_to_url("runtime/video_lab/experiments/exp_a/final.mp4")
+        assert url == "/runtime/video_lab/experiments/exp_a/final.mp4"
+        assert not url.startswith("/runtime/runtime/")
+
+    def test_path_to_url_custom_runtime_dir(self, monkeypatch, tmp_path):
+        """
+        When RUNTIME_DIR is a custom path (e.g. D:/video-lab-runtime),
+        path_to_url should still return a URL under /runtime/, not the custom path.
+        """
+        import importlib
+        import app.video_lab.config as config_module
+        import app.video_lab.renderers.file_store as file_store_module
+
+        custom_runtime = tmp_path / "custom-runtime"
+        custom_runtime.mkdir()
+
+        monkeypatch.setenv("VIDEO_LAB_RUNTIME_DIR", str(custom_runtime))
+        monkeypatch.setenv("PUBLIC_RUNTIME_URL_PREFIX", "/runtime")
+
+        importlib.reload(config_module)
+        importlib.reload(file_store_module)
+
+        from app.video_lab.renderers.file_store import path_to_url
+
+        # A file inside the custom RUNTIME_DIR should map to /runtime/...
+        test_file = custom_runtime / "video_lab" / "experiments" / "exp_b" / "final.mp4"
+        test_file.parent.mkdir(parents=True)
+        test_file.write_text("video")
+
+        url = path_to_url(str(test_file))
+
+        # Must be under /runtime/ not /runtime/D:/... or /runtime/tmp/...
+        assert url.startswith("/runtime/")
+        assert "/D:/" not in url
+        assert "/tmp/" not in url
+        assert "custom-runtime" not in url
+
+        # Restore defaults
+        monkeypatch.delenv("VIDEO_LAB_RUNTIME_DIR", raising=False)
+        monkeypatch.delenv("PUBLIC_RUNTIME_URL_PREFIX", raising=False)
+        importlib.reload(config_module)
+        importlib.reload(file_store_module)
+
+
+def pytest_import_or_skip():
+    """Provide monkeypatch whether running under pytest or not."""
+    try:
+        import pytest
+        return pytest.MonkeyPatch()
+    except ImportError:
+        class FakeMonkeypatch:
+            def setenv(self, k, v): os.environ[k] = v
+            def delenv(self, k, raising=True): os.environ.pop(k, None)
+        return FakeMonkeypatch()

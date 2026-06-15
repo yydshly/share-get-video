@@ -26,7 +26,23 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_ROOT = PROJECT_ROOT / "app"
 FRONTEND_ROOT = PROJECT_ROOT / "frontend"
 REMOTION_ROOT = PROJECT_ROOT / "remotion"
-RUNTIME_DIR = PROJECT_ROOT / "runtime"
+
+# Load .env before reading any env vars (override=False so system env takes precedence)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
+except Exception:
+    pass
+
+
+def resolve_project_path(p: str | Path) -> Path:
+    """Resolve a potentially-relative path relative to PROJECT_ROOT."""
+    path = Path(p)
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+# Runtime dir from config (env var or default)
+RUNTIME_DIR = resolve_project_path(os.getenv("VIDEO_LAB_RUNTIME_DIR", "runtime"))
 
 
 def check(name: str, condition: bool, detail: str = "", warn: bool = False) -> bool:
@@ -107,9 +123,9 @@ def main() -> int:
         test_file = RUNTIME_DIR / ".preflight_test"
         test_file.write_text("ok")
         test_file.unlink()
-        check("runtime dir writable", True, str(RUNTIME_DIR))
+        check(f"runtime dir writable ({RUNTIME_DIR})", True, str(RUNTIME_DIR))
     except Exception as e:
-        check("runtime dir writable", False, str(e))
+        check(f"runtime dir writable ({RUNTIME_DIR})", False, str(e))
         all_ok = False
 
     # ── ffmpeg / ffprobe ────────────────────────────────────────────────────────
@@ -117,9 +133,11 @@ def main() -> int:
     for binary, env_var in [("ffmpeg", "FFMPEG_BINARY"), ("ffprobe", "FFPROBE_BINARY")]:
         explicit = os.getenv(env_var, "").strip()
         if explicit:
-            found = shutil.which(explicit)
-            check(f"{binary} (explicit {env_var})", bool(found), explicit)
-            all_ok &= bool(found)
+            # Explicit path: check file exists (resolve relative to project root)
+            resolved = resolve_project_path(explicit)
+            found = resolved.exists()
+            check(f"{binary} ({env_var})", found, str(resolved))
+            all_ok &= found
         else:
             found = shutil.which(binary)
             check(binary, bool(found), "found in PATH" if found else "not in PATH — install ffmpeg")

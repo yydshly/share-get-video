@@ -7,12 +7,12 @@ import sys
 from pathlib import Path
 
 # Load .env if not already loaded. Skip during pytest runs so tests
-# can control the environment.
+# can control the environment. override=False preserves system env vars.
 _in_pytest = "pytest" in sys.modules
-if not _in_pytest and not os.environ.get("MINIMAX_API_KEY"):
+if not _in_pytest:
     try:
         from dotenv import load_dotenv
-        load_dotenv()
+        load_dotenv(override=False)
     except ImportError:
         pass  # dotenv not installed; assume env is set elsewhere
 
