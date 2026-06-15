@@ -99,6 +99,15 @@ interface GenerateResult {
 }
 
 // V0.4.2: Style Template
+interface RouteScoreSummary {
+  routeName: string;
+  latest: number | null;
+  previous: number | null;
+  delta: number | null;
+  average: number | null;
+  count: number;
+}
+
 interface StyleTemplate {
   id: string;
   name: string;
@@ -789,6 +798,7 @@ export default function StyleGalleryPage() {
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare" | "templates">("presets");
+  const [scoreSummary, setScoreSummary] = useState<Record<string, RouteScoreSummary>>({});
 
   const loadPresets = useCallback(async () => {
     try {
@@ -817,6 +827,14 @@ export default function StyleGalleryPage() {
     }
   }, [filterRoute, filterStatus]);
 
+  const loadScoreHistory = useCallback(async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/style-gallery/score-history`);
+      const data = await resp.json();
+      setScoreSummary(data.byRoute ?? {});
+    } catch { /* ignore */ }
+  }, []);
+
   const loadTemplates = useCallback(async () => {
     try {
       const resp = await fetch(`${API_BASE}/style-templates`);
@@ -831,6 +849,7 @@ export default function StyleGalleryPage() {
   useEffect(() => { loadPresets(); }, [loadPresets]);
   useEffect(() => { loadSamples(); }, [loadSamples]);
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
+  useEffect(() => { loadScoreHistory(); }, [loadScoreHistory]);
 
   // 通用：生成一条样片并自动保存到样片库（预置风格 / 模板复用共用，避免复制粘贴）
   const generateAndSaveSample = async (opts: {
@@ -965,6 +984,7 @@ export default function StyleGalleryPage() {
         throw new Error(data.detail || `HTTP ${resp.status}`);
       }
       loadSamples();
+      loadScoreHistory();
     } catch (e) {
       setError("评分失败: " + String(e));
     } finally {
@@ -1209,6 +1229,30 @@ export default function StyleGalleryPage() {
       {/* V0.4.1: 对比面板 Tab */}
       {activeTab === "compare" && (
         <div style={{ marginTop: "1rem" }}>
+          {/* V0.4.4: 各路线评分趋势（历史可分析）*/}
+          {Object.keys(scoreSummary).length > 0 && (
+            <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "0.75rem 1rem", marginBottom: "1rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.5rem" }}>📈 各路线评分趋势（感知分 0-100）</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+                {Object.entries(scoreSummary).map(([rid, s]) => {
+                  const color = ROUTE_COLORS[rid] ?? "#64748b";
+                  const deltaText = s.delta === null ? "—" : s.delta > 0 ? `▲ +${s.delta}` : s.delta < 0 ? `▼ ${s.delta}` : "＝0";
+                  const deltaColor = s.delta === null ? "#94a3b8" : s.delta > 0 ? "#10b981" : s.delta < 0 ? "#ef4444" : "#94a3b8";
+                  return (
+                    <div key={rid} style={{ border: `1px solid ${color}33`, borderRadius: 8, padding: "0.4rem 0.7rem", minWidth: 150 }}>
+                      <div style={{ fontSize: "0.7rem", color: "#64748b" }}>{s.routeName}</div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                        <span style={{ fontSize: "1.1rem", fontWeight: 700, color }}>{s.latest ?? "—"}</span>
+                        <span style={{ fontSize: "0.72rem", color: deltaColor }}>{deltaText}</span>
+                      </div>
+                      <div style={{ fontSize: "0.62rem", color: "#94a3b8" }}>均 {s.average ?? "—"} · {s.count} 次</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {compareSet.size === 0 ? (
             <div style={{ textAlign: "center", padding: "3rem 0", color: "#94a3b8", fontSize: "0.9rem" }}>
               <div style={{ marginBottom: "1rem" }}>暂无对比样片，请先在样片库中点击「加入对比」</div>

@@ -884,9 +884,36 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
     sample.visual_judgement = judgement
     sg_store.save_sample(sample)
 
+    # V0.4.4: 评分历史留痕（append-only，使"历史可分析"成立；失败不影响评分）
+    try:
+        from app.video_lab.style_gallery import score_history
+        score_history.append_score({
+            "sampleId": sample.id,
+            "route_id": sample.route_id,
+            "route_name": sample.route_name,
+            "styleName": sample.style_name,
+            "score": raw_score,
+            "grade": grade,
+            "dimensions": {k: float(v) for k, v in scores.items()},
+        })
+    except Exception:
+        pass
+
     d = sample.to_dict()
     d["urls"] = sg_store.resolve_sample_urls(sample)
     return d
+
+
+@router.get("/style-gallery/score-history")
+def style_gallery_score_history(route_id: str = "", sample_id: str = "", limit: int = 200) -> dict[str, Any]:
+    """样片评分历史 + 按路线趋势聚合（历史可分析）。"""
+    from app.video_lab.style_gallery import score_history
+    return {
+        "byRoute": score_history.summarize_by_route(),
+        "records": list(reversed(score_history.read_scores(
+            route_id=route_id or None, sample_id=sample_id or None, limit=limit,
+        ))),
+    }
 
 
 def _infer_strengths_from_scores(scores: dict[str, float]) -> list[str]:
