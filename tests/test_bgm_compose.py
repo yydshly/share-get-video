@@ -1,12 +1,14 @@
 """
 tests/test_bgm_compose.py
 V0.3.8: BGM composition tests — FFmpeg lavfi ambient BGM mixing
+V0.3.8.1: Fixed lavfi command, camelCase support, command structure validation
 """
 
 import pytest
 from pathlib import Path
 import tempfile
 import os
+import subprocess
 
 from app.video_lab.renderers.ffmpeg_av_composer import (
     normalize_bgm_params,
@@ -219,3 +221,200 @@ class TestBgmManifestAssets:
         assert result["bgm_enabled"] is True
         assert result["bgm_mode"] == "generated_ambient"
         assert result["bgm_volume"] == 0.05
+
+
+# ─── V0.3.8.1: Additional Tests ─────────────────────────────────────────────
+
+class TestNormalizeBgmParamsV081:
+    """V0.3.8.1: camelCase fadeIn/fadeOut and direct dict support."""
+
+    def test_camelCase_fadeIn_fadeOut(self):
+        """Frontend preset uses fadeIn/fadeOut (camelCase)."""
+        result = normalize_bgm_params({
+            "bgm": {"mode": "generated_ambient", "volume": 0.06, "fadeIn": 1.5, "fadeOut": 2.0}
+        })
+        assert result["mode"] == "generated_ambient"
+        assert result["volume"] == 0.06
+        assert result["fade_in"] == 1.5
+        assert result["fade_out"] == 2.0
+
+    def test_snake_case_fade_in_fade_out(self):
+        """snake_case also supported."""
+        result = normalize_bgm_params({
+            "bgm": {"mode": "generated_ambient", "volume": 0.07, "fade_in": 1.0, "fade_out": 1.8}
+        })
+        assert result["fade_in"] == 1.0
+        assert result["fade_out"] == 1.8
+
+    def test_direct_standardized_dict(self):
+        """Direct {"mode": ..., "volume": ...} dict is recognized."""
+        result = normalize_bgm_params({
+            "mode": "generated_ambient",
+            "volume": 0.09,
+            "fade_in": 0.5,
+            "fade_out": 1.0,
+        })
+        assert result["mode"] == "generated_ambient"
+        assert result["volume"] == 0.09
+        assert result["fade_in"] == 0.5
+        assert result["fade_out"] == 1.0
+
+    def test_empty_dict_returns_default(self):
+        """Empty dict returns default (mode=none)."""
+        result = normalize_bgm_params({})
+        assert result["mode"] == "none"
+
+
+class TestBgmCommandStructure:
+    """V0.3.8.1: Validate FFmpeg command structure without running FFmpeg."""
+
+    def test_bgm_none_no_sine_bgm_input(self, tmp_path):
+        """mode=none should not include sine-wave BGM input."""
+        video_path = tmp_path / "v.mp4"
+        audio_path = tmp_path / "a.mp3"
+        # Create minimal files using aevalsrc=0 for silence (universally supported)
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=2x2:d=0.1",
+                       "-c:v", "libx264", "-t", "0.1", str(video_path)],
+                      capture_output=True, timeout=30)
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "aevalsrc=0",
+                       "-ar", "44100", "-ac", "2", "-t", "0.1",
+                       "-c:a", "aac", str(audio_path)],
+                      capture_output=True, timeout=30)
+
+        result = compose_video_with_audio(
+            video_path=video_path,
+            audio_path=audio_path,
+            output_path=tmp_path / "out.mp4",
+            bgm_params={"bgm": {"mode": "none", "volume": 0.1}},
+        )
+        cmd = result.get("ffmpeg_command", "")
+        # mode=none: no sine-wave BGM input should appear
+        # (video still uses lavfi for color=black but that's test setup, not BGM)
+        assert "sine=frequency=220" not in cmd
+        assert result["bgm_enabled"] is False
+
+    def test_bgm_enabled_includes_sine_input(self, tmp_path):
+        """mode=generated_ambient should include sine-wave BGM input."""
+        video_path = tmp_path / "v.mp4"
+        audio_path = tmp_path / "a.mp3"
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=2x2:d=0.1",
+                       "-c:v", "libx264", "-t", "0.1", str(video_path)],
+                      capture_output=True, timeout=30)
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "aevalsrc=0",
+                       "-ar", "44100", "-ac", "2", "-t", "0.1",
+                       "-c:a", "aac", str(audio_path)],
+                      capture_output=True, timeout=30)
+
+        result = compose_video_with_audio(
+            video_path=video_path,
+            audio_path=audio_path,
+            output_path=tmp_path / "out.mp4",
+            bgm_params={"bgm": {"mode": "generated_ambient", "volume": 0.06}},
+        )
+        cmd = result.get("ffmpeg_command", "")
+        # BGM sine input should be present
+        assert "sine=frequency=220" in cmd
+        # BGM audio should be mixed
+        assert "[mixed]" in cmd
+        # filter_complex must not have dangling "; [v][mixed]" suffix
+        assert not cmd.endswith("; [v][mixed]")
+        assert result["bgm_enabled"] is True
+
+    def test_filter_complex_no_dangling_v_mixed(self, tmp_path):
+        """Command must not end filter_complex with '; [v][mixed]'."""
+        video_path = tmp_path / "v.mp4"
+        audio_path = tmp_path / "a.mp3"
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=2x2:d=0.1",
+                       "-c:v", "libx264", "-t", "0.1", str(video_path)],
+                      capture_output=True, timeout=30)
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "aevalsrc=0",
+                       "-ar", "44100", "-ac", "2", "-t", "0.1",
+                       "-c:a", "aac", str(audio_path)],
+                      capture_output=True, timeout=30)
+
+        result = compose_video_with_audio(
+            video_path=video_path,
+            audio_path=audio_path,
+            output_path=tmp_path / "out.mp4",
+            bgm_params={"bgm": {"mode": "generated_ambient", "volume": 0.06}},
+        )
+        cmd = result.get("ffmpeg_command", "")
+        # Must not have dangling [v][mixed] at end of filter_complex
+        assert not cmd.endswith("; [v][mixed]")
+        # filter_complex must end with [mixed] only (no extra [v][mixed] dangling)
+        assert "[mixed]" in cmd
+        assert result["bgm_enabled"] is True
+
+
+@pytest.mark.skipif(not check_ffmpeg_available(), reason="ffmpeg not available")
+class TestBgmRealSmoke:
+    """V0.3.8.1: Real FFmpeg smoke tests for BGM composition."""
+
+    def test_compose_video_with_audio_bgm_real_smoke(self, tmp_path):
+        """Generate real video+audio with BGM, assert output is valid MP4."""
+        video_path = tmp_path / "bgm_video.mp4"
+        audio_path = tmp_path / "bgm_audio.mp3"
+        output_path = tmp_path / "bgm_output.mp4"
+
+        # 1. Generate 2s black video
+        r1 = subprocess.run([
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", "color=c=black:s=320x240:d=2",
+            "-c:v", "libx264", "-preset", "ultrafast", "-r", "30",
+            str(video_path),
+        ], capture_output=True, timeout=30)
+        assert r1.returncode == 0, f"video gen failed: {r1.stderr.decode()}"
+
+        # 2. Generate 2s silent audio using aevalsrc (universally supported)
+        r2 = subprocess.run([
+            "ffmpeg", "-y",
+            "-f", "lavfi", "-i", "aevalsrc=0",
+            "-ar", "44100", "-ac", "2",
+            "-t", "2", "-c:a", "libmp3lame", "-b:a", "64k",
+            str(audio_path),
+        ], capture_output=True, timeout=30)
+        assert r2.returncode == 0, f"audio gen failed: {r2.stderr.decode()}"
+
+        # 3. Compose with BGM
+        result = compose_video_with_audio(
+            video_path=video_path,
+            audio_path=audio_path,
+            output_path=output_path,
+            bgm_params={"bgm": {"mode": "generated_ambient", "volume": 0.06}},
+            timeout=60,
+        )
+
+        # 4. Assertions
+        assert result.get("success") is True, f"compose failed: {result.get('message')}"
+        assert output_path.exists(), f"output not created: {output_path}"
+        assert output_path.stat().st_size > 1000, f"output too small: {output_path.stat().st_size}"
+        assert result.get("bgm_enabled") is True
+        assert result.get("bgm_mode") == "generated_ambient"
+        assert result.get("bgm_volume") == 0.06
+
+    def test_bgm_none_produces_valid_mp4(self, tmp_path):
+        """mode=none still produces valid output (regression check)."""
+        video_path = tmp_path / "novid.mp4"
+        audio_path = tmp_path / "noaud.mp3"
+        output_path = tmp_path / "no_bgm_output.mp4"
+
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=320x240:d=1",
+                       "-c:v", "libx264", "-preset", "ultrafast", "-t", "1",
+                       str(video_path)], capture_output=True, timeout=30)
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "aevalsrc=0",
+                       "-ar", "44100", "-ac", "2", "-t", "1",
+                       "-c:a", "libmp3lame", "-b:a", "64k",
+                       str(audio_path)], capture_output=True, timeout=30)
+
+        result = compose_video_with_audio(
+            video_path=video_path,
+            audio_path=audio_path,
+            output_path=output_path,
+            bgm_params={"bgm": {"mode": "none"}},
+            timeout=60,
+        )
+        assert result.get("success") is True
+        assert output_path.exists()
+        assert output_path.stat().st_size > 1000
+        assert result.get("bgm_enabled") is False
+

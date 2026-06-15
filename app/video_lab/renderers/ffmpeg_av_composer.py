@@ -52,11 +52,10 @@ BGM_FADE_OUT_DEFAULT = 1.5
 def normalize_bgm_params(params: dict) -> dict:
     """将各种格式的 BGM 参数标准化为统一 dict。
 
-    支持两种格式：
-    - 嵌套格式：params.bgm.mode / params.bgm.volume / params.bgm.fade_in / params.bgm.fade_out
-    - 扁平格式：params.bgmMode / params.bgmVolume
-
-    嵌套格式优先。
+    支持三种格式：
+    1. 嵌套格式（前端预设）：params.bgm.mode / volume / fade_in / fadeOut
+    2. 直接标准化 dict（内部传递）：{"mode": ..., "volume": ..., ...}
+    3. 扁平格式（兼容）：params.bgmMode / params.bgmVolume
 
     Returns:
         {
@@ -66,29 +65,47 @@ def normalize_bgm_params(params: dict) -> dict:
             "fade_out": float (0.0-5.0),
         }
     """
-    # 提取嵌套格式
-    bgm_config = params.get("bgm") if isinstance(params, dict) else None
+    if not isinstance(params, dict) or not params:
+        return _default_bgm_result()
+
+    # 格式3: 直接标准化 dict（key 为 mode/volume/fade_in/fade_out）
+    if "mode" in params or "volume" in params:
+        mode = str(params.get("mode", BGM_MODE_NONE)).strip().lower()
+        volume = _clamp(float(params.get("volume", BGM_VOLUME_DEFAULT)), BGM_VOLUME_MIN, BGM_VOLUME_MAX)
+        fade_in = _clamp(float(params.get("fade_in", BGM_FADE_IN_DEFAULT)), BGM_FADE_MIN, BGM_FADE_MAX)
+        fade_out = _clamp(float(params.get("fade_out", BGM_FADE_OUT_DEFAULT)), BGM_FADE_MIN, BGM_FADE_MAX)
+        if mode not in VALID_BGM_MODES:
+            mode = BGM_MODE_NONE
+        return {"mode": mode, "volume": volume, "fade_in": fade_in, "fade_out": fade_out}
+
+    # 格式1: 嵌套格式 params.bgm.*
+    bgm_config = params.get("bgm")
     if bgm_config and isinstance(bgm_config, dict):
         mode = str(bgm_config.get("mode", BGM_MODE_NONE)).strip().lower()
         volume = _clamp(float(bgm_config.get("volume", BGM_VOLUME_DEFAULT)), BGM_VOLUME_MIN, BGM_VOLUME_MAX)
-        fade_in = _clamp(float(bgm_config.get("fade_in", BGM_FADE_IN_DEFAULT)), BGM_FADE_MIN, BGM_FADE_MAX)
-        fade_out = _clamp(float(bgm_config.get("fade_out", BGM_FADE_OUT_DEFAULT)), BGM_FADE_MIN, BGM_FADE_MAX)
-    else:
-        # 扁平格式兼容
-        mode = str(params.get("bgmMode", BGM_MODE_NONE)).strip().lower() if isinstance(params, dict) else BGM_MODE_NONE
-        volume = _clamp(float(params.get("bgmVolume", BGM_VOLUME_DEFAULT)), BGM_VOLUME_MIN, BGM_VOLUME_MAX) if isinstance(params, dict) else BGM_VOLUME_DEFAULT
-        fade_in = BGM_FADE_IN_DEFAULT
-        fade_out = BGM_FADE_OUT_DEFAULT
+        # 同时支持 snake_case 和 camelCase
+        fade_in = _clamp(
+            float(bgm_config.get("fade_in", bgm_config.get("fadeIn", BGM_FADE_IN_DEFAULT))),
+            BGM_FADE_MIN, BGM_FADE_MAX,
+        )
+        fade_out = _clamp(
+            float(bgm_config.get("fade_out", bgm_config.get("fadeOut", BGM_FADE_OUT_DEFAULT))),
+            BGM_FADE_MIN, BGM_FADE_MAX,
+        )
+        if mode not in VALID_BGM_MODES:
+            mode = BGM_MODE_NONE
+        return {"mode": mode, "volume": volume, "fade_in": fade_in, "fade_out": fade_out}
 
+    # 格式2: 扁平格式 params.bgmMode / params.bgmVolume
+    mode = str(params.get("bgmMode", BGM_MODE_NONE)).strip().lower()
+    volume = _clamp(float(params.get("bgmVolume", BGM_VOLUME_DEFAULT)), BGM_VOLUME_MIN, BGM_VOLUME_MAX)
     if mode not in VALID_BGM_MODES:
         mode = BGM_MODE_NONE
+    return {"mode": mode, "volume": volume, "fade_in": BGM_FADE_IN_DEFAULT, "fade_out": BGM_FADE_OUT_DEFAULT}
 
-    return {
-        "mode": mode,
-        "volume": volume,
-        "fade_in": fade_in,
-        "fade_out": fade_out,
-    }
+
+def _default_bgm_result() -> dict:
+    return {"mode": BGM_MODE_NONE, "volume": BGM_VOLUME_DEFAULT, "fade_in": BGM_FADE_IN_DEFAULT, "fade_out": BGM_FADE_OUT_DEFAULT}
 
 
 def _clamp(value: float, min_val: float, max_val: float) -> float:
@@ -259,41 +276,30 @@ def compose_av_with_subtitles(
         "-i", audio_abs,
     ]
 
-    # Add BGM input if enabled: lavfi sine wave at very low frequency for ambient effect
+    # Add BGM input if enabled: single lavfi sine wave (simple & stable)
     if bgm_enabled:
-        # Use two slightly detuned sine waves for a softer, less harsh ambient tone
-        # frequency ratio ~1.003 creates a pleasant beating effect
-        bgm_filter = (
-            f"sine=frequency=220:sample_rate=44100,"
-            f"sine=frequency=221.5:sample_rate=44100,"
-            f"amix=inputs=2:duration=first:dropout_transition=0,"
-            f"volume={bgm_volume},"
-            f"afade=t=in:st=0:d={bgm_fade_in},"
-            f"afade=t=out:st=last-1.5:d={bgm_fade_out}"
-        )
-        cmd.extend(["-f", "lavfi", "-i", bgm_filter])
+        # Single 220Hz sine at 44100 sr — no volume here, apply in filter_complex
+        cmd.extend(["-f", "lavfi", "-i", f"sine=frequency=220:sample_rate=44100"])
 
     # Build filter complex
     if bgm_enabled:
-        # Mix voiceover (input 1) with BGM (input 2) at voiceover's original volume
-        # Voiceover at 1.0, BGM mixed under at bgm_volume
+        # BGM chain: apply volume + fade_in to BGM, then mix with voiceover
+        # V0.3.8.1: fadeOut skipped — requires audio duration which needs ffprobe call
         if sub_for_filter:
             filter_complex = (
                 f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,"
                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2{sub_for_filter}[v];"
                 f"[1:a]volume=1.0[voice];"
-                f"[2:a]volume={bgm_volume}[bgm];"
-                f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[mixed];"
-                f"[v][mixed]"
+                f"[2:a]volume={bgm_volume},afade=t=in:st=0:d={bgm_fade_in}[bgm];"
+                f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[mixed]"
             )
         else:
             filter_complex = (
                 f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,"
                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2[v];"
                 f"[1:a]volume=1.0[voice];"
-                f"[2:a]volume={bgm_volume}[bgm];"
-                f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[mixed];"
-                f"[v][mixed]"
+                f"[2:a]volume={bgm_volume},afade=t=in:st=0:d={bgm_fade_in}[bgm];"
+                f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[mixed]"
             )
         cmd.extend([
             "-filter_complex", filter_complex,
@@ -444,24 +450,16 @@ def compose_video_with_audio(
     ]
 
     if bgm_enabled:
-        bgm_filter = (
-            f"sine=frequency=220:sample_rate=44100,"
-            f"sine=frequency=221.5:sample_rate=44100,"
-            f"amix=inputs=2:duration=first:dropout_transition=0,"
-            f"volume={bgm_volume},"
-            f"afade=t=in:st=0:d={bgm_fade_in},"
-            f"afade=t=out:st=last-1.5:d={bgm_fade_out}"
-        )
-        cmd.extend(["-f", "lavfi", "-i", bgm_filter])
+        # Single sine wave — volume applied in filter_complex
+        cmd.extend(["-f", "lavfi", "-i", f"sine=frequency=220:sample_rate=44100"])
 
     if bgm_enabled:
         filter_complex = (
             f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,"
             f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2[v];"
             f"[1:a]volume=1.0[voice];"
-            f"[2:a]volume={bgm_volume}[bgm];"
-            f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[mixed];"
-            f"[v][mixed]"
+            f"[2:a]volume={bgm_volume},afade=t=in:st=0:d={bgm_fade_in}[bgm];"
+            f"[voice][bgm]amix=inputs=2:duration=first:dropout_transition=0,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[mixed]"
         )
         cmd.extend([
             "-filter_complex", filter_complex,
