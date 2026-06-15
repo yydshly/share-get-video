@@ -366,13 +366,19 @@ def render_overview_template(
     items: List[Dict[str, str]],
     frames_dir: Path,
     resolution: Tuple[int, int] = (1080, 1920),
+    background_path: str | None = None,
 ) -> Dict[str, Any]:
     """
     Render overview frame showing top 4 key points as compact cards.
     V0.3.6-a2: Converted from text list to card list for better visual focus.
+    背景：提供 background_path（AI 素材路线）则用 AI 背景图，使概览页与封面观感一致；
+    否则用渐变背景。
     """
     width, height = resolution
-    img = render_gradient_background(width, height)
+    if background_path:
+        img = load_background_image(background_path, width, height, darken=0.5)
+    else:
+        img = render_gradient_background(width, height)
     draw = ImageDraw.Draw(img)
 
     warnings = []

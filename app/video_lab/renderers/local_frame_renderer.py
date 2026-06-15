@@ -245,6 +245,8 @@ def generate_frames(
             items=overview_items,
             frames_dir=frames_dir,
             resolution=resolution,
+            # AI 素材路线：概览页复用封面 AI 背景，保持整支视频观感一致
+            background_path=(backgrounds or {}).get("cover"),
         )
         frame_outputs.append({
             "type": "overview",
