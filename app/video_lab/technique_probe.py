@@ -43,7 +43,7 @@ def _structural_score(result: dict) -> float:
 
 
 def _visual_score(result: dict) -> float | None:
-    """视觉感知分(0-100)；缺失返回 None。"""
+    """视觉感知分(0-5，与视觉模型 1-5 量纲一致)；缺失返回 None。"""
     v = result.get("visualScore")
     if isinstance(v, (int, float)):
         return float(v)
@@ -51,9 +51,9 @@ def _visual_score(result: dict) -> float | None:
 
 
 def _combined_score(result: dict) -> float:
-    """综合分(0-100)：结构分×20 归一后与视觉分加权；失败记 -1 排末尾。
+    """综合分(0-100)：结构分、视觉分均为 0-5，各×20 归一后加权；失败记 -1 排末尾。
 
-    有视觉分 → 加权；无视觉分 → 退化为纯结构分(0-100)，保证仍可排名。
+    有视觉分 → 加权；无视觉分 → 退化为纯结构分(×20→0-100)，保证仍可排名。
     """
     st = _structural_score(result)
     if st < 0:
@@ -62,7 +62,7 @@ def _combined_score(result: dict) -> float:
     vis = _visual_score(result)
     if vis is None:
         return round(st100, 2)
-    return round(STRUCTURAL_WEIGHT * st100 + VISUAL_WEIGHT * vis, 2)
+    return round(STRUCTURAL_WEIGHT * st100 + VISUAL_WEIGHT * (vis * 20.0), 2)
 
 
 def rank_probe_results(results: list[dict]) -> list[dict]:

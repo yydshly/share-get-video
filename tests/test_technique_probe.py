@@ -79,16 +79,16 @@ def test_run_probe_isolates_per_route_exception():
 
 
 def test_visual_score_breaks_structural_tie():
-    """结构分几乎打平时，视觉分应拉开差距并可改变名次。"""
+    """结构分几乎打平时，视觉分(0-5)应拉开差距并可改变名次。"""
     results = [
-        {"visualRoute": "a", "status": "succeeded", "quality": {"overallScore": 5.0}, "visualScore": 60},
-        {"visualRoute": "b", "status": "succeeded", "quality": {"overallScore": 4.8}, "visualScore": 95},
+        {"visualRoute": "a", "status": "succeeded", "quality": {"overallScore": 5.0}, "visualScore": 3.0},
+        {"visualRoute": "b", "status": "succeeded", "quality": {"overallScore": 4.8}, "visualScore": 4.8},
     ]
     ranking = rank_probe_results(results)
-    # a: 0.5*100+0.5*60=80 ; b: 0.5*96+0.5*95=95.5 → b 胜出（视觉翻盘）
+    # a: 0.5*100+0.5*60=80 ; b: 0.5*96+0.5*96=96 → b 胜出（视觉翻盘）
     assert ranking[0]["visualRoute"] == "b"
-    assert ranking[0]["combinedScore"] == 95.5
-    assert ranking[0]["visualScore"] == 95
+    assert ranking[0]["combinedScore"] == 96.0
+    assert ranking[0]["visualScore"] == 4.8
     # 结构分(0-5)仍保留给 UI
     assert ranking[1]["score"] == 5.0
 
@@ -111,11 +111,11 @@ def test_judge_fn_attaches_visual_score_and_affects_recommendation():
     def fake_compose(content, route, params):
         return dict(base[route])
 
-    # 让 Remotion 视觉分最高 → 应被推荐，尽管结构分略低
+    # 让 Remotion 视觉分(0-5)最高 → 应被推荐，尽管结构分略低
     visual_by_route = {
-        "local_frame_compose": 50,
-        "template_programmatic_render": 98,
-        "ai_asset_then_compose": 55,
+        "local_frame_compose": 2.5,
+        "template_programmatic_render": 4.9,
+        "ai_asset_then_compose": 2.8,
     }
 
     def fake_judge(result):
@@ -123,7 +123,7 @@ def test_judge_fn_attaches_visual_score_and_affects_recommendation():
 
     out = run_technique_probe("内容", None, {}, fake_compose, judge_fn=fake_judge)
     assert out["recommendedRoute"] == "template_programmatic_render"
-    assert out["ranking"][0]["visualScore"] == 98
+    assert out["ranking"][0]["visualScore"] == 4.9
 
 
 def test_run_probe_respects_explicit_routes():

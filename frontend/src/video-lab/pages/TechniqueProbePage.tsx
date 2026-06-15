@@ -203,8 +203,8 @@ export default function TechniqueProbePage() {
                   </div>
                   {item.status === "succeeded" && (
                     <div style={{ fontSize: "0.72rem", color: "#64748b", marginBottom: "0.6rem" }}>
-                      结构 {item.score ?? "—"}/5 · 视觉 {item.visualScore ?? "—"}/100
-                      <span style={{ color: "#94a3b8" }}>（综合 = 结构×20 与视觉 各半）</span>
+                      结构 {item.score ?? "—"}/5 · 视觉 {item.visualScore ?? "—"}/5
+                      <span style={{ color: "#94a3b8" }}>（综合 0-100 = 结构、视觉各×20 后各半）</span>
                     </div>
                   )}
 

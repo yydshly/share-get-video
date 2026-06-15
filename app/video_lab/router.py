@@ -588,10 +588,15 @@ def _judge_probe_result(result: dict[str, Any]) -> dict[str, Any] | None:
         return None
     # /runtime/... URL → 项目根下相对路径（runtime 由根目录提供）
     fs_path = url[1:] if url.startswith("/") else url
-    frame = _extract_video_frame(fs_path) if fs_path.endswith(".mp4") else fs_path
-    if not frame:
+
+    if fs_path.endswith(".mp4"):
+        # 多帧送评：封面/中段/结尾各抽一帧，给视觉模型更多区分信号（并触发 consistency 维度）
+        frames = [f for f in (_extract_video_frame(fs_path, fr) for fr in (0.06, 0.45, 0.85)) if f]
+    else:
+        frames = [fs_path]
+    if not frames:
         return None
-    j = assess_visual_quality(frame)
+    j = assess_visual_quality(frames)
     if not j.get("success"):
         return None
     return {"visualScore": j.get("overall"), "visualDimensions": j.get("scores", {})}
