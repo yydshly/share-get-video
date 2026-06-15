@@ -822,9 +822,14 @@ def render_keypoint_template(
         )
         detail_h = len(d_lines) * d_line_h
 
-    # 内容垂直对齐：center 时整块下移居中，改善"下半部空"的留白
-    used_h = headline_h + (gap + detail_h if detail else 0)
-    offset = max(0, (effective_content_h - used_h) // 2) if content_align == "center" else 0
+    # V0.5.1: 把"标题+正文+数据图"作为一个整体块定位，数据图紧跟正文（不再钉死在卡片底部，
+    # 消除正文与数据图之间的大空隙）。content_align=center 时整块垂直居中。
+    block_h = headline_h
+    if detail:
+        block_h += gap + detail_h
+    if has_metrics:
+        block_h += metrics_gap + metrics_reserve_h
+    offset = max(0, (content_h - block_h) // 2) if content_align == "center" else 0
     head_top = content_top + offset
 
     end_y = _draw_lines_with_highlights(
@@ -834,6 +839,7 @@ def render_keypoint_template(
     if h_overflow:
         warnings.append(f"keypoint {index}: headline overflow (text truncated visually)")
 
+    block_end_y = end_y
     # Detail — placed right under the headline
     if detail:
         detail_top = end_y + gap
@@ -841,12 +847,13 @@ def render_keypoint_template(
             draw, d_lines, inner_x, detail_top, d_font, d_line_h,
             b_color, hl_color, emphasis_terms=emphasis_terms,
         )
+        block_end_y = detail_top + detail_h
         if d_overflow:
             warnings.append(f"keypoint {index}: detail overflow (text truncated visually)")
 
-    # V0.3.6-quality-p0: Metrics card — drawn at bottom of content area
+    # V0.5.1: Metrics card — 紧跟正文（整体块的一部分）
     if has_metrics:
-        metrics_card_y = content_bottom - metrics_reserve_h
+        metrics_card_y = block_end_y + metrics_gap
         _draw_metrics_card(
             draw, metrics, inner_x, metrics_card_y, inner_w, scale,
             accent_color=accent, hl_color=hl_color,

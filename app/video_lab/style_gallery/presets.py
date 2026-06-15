@@ -21,7 +21,7 @@ PRESET_STYLES: list[dict[str, Any]] = [
         "capabilities": ["长文本可读", "数据卡清楚", "排版稳定", "批量生成可靠"],
         "tags": ["数据", "资讯", "稳定"],
         "params": {
-            "showDataViz": True, "highlightMode": "auto", "contentAlign": "top",
+            "showDataViz": True, "highlightMode": "auto", "contentAlign": "center",
             "themeAdaptive": True, "transitionEnabled": True, "transitionFrames": 4,
             "titleColor": "#f8fafc", "bodyColor": "#94a3b8", "highlightColor": "#f59e0b",
         },
