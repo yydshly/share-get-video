@@ -103,7 +103,7 @@ def test_ass_url_is_returned():
 def test_default_ass_style_has_safe_area():
     """Default ASS style must use bottom-center alignment with safe margins."""
     assert DEFAULT_ASS_STYLE["alignment"] == 2  # bottom center
-    assert DEFAULT_ASS_STYLE["margin_v"] >= 200  # bottom safe area
+    assert DEFAULT_ASS_STYLE["margin_v"] >= 150  # V0.3.6-a2: 240→150 (avoid control-bar occlusion, 120-180px from bottom)
     assert DEFAULT_ASS_STYLE["font_size"] <= 40  # not too big
     assert DEFAULT_ASS_STYLE["max_lines"] == 2
     assert DEFAULT_ASS_STYLE["outline"] >= 1

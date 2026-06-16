@@ -48,9 +48,23 @@ def path_to_runtime_url(file_path: Path | str) -> str:
         resolved = path
 
     # 1. Inside RUNTIME_DIR → clean sub-path
+    # Re-import RUNTIME_DIR from config at call time (not module-level binding)
+    # so that importlib.reload(config_module) in tests is respected.
+    from app.video_lab.config import RUNTIME_DIR as _runtime_dir
+
+    # Normalize to forward slashes before comparison to handle Windows
+    # backslash/forward-slash separator mismatches reliably.
     try:
-        rel = resolved.relative_to(RUNTIME_DIR.resolve())
-        return f"{prefix}/{rel.as_posix()}"
+        resolved_str = resolved.as_posix()  # always forward slashes
+        runtime_str = _runtime_dir.resolve().as_posix()
+        if resolved_str.startswith(runtime_str + "/"):
+            rel = resolved_str[len(runtime_str) + 1:]
+        elif resolved_str.startswith(runtime_str):
+            rest = resolved_str[len(runtime_str):]
+            rel = rest.lstrip("/")
+        else:
+            raise ValueError("not under RUNTIME_DIR")
+        return f"{prefix}/{rel}"
     except ValueError:
         pass
 
@@ -122,7 +136,9 @@ def runtime_url_to_path(url_or_path: str) -> Path:
     s = s.lstrip("/")
 
     # Always return path inside RUNTIME_DIR so custom VIDEO_LAB_RUNTIME_DIR is respected
-    return RUNTIME_DIR / s
+    # Re-import at call time to respect any importlib.reload of config.
+    from app.video_lab.config import RUNTIME_DIR as _runtime_dir
+    return _runtime_dir / s
 
 
 def strip_runtime_url_prefix(url: str) -> str:
