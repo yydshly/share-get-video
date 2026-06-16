@@ -639,8 +639,35 @@ export default function VideoGenerationWorkbenchPage() {
           }
         : {}),
     };
-    if (selectedRoute === "remotion_data_news") return { ...base, remotionFamily: "data_news" };
-    if (selectedRoute === "remotion_card_stack") return { ...base, remotionFamily: "card_stack" };
+    if (selectedRoute === "remotion_data_news") {
+      return {
+        ...base,
+        remotionFamily: "data_news",
+        // V1.2.1.4: Data News default style — glass dashboard background
+        ...(!(generationMode === "information_summary" && infoSummaryPlan) ? {
+          remotionStyle: {
+            backgroundPreset: "glass_dashboard",
+            accentColor: "#38bdf8",
+            highlightColor: "#f59e0b",
+          },
+        } : {}),
+      };
+    }
+    if (selectedRoute === "remotion_card_stack") {
+      return {
+        ...base,
+        remotionFamily: "card_stack",
+        // V1.2.1.4: Card Stack default style — aurora blue background + peek frames
+        ...(!(generationMode === "information_summary" && infoSummaryPlan) ? {
+          remotionStyle: {
+            backgroundPreset: "aurora_blue",
+            cardStackPeekFrames: 18,
+            accentColor: "#8b5cf6",
+            highlightColor: "#22d3ee",
+          },
+        } : {}),
+      };
+    }
     return base;
   };
 

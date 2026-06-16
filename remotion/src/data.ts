@@ -46,6 +46,13 @@ export type FamilyVariant =
   | "caption_intro"
   | "cta_overlay";
 
+// V1.2.1.4: Background preset for programmatic CSS backgrounds
+export type BackgroundPreset =
+  | "tech_grid_dark"   // 深蓝黑底 + 细网格 + 蓝色柔光（通用科技新闻）
+  | "aurora_blue"       // 蓝紫极光渐变 + 大面积 radial glow（Card Stack 默认）
+  | "glass_dashboard"   // 深色 dashboard 感 + 半透明几何块（Data News 默认）
+  | "warm_cinematic";   // 暖色暗背景 + 柔光 + 电影感
+
 export type RemotionStyle = {
   accentColor?: string;     // 主题强调色（标号/分隔线/数据条/图标）
   highlightColor?: string;  // 关键词/数字高亮色
@@ -58,6 +65,10 @@ export type RemotionStyle = {
   metricAnimation?: MetricAnimation;    // 指标动画: countup_bar / countup_number / none
   transitionStyle?: TransitionStyle;   // 转场风格: slide_fade / fade / slide
   familyVariant?: FamilyVariant;
+  // V1.2.1.4: Background preset — controls CSS background of each page
+  backgroundPreset?: BackgroundPreset;
+  // V1.2.1.4: Card Stack visual peek frames (independent of audio/segment timing)
+  cardStackPeekFrames?: number;
 };
 
 // V0.6.2: Remotion family — selects visual presentation paradigm

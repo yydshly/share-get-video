@@ -12,7 +12,7 @@ import {
   spring,
   Sequence,
 } from "remotion";
-import type { AiNewsVideoProps, KeyPoint, Metric, RemotionStyle, MotionIntensity, CoverStyle, OverviewStyle, MetricAnimation, TransitionStyle, RemotionFamily, ReportOverview } from "./data";
+import type { AiNewsVideoProps, KeyPoint, Metric, RemotionStyle, MotionIntensity, CoverStyle, OverviewStyle, MetricAnimation, TransitionStyle, RemotionFamily, ReportOverview, BackgroundPreset } from "./data";
 
 // ─── Highlight Helper (V0.3.6-b1) ────────────────────────────────────────────
 /** Auto-extract numbers, percentages, and key terms from text (fallback). */
@@ -99,6 +99,163 @@ const TONE_STYLES: Record<string, { accent: string; highlight: string; glyph: st
   positive: { accent: "#22c55e", highlight: "#86efac", glyph: "↑" },
   negative: { accent: "#f59e0b", highlight: "#fcd34d", glyph: "!" },
   neutral: { accent: "#3b82f6", highlight: "#60a5fa", glyph: "✦" },
+};
+
+// V1.2.1.4: BackgroundLayer — programmatic CSS background (no image assets)
+// Supports 4 presets: tech_grid_dark, aurora_blue, glass_dashboard, warm_cinematic
+// Must be rendered at zIndex 0 inside each page's AbsoluteFill.
+const BackgroundLayer: React.FC<{
+  preset?: BackgroundPreset;
+  accent?: string;
+  highlight?: string;
+}> = ({ preset = "tech_grid_dark", accent = C.accent, highlight = C.highlight }) => {
+  if (preset === "glass_dashboard") {
+    // 深色 dashboard 感：微弱网格 + 半透明几何块 + 顶部/底部 glow
+    return (
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 0,
+          background: C.bg,
+          overflow: "hidden",
+        }}
+      >
+        {/* 顶部 glow */}
+        <div style={{
+          position: "absolute", top: "-20%", left: "10%", width: "80%", height: "60%",
+          background: `radial-gradient(ellipse, ${accent}1a 0%, transparent 70%)`,
+          filter: "blur(60px)",
+        }} />
+        {/* 右下角 glow */}
+        <div style={{
+          position: "absolute", bottom: "-10%", right: "-5%", width: "50%", height: "50%",
+          background: `radial-gradient(circle, ${C.accent2}14 0%, transparent 65%)`,
+          filter: "blur(80px)",
+        }} />
+        {/* 微弱网格 */}
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: `
+            repeating-linear-gradient(0deg, transparent, transparent 59px, ${C.border}22 59px, ${C.border}22 60px),
+            repeating-linear-gradient(90deg, transparent, transparent 59px, ${C.border}22 59px, ${C.border}22 60px)
+          `,
+          opacity: 0.6,
+        }} />
+        {/* 顶部渐变遮罩 */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: "25%",
+          background: `linear-gradient(180deg, ${C.bg}cc 0%, transparent 100%)`,
+        }} />
+        {/* 底部渐变遮罩 */}
+        <div style={{
+          position: "absolute", bottom: 0, left: 0, right: 0, height: "20%",
+          background: `linear-gradient(0deg, ${C.bg}99 0%, transparent 100%)`,
+        }} />
+      </div>
+    );
+  }
+
+  if (preset === "aurora_blue") {
+    // 蓝紫极光渐变：Card Stack 默认背景，空间感更强
+    return (
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 0,
+          background: C.bg,
+          overflow: "hidden",
+        }}
+      >
+        {/* 中央大 radial glow — 蓝紫极光 */}
+        <div style={{
+          position: "absolute", top: "-30%", left: "-20%", width: "140%", height: "100%",
+          background: `radial-gradient(ellipse at 30% 40%, ${accent}28 0%, ${C.accent2}14 35%, transparent 65%)`,
+          filter: "blur(40px)",
+        }} />
+        {/* 底部右上方暖色 glow */}
+        <div style={{
+          position: "absolute", bottom: "-20%", right: "-10%", width: "80%", height: "80%",
+          background: `radial-gradient(circle, ${C.accent2}1a 0%, transparent 60%)`,
+          filter: "blur(60px)",
+        }} />
+        {/* 左上角点缀 */}
+        <div style={{
+          position: "absolute", top: "5%", right: "15%", width: "40%", height: "40%",
+          background: `radial-gradient(circle, ${highlight}12 0%, transparent 60%)`,
+          filter: "blur(50px)",
+        }} />
+        {/* 底部渐变 */}
+        <div style={{
+          position: "absolute", bottom: 0, left: 0, right: 0, height: "30%",
+          background: `linear-gradient(0deg, ${C.bg}ee 0%, transparent 100%)`,
+        }} />
+      </div>
+    );
+  }
+
+  if (preset === "warm_cinematic") {
+    // 暖色暗背景 + 电影感
+    return (
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 0,
+          background: "#0f0e1a",
+          overflow: "hidden",
+        }}
+      >
+        {/* 顶部柔光 */}
+        <div style={{
+          position: "absolute", top: "-15%", left: "20%", width: "60%", height: "50%",
+          background: `radial-gradient(ellipse, rgba(251,191,36,0.10) 0%, transparent 70%)`,
+          filter: "blur(70px)",
+        }} />
+        {/* 中央暖色 glow */}
+        <div style={{
+          position: "absolute", top: "20%", left: "-10%", width: "80%", height: "80%",
+          background: `radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 55%)`,
+          filter: "blur(80px)",
+        }} />
+        {/* 底部渐变 */}
+        <div style={{
+          position: "absolute", bottom: 0, left: 0, right: 0, height: "25%",
+          background: "linear-gradient(0deg, #0f0e1a ee 0%, transparent 100%)",
+        }} />
+      </div>
+    );
+  }
+
+  // Default: tech_grid_dark — 深蓝黑底 + 细网格 + 蓝色柔光
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 0,
+        background: C.bg,
+        overflow: "hidden",
+      }}
+    >
+      {/* 顶部柔光 */}
+      <div style={{
+        position: "absolute", top: "5%", left: "25%", width: "55%", height: "50%",
+        background: `radial-gradient(ellipse, ${C.glow} 0%, transparent 70%)`,
+        filter: "blur(80px)",
+      }} />
+      {/* 网格 */}
+      <div style={{
+        position: "absolute", inset: 0,
+        backgroundImage: `
+          repeating-linear-gradient(0deg, transparent, transparent 59px, ${C.border}1a 59px, ${C.border}1a 60px),
+          repeating-linear-gradient(90deg, transparent, transparent 59px, ${C.border}1a 59px, ${C.border}1a 60px)
+        `,
+        opacity: 0.5,
+      }} />
+    </div>
+  );
 };
 
 // V0.3.9: Motion intensity scale mapping
@@ -239,13 +396,15 @@ const CoverPage: React.FC<{
     return (
       <AbsoluteFill
         style={{
-          background: C.bg,
+          background: "transparent",
           justifyContent: "center",
           alignItems: "center",
           padding: "60px 50px",
         }}
       >
-        {/* Stronger glow layers */}
+        {/* V1.2.1.4: Background layer + existing glow layers for cinematic depth */}
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        {/* Supplementary cinematic glow layers */}
         <div style={{ position: "absolute", top: "5%", left: "20%", width: 700, height: 700, borderRadius: "50%", background: `radial-gradient(circle, ${accent}22 0%, transparent 70%)`, filter: "blur(120px)" }} />
         <div style={{ position: "absolute", bottom: "10%", right: "10%", width: 600, height: 600, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent2}18 0%, transparent 70%)`, filter: "blur(100px)" }} />
         {/* Overlay gradient */}
@@ -296,13 +455,15 @@ const CoverPage: React.FC<{
     return (
       <AbsoluteFill
         style={{
-          background: C.bg,
+          background: "transparent",
           justifyContent: "center",
           alignItems: "center",
           padding: "60px 80px",
         }}
       >
-        <div style={{ maxWidth: 800, textAlign: "center" }}>
+        {/* V1.2.1.4: Background layer */}
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 800, textAlign: "center" }}>
           {/* Title - clean and large */}
           <h1 style={{ fontSize: 72, fontWeight: 800, color: C.textPrimary, margin: 0, lineHeight: 1.15, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
             {title}
@@ -330,12 +491,14 @@ const CoverPage: React.FC<{
   return (
     <AbsoluteFill
       style={{
-        background: C.bg,
+        background: "transparent",
         justifyContent: "center",
         alignItems: "stretch",
         padding: "60px 50px",
       }}
     >
+      {/* V1.2.1.4: Background layer */}
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
       {/* Glow accent */}
       <div
         style={{
@@ -537,12 +700,14 @@ const KeyPointCard: React.FC<{
   return (
     <AbsoluteFill
       style={{
-        background: C.bg,
+        background: "transparent",
         justifyContent: "center",
         alignItems: "center",
         padding: "60px 40px",
       }}
     >
+      {/* V1.2.1.4: Background layer */}
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
       {/* Card container - 80% width of 1080 = 864px */}
       <div
         style={{
@@ -1087,9 +1252,15 @@ const CardStackLayout: React.FC<{
 
   return (
     <AbsoluteFill style={{ background: "transparent", justifyContent: "center", alignItems: "center", padding: "60px 40px" }}>
+      {/* V1.2.1.4: Background layer */}
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={vstyle?.accentColor} highlight={vstyle?.highlightColor} />
       {keyPoints.map((kp, i) => {
         const totalFrames = cardFramesArr[i] + transitionOverlap;
-        const entryWindow = transitionOverlap > 0 ? Math.min(20, totalFrames) : 0; // previous card visible for ~0.67s
+        // V1.2.1.4: visualPeekFrames is independent of transitionOverlap / safeOverlap.
+        // This allows prev/next cards to be visually visible even when safeOverlap=0 (source-bound mode).
+        const visualPeekFramesRaw = vstyle?.cardStackPeekFrames ?? 18;
+        const visualPeekFrames = Math.max(0, Math.min(45, visualPeekFramesRaw));
+        const entryWindow = Math.min(visualPeekFrames, Math.max(0, totalFrames - 1));
         const prevVisible = entryWindow > 0 && i > 0;
         const nextVisible = entryWindow > 0 && i < keyPoints.length - 1;
 
@@ -1103,7 +1274,7 @@ const CardStackLayout: React.FC<{
             from={cardStarts[i]}
             durationInFrames={totalFrames}
           >
-            <AbsoluteFill style={{ background: C.bg, justifyContent: "center", alignItems: "center" }}>
+            <AbsoluteFill style={{ background: "transparent", justifyContent: "center", alignItems: "center" }}>
               {/* Previous card (behind, offset top-right) */}
               {prevVisible && (
                 <CardStackLayer
@@ -1207,8 +1378,9 @@ const TimelineNewsLayout: React.FC<{
 
   if (variant === "route_map") {
     return (
-      <AbsoluteFill style={{ background: C.bg, padding: "72px 58px", justifyContent: "center" }}>
-        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 18% 18%, ${accent}1f, transparent 34%), radial-gradient(circle at 82% 76%, ${hl}16, transparent 34%)` }} />
+      <AbsoluteFill style={{ background: "transparent", padding: "72px 58px", justifyContent: "center" }}>
+        {/* V1.2.1.4: Background layer */}
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 42 }}>Route Map</div>
           <div style={{ position: "relative", height: 720 }}>
@@ -1238,13 +1410,15 @@ const TimelineNewsLayout: React.FC<{
   return (
     <AbsoluteFill
       style={{
-        background: C.bg,
+        background: "transparent",
         padding: "60px 50px",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
       }}
     >
+      {/* V1.2.1.4: Background layer */}
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
       {/* V0.8.9: 顶部小标题 — 标识 Timeline News 范式 */}
       <div
         style={{
@@ -1524,8 +1698,9 @@ const DashboardBriefLayout: React.FC<{
 
   if (variant === "ranking_strip") {
     return (
-      <AbsoluteFill style={{ background: C.bg, padding: "70px 58px", justifyContent: "center" }}>
-        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 50% 0%, ${accent}24, transparent 42%)` }} />
+      <AbsoluteFill style={{ background: "transparent", padding: "70px 58px", justifyContent: "center" }}>
+        {/* V1.2.1.4: Background layer */}
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 22 }}>Ranking Strip</div>
           <h2 style={{ color: C.textPrimary, fontSize: 52, fontWeight: 900, lineHeight: 1.15, margin: 0, marginBottom: 34 }}>Top signals by impact</h2>
@@ -1559,8 +1734,9 @@ const DashboardBriefLayout: React.FC<{
       return Math.min(100, Math.max(12, stat?.value ?? 30 + i * 13));
     });
     return (
-      <AbsoluteFill style={{ background: C.bg, padding: "66px 56px" }}>
-        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${accent}18 0%, transparent 38%)` }} />
+      <AbsoluteFill style={{ background: "transparent", padding: "66px 56px" }}>
+        {/* V1.2.1.4: Background layer */}
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
         <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column" }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase" }}>Chart Story</div>
           <h2 style={{ color: C.textPrimary, fontSize: 48, fontWeight: 900, margin: "14px 0 26px", lineHeight: 1.15 }}>{active?.title}</h2>
@@ -1583,8 +1759,9 @@ const DashboardBriefLayout: React.FC<{
   }
 
   return (
-    <AbsoluteFill style={{ background: C.bg, padding: "58px 50px" }}>
-      <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 20% 12%, ${accent}22, transparent 32%), radial-gradient(circle at 80% 88%, ${C.accent2}18, transparent 34%)` }} />
+    <AbsoluteFill style={{ background: "transparent", padding: "58px 50px" }}>
+      {/* V1.2.1.4: Background layer */}
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
       <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", gap: 22 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -1701,8 +1878,9 @@ const CaptionStoryLayout: React.FC<{
 
   if (variant === "caption_intro") {
     return (
-      <AbsoluteFill style={{ background: C.bg, padding: "88px 66px", justifyContent: "center", alignItems: "center" }}>
-        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 50% 40%, ${accent}2b, transparent 42%), linear-gradient(180deg, transparent, rgba(0,0,0,0.38))` }} />
+      <AbsoluteFill style={{ background: "transparent", padding: "88px 66px", justifyContent: "center", alignItems: "center" }}>
+        {/* V1.2.1.4: Background layer */}
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
         <div style={{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 930 }}>
           <div style={{ display: "inline-flex", border: `1px solid ${accent}66`, color: accent, borderRadius: 999, padding: "8px 18px", fontSize: 18, fontWeight: 800, letterSpacing: 4, textTransform: "uppercase", marginBottom: 34 }}>Cinematic Intro</div>
           <h2 style={{ color: C.textPrimary, fontSize: Math.round(82 * fs), lineHeight: 1.05, margin: 0, opacity: titleOpacity, transform: `translateY(${titleY}px)`, textShadow: `0 0 86px ${accent}55` }}>
@@ -1716,8 +1894,9 @@ const CaptionStoryLayout: React.FC<{
 
   if (variant === "cta_overlay") {
     return (
-      <AbsoluteFill style={{ background: C.bg, padding: "72px 58px", justifyContent: "center" }}>
-        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(145deg, ${accent}24 0%, transparent 48%)` }} />
+      <AbsoluteFill style={{ background: "transparent", padding: "72px 58px", justifyContent: "center" }}>
+        {/* V1.2.1.4: Background layer */}
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 900 }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 32 }}>CTA Overlay</div>
           <h2 style={{ color: C.textPrimary, fontSize: Math.round(68 * fs), lineHeight: 1.08, margin: 0, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
@@ -1734,8 +1913,9 @@ const CaptionStoryLayout: React.FC<{
   }
 
   return (
-    <AbsoluteFill style={{ background: C.bg, padding: "72px 58px", justifyContent: "center" }}>
-      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${accent}24 0%, transparent 42%), radial-gradient(circle at 70% 20%, ${hl}1f, transparent 34%)` }} />
+    <AbsoluteFill style={{ background: "transparent", padding: "72px 58px", justifyContent: "center" }}>
+      {/* V1.2.1.4: Background layer */}
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 38 }}>
           Caption Story · {String(activeIndex + 1).padStart(2, "0")} / {keyPoints.length}
@@ -1782,13 +1962,15 @@ const SummaryPage: React.FC<{
     return (
       <AbsoluteFill
         style={{
-          background: C.bg,
+          background: "transparent",
           justifyContent: "center",
           alignItems: "center",
           padding: "60px 50px",
         }}
       >
-        <div style={{ maxWidth: 950, width: "100%" }}>
+        {/* V1.2.1.4: Background layer */}
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 950, width: "100%" }}>
           <h2 style={{ fontSize: 48, fontWeight: 800, color: C.textPrimary, margin: 0, marginBottom: 32, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
             今日回顾
           </h2>
@@ -1823,13 +2005,15 @@ const SummaryPage: React.FC<{
     return (
       <AbsoluteFill
         style={{
-          background: C.bg,
+          background: "transparent",
           justifyContent: "center",
           alignItems: "center",
           padding: "80px 100px",
         }}
       >
-        <div style={{ maxWidth: 800, width: "100%" }}>
+        {/* V1.2.1.4: Background layer */}
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 800, width: "100%" }}>
           <h2 style={{ fontSize: 48, fontWeight: 800, color: C.textPrimary, margin: 0, marginBottom: 40, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
             今日回顾
           </h2>
@@ -1857,12 +2041,14 @@ const SummaryPage: React.FC<{
   return (
     <AbsoluteFill
       style={{
-        background: C.bg,
+        background: "transparent",
         justifyContent: "center",
         alignItems: "center",
         padding: "60px 50px",
       }}
     >
+      {/* V1.2.1.4: Background layer */}
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
       {/* Glow */}
       <div
         style={{
@@ -1877,7 +2063,7 @@ const SummaryPage: React.FC<{
         }}
       />
 
-      <div style={{ maxWidth: 900, width: "100%" }}>
+      <div style={{ position: "relative", zIndex: 1, maxWidth: 900, width: "100%" }}>
         <h2
           style={{
             fontSize: 48,
@@ -1971,12 +2157,9 @@ const ReportOpeningPage: React.FC<{
   const openingTitle = overview?.title || title || "内容概览";
 
   return (
-    <AbsoluteFill style={{ background: C.bg, padding: 72, color: C.textPrimary, fontFamily: "sans-serif" }}>
-      <div style={{
-        position: "absolute",
-        inset: 0,
-        background: `radial-gradient(circle at 18% 12%, ${accent}33, transparent 34%), radial-gradient(circle at 88% 18%, ${hl}20, transparent 30%)`,
-      }} />
+    <AbsoluteFill style={{ background: "transparent", padding: 72, color: C.textPrimary, fontFamily: "sans-serif" }}>
+      {/* V1.2.1.4: Background layer */}
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
       <div style={{
         position: "relative",
         height: "100%",
@@ -1988,6 +2171,7 @@ const ReportOpeningPage: React.FC<{
         opacity,
         transform: `translateY(${y}px)`,
         overflow: "hidden",
+        zIndex: 1,
       }}>
         <div style={{ color: accent, fontSize: Math.round(26 * fs), fontWeight: 800, marginBottom: 22 }}>
           首页总览
@@ -2114,7 +2298,9 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   };
 
   return (
-    <AbsoluteFill style={{ background: C.bg }}>
+    <AbsoluteFill style={{ background: "transparent" }}>
+      {/* V1.2.1.4: Programmatic background layer at root — individual pages can override */}
+      <BackgroundLayer preset={style?.backgroundPreset} accent={style?.accentColor} highlight={style?.highlightColor} />
       {/* Cover / report opening */}
       <Sequence from={0} durationInFrames={coverFrames + safeOverlap}>
         {isReportSourceBound ? (

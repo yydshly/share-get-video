@@ -160,6 +160,17 @@ def build_remotion_props(
     if family_variant:
         style["familyVariant"] = family_variant
 
+    # V1.2.1.4: Background preset and Card Stack peek frames
+    background_preset = rstyle.get("backgroundPreset") or params.get("backgroundPreset")
+    if background_preset in ("tech_grid_dark", "aurora_blue", "glass_dashboard", "warm_cinematic"):
+        style["backgroundPreset"] = background_preset
+    card_stack_peek_frames = rstyle.get("cardStackPeekFrames") or params.get("cardStackPeekFrames")
+    if card_stack_peek_frames is not None:
+        try:
+            style["cardStackPeekFrames"] = max(0, min(45, int(card_stack_peek_frames)))
+        except (TypeError, ValueError):
+            pass
+
     if style:
         props["style"] = style
 

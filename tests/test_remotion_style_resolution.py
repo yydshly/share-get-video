@@ -167,3 +167,133 @@ class TestStyleResolution:
         props = _build_props(structured, key_points, params)
         cd = props.get("contentDebug", {})
         assert isinstance(cd.get("style"), dict), f"contentDebug.style should be dict, got {type(cd.get('style'))}"
+
+
+class TestBackgroundPresetAndCardStackPeekFrames:
+    """V1.2.1.4: Tests for backgroundPreset and cardStackPeekFrames in build_remotion_props."""
+
+    def test_background_preset_glass_dashboard(self):
+        """glass_dashboard preset is passed through to props.style."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionFamily": "data_news",
+            "remotionStyle": {
+                "backgroundPreset": "glass_dashboard",
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["backgroundPreset"] == "glass_dashboard"
+        assert props["contentDebug"]["style"]["backgroundPreset"] == "glass_dashboard"
+
+    def test_background_preset_aurora_blue(self):
+        """aurora_blue preset is passed through to props.style."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionFamily": "card_stack",
+            "remotionStyle": {
+                "backgroundPreset": "aurora_blue",
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["backgroundPreset"] == "aurora_blue"
+
+    def test_background_preset_warm_cinematic(self):
+        """warm_cinematic preset is passed through to props.style."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionStyle": {
+                "backgroundPreset": "warm_cinematic",
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["backgroundPreset"] == "warm_cinematic"
+
+    def test_background_preset_invalid_value_not_passed(self):
+        """Invalid backgroundPreset values are silently ignored."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionStyle": {
+                "backgroundPreset": "bad_invalid_value",
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert "backgroundPreset" not in props.get("style", {})
+
+    def test_background_preset_from_top_level_params(self):
+        """backgroundPreset from top-level params (not remotionStyle dict) is also accepted."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "backgroundPreset": "glass_dashboard",
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["backgroundPreset"] == "glass_dashboard"
+
+    def test_card_stack_peek_frames_valid(self):
+        """cardStackPeekFrames is passed through to props.style."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionFamily": "card_stack",
+            "remotionStyle": {
+                "cardStackPeekFrames": 18,
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["cardStackPeekFrames"] == 18
+
+    def test_card_stack_peek_frames_clamped_to_45(self):
+        """cardStackPeekFrames values > 45 are clamped to 45."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionStyle": {
+                "cardStackPeekFrames": 999,
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["cardStackPeekFrames"] == 45
+
+    def test_card_stack_peek_frames_clamped_negative_to_zero(self):
+        """cardStackPeekFrames negative values are clamped to 0."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionStyle": {
+                "cardStackPeekFrames": -5,
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["cardStackPeekFrames"] == 0
+
+    def test_card_stack_peek_frames_from_top_level_params(self):
+        """cardStackPeekFrames from top-level params is also accepted."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "cardStackPeekFrames": 22,
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["cardStackPeekFrames"] == 22
+
+    def test_background_preset_and_card_stack_peek_frames_together(self):
+        """backgroundPreset and cardStackPeekFrames can be set simultaneously."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionFamily": "card_stack",
+            "remotionStyle": {
+                "backgroundPreset": "aurora_blue",
+                "cardStackPeekFrames": 18,
+                "accentColor": "#8b5cf6",
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["backgroundPreset"] == "aurora_blue"
+        assert props["style"]["cardStackPeekFrames"] == 18
+        assert props["style"]["accentColor"] == "#8b5cf6"
+        assert props["remotionFamily"] == "card_stack"
