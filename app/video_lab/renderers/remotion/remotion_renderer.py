@@ -22,6 +22,35 @@ REMOTION_ENTRY = "AiNewsVideo"
 USE_SHELL = os.name == "nt"
 
 
+def _run_command(cmd: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess:
+    """
+    Run a command cross-platform.
+
+    On Windows with shell=True, converts the list to a string via list2cmdline
+    to avoid the instability of subprocess.run(list, shell=True).
+    On non-Windows with shell=False, passes the list directly.
+    """
+    cmd_strs = [str(x) for x in cmd]
+    if USE_SHELL:
+        cmd_to_run = subprocess.list2cmdline(cmd_strs)
+        return subprocess.run(
+            cmd_to_run,
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            shell=True,
+        )
+    return subprocess.run(
+        cmd_strs,
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        shell=False,
+    )
+
+
 def check_remotion_available() -> tuple[bool, str]:
     """
     Check if node, npm, and npx remotion are available.
@@ -39,17 +68,15 @@ def check_remotion_available() -> tuple[bool, str]:
     if not npm_path:
         return False, "npm not found. Install Node.js/npm to use Remotion rendering."
 
-    # Check npx - use shell=True on Windows since npx is npx.cmd
+    # Check npx - use stable _run_command so Windows shell=True gets a string
     try:
-        result = subprocess.run(
-            ["npx", "--version"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            shell=USE_SHELL,
-        )
+        result = _run_command(["npx", "--version"], REMOTION_DIR, 10)
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
         if result.returncode != 0:
-            return False, "npx not available. Check Node.js installation."
+            detail = (stderr or stdout or "").strip()
+            msg = f"npx not available. {detail[-300:] if detail else 'Check Node.js installation.'}"
+            return False, msg
     except Exception as e:
         return False, f"npx check failed: {e}"
 
@@ -160,19 +187,12 @@ def render_remotion_video(
     logs.append(f"[Remotion] Command: {' '.join(cmd)}")
 
     try:
-        result = subprocess.run(
-            cmd,
-            cwd=str(REMOTION_DIR),
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            shell=USE_SHELL,  # Windows: shell needed for .cmd files like npx.cmd
-        )
+        result = _run_command(cmd, REMOTION_DIR, timeout)
         stdout = result.stdout or ""
         stderr = result.stderr or ""
-        logs.append(f"[Remotion] stdout: {stdout[:500]}")
-        if stderr:
-            logs.append(f"[Remotion] stderr: {stderr[:500]}")
+        logs.append(f"[Remotion] returncode: {result.returncode}")
+        logs.append(f"[Remotion] stdout: {stdout[:1000]}" if stdout else "[Remotion] stdout: <empty>")
+        logs.append(f"[Remotion] stderr: {stderr[:1000]}" if stderr else "[Remotion] stderr: <empty>")
 
         # Check for success: returncode 0 AND file exists
         found_mp4: Path | None = None
@@ -232,9 +252,16 @@ def render_remotion_video(
                 # Windows FFmpeg may exit with signed int cast to unsigned 32-bit
                 signed_rc = rc - (1 << 32)
                 decoded_msg = f" (signed: {signed_rc})"
+
+            # Fall back to stdout when stderr is empty
+            combined_tail = (stderr or stdout or "").strip()
+            if len(combined_tail) > 800:
+                combined_tail = combined_tail[-800:]
+
             msg = f"Remotion render failed with code {rc}{decoded_msg}"
-            if stderr:
-                msg += f": {stderr[:200]}"
+            if combined_tail:
+                msg += f": {combined_tail}"
+
             logs.append(f"[Remotion] {msg}")
             warnings.append(msg)
             return {
@@ -259,7 +286,7 @@ def render_remotion_video(
             "warnings": warnings,
         }
     except Exception as e:
-        msg = f"Remotion render exception: {e}"
+        msg = f"Remotion render exception: {type(e).__name__}: {e}"
         # 带上完整 traceback，避免异常被吞后无法定位（新机器/新目录排查关键）
         tb = traceback.format_exc()
         logs.append(f"[Remotion] {msg}")
