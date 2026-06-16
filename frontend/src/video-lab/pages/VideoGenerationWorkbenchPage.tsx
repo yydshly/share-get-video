@@ -643,11 +643,19 @@ export default function VideoGenerationWorkbenchPage() {
     setInfoSummaryError("");
 
     try {
+      const titleText = title.trim();
+      const bodyText = body.trim();
+      const structureContent =
+        inputProfile === "report_overview_items"
+          ? bodyText
+          : [titleText, bodyText].filter(Boolean).join("\n\n");
       const resp = await fetch(`${API_BASE}/information-structure`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: [title.trim(), body.trim()].filter(Boolean).join("\n\n"),
+          title: titleText,
+          body: bodyText,
+          content: structureContent,
           compression_mode: compressionMode,
           target_point_count: targetPointCount,
           include_overview: includeOverview,

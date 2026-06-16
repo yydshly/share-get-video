@@ -415,6 +415,8 @@ def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
 class InformationStructureRequest(BaseModel):
     """JSON body for POST /video-lab/information-structure"""
     content: str = Field(..., min_length=1, description="报告原文内容")
+    title: str | None = Field(default=None, description="可选标题，仅用于元数据")
+    body: str | None = Field(default=None, description="可选正文，报告型输入优先使用正文做结构化")
     compression_mode: str = Field(default="balanced", description="精简摘要 | 均衡总结 | 严格保留 | 逐条展开 | 手动分段")
     target_point_count: str = Field(default="auto", description="自动 | 3 | 5 | 8 | all")
     include_overview: bool = Field(default=True, description="是否生成首页总览")
@@ -438,6 +440,8 @@ def generate_information_structure(request: InformationStructureRequest) -> dict
 
     plan = _gen_structure(
         content=request.content,
+        title=request.title,
+        body=request.body,
         compression_mode=request.compression_mode,
         target_point_count=request.target_point_count,
         include_overview=request.include_overview,

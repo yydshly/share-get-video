@@ -317,6 +317,39 @@ def _split_report_title_desc(text: str) -> tuple[str, str]:
     return "", stripped
 
 
+def _is_report_item_start(line: str) -> bool:
+    stripped = (line or "").strip()
+    if not stripped or _is_report_evidence_line(stripped):
+        return False
+    title, desc = _split_report_title_desc(stripped)
+    return 3 <= len(title) <= 50 and len(desc) >= 4
+
+
+def _split_report_item_blocks(text: str) -> list[str]:
+    """Split report item area by explicit item starts, supporting single newlines."""
+    blocks: list[str] = []
+    current: list[str] = []
+
+    def flush_current() -> None:
+        nonlocal current
+        block = "\n".join(line for line in current if line.strip()).strip()
+        if block:
+            blocks.append(block)
+        current = []
+
+    for raw_line in (text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            flush_current()
+            continue
+        if _is_report_item_start(line) and current:
+            flush_current()
+        current.append(line)
+
+    flush_current()
+    return blocks
+
+
 def _parse_report_item_paragraph(paragraph: str, index: int) -> dict[str, Any] | None:
     lines = [line.strip() for line in paragraph.splitlines() if line.strip()]
     if not lines:
@@ -388,12 +421,18 @@ def _generate_report_overview_items_structure(
     include_conclusion: bool,
     evidence_policy: str,
     target_duration_mode: str,
+    title: str | None = None,
+    body: str | None = None,
 ) -> dict[str, Any]:
-    paragraphs = _split_report_paragraphs(content)
+    report_content = (body or "").strip() or content
+    paragraphs = _split_report_paragraphs(report_content)
     if not paragraphs:
         return {
             "mode": "information_summary",
             "inputProfile": _INPUT_PROFILE_REPORT_OVERVIEW_ITEMS,
+            "reportTitle": title or "",
+            "videoTitle": title or "",
+            "metadata": {"title": title or ""},
             "compressionMode": compression_mode,
             "targetPointCount": target_point_count,
             "includeOverview": include_overview,
@@ -413,7 +452,8 @@ def _generate_report_overview_items_structure(
         "summary": overview_summary,
     }
 
-    item_paragraphs = paragraphs[1:]
+    item_area = "\n\n".join(paragraphs[1:])
+    item_paragraphs = _split_report_item_blocks(item_area)
     explicit_conclusion = ""
     if item_paragraphs and _is_conclusion_text(item_paragraphs[-1]):
         explicit_conclusion = item_paragraphs[-1]
@@ -438,6 +478,9 @@ def _generate_report_overview_items_structure(
     return {
         "mode": "information_summary",
         "inputProfile": _INPUT_PROFILE_REPORT_OVERVIEW_ITEMS,
+        "reportTitle": title or "",
+        "videoTitle": title or "",
+        "metadata": {"title": title or ""},
         "compressionMode": compression_mode,
         "targetPointCount": target_point_count,
         "includeOverview": include_overview,
@@ -461,6 +504,8 @@ def _generate_report_overview_items_structure(
 def generate_information_structure(
     content: str,
     *,
+    title: str | None = None,
+    body: str | None = None,
     compression_mode: str = "balanced",
     target_point_count: str = "auto",
     include_overview: bool = True,
@@ -486,6 +531,8 @@ def generate_information_structure(
             include_conclusion=include_conclusion,
             evidence_policy=evidence_policy,
             target_duration_mode=target_duration_mode,
+            title=title,
+            body=body,
         )
 
     # Split into paragraphs by blank lines
