@@ -561,9 +561,25 @@ export default function VideoGenerationWorkbenchPage() {
       const data = await resp.json();
       if (!resp.ok && !data) throw new Error(`${resp.status}`);
       if (!data.success) {
-        // Surface real error from backend
-        const msg = data?.message || data?.detail || data?.warnings?.join("；") || "预览生成失败";
-        throw new Error(msg);
+        const msg =
+          data?.error?.message ||
+          data?.message ||
+          data?.detail ||
+          data?.warnings?.join("；") ||
+          "预览生成失败";
+        setPreviewResult({
+          experimentId: data.experimentId || data.jobRun?.experimentId || "—",
+          success: false,
+          videoUrl: "",
+          runtimePath: "",
+          elapsedMs: data.elapsedMs || 0,
+          route: data.route || selectedRoute,
+          message: data.message || "",
+          failedReason: msg,
+          jobRun: (data.jobRun as JobRun | undefined) || undefined,
+        });
+        setPreviewError("");
+        return;
       }
 
       setPreviewResult({
@@ -927,6 +943,7 @@ export default function VideoGenerationWorkbenchPage() {
           {previewResult && !previewResult.success && (
             <div style={{ padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.82rem", color: "#dc2626" }}>
               预览失败：{previewResult.failedReason || previewResult.message || "未知错误"}
+              <JobRunPanel jobRun={previewResult.jobRun} />
             </div>
           )}
         </div>
