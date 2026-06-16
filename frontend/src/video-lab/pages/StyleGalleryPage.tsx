@@ -420,6 +420,9 @@ function SampleCard({
   onPromote,
   isHighlighted = false,
   onOpenCompare,
+  copyingRerunId,
+  rerunCopiedId,
+  onCopyRerun,
 }: {
   sample: StyleSample;
   onDelete: (id: string) => void;
@@ -431,6 +434,9 @@ function SampleCard({
   onPromote: (id: string) => void;
   isHighlighted?: boolean;
   onOpenCompare?: () => void;
+  copyingRerunId: string | null;
+  rerunCopiedId: string | null;
+  onCopyRerun: (id: string) => void;
 }) {
   const color = ROUTE_COLORS[sample.route_id] ?? "#64748b";
   const statusInfo = STATUS_LABELS[sample.status] ?? STATUS_LABELS.candidate;
@@ -850,6 +856,30 @@ function SampleCard({
               </>
             )}
           </div>
+          {/* V1.0.6: 复制复现参数按钮 */}
+          <button
+            onClick={() => onCopyRerun(sample.id)}
+            disabled={copyingRerunId === sample.id}
+            style={{
+              marginTop: "0.5rem",
+              background: copyingRerunId === sample.id ? "#e2e8f0" : "#f0fdf4",
+              color: copyingRerunId === sample.id ? "#94a3b8" : "#0f766e",
+              border: "1px solid",
+              borderColor: copyingRerunId === sample.id ? "#e2e8f0" : "#bbf7d0",
+              borderRadius: 6,
+              padding: "0.3rem 0.6rem",
+              fontSize: "0.68rem",
+              cursor: copyingRerunId === sample.id ? "wait" : "pointer",
+              width: "100%",
+            }}
+          >
+            {copyingRerunId === sample.id ? "复制中..." : "📋 复制复现参数"}
+          </button>
+          {rerunCopiedId === sample.id && (
+            <div style={{ fontSize: "0.65rem", color: "#0f766e", marginTop: "0.2rem" }}>
+              ✓ 已复制复现参数
+            </div>
+          )}
         </div>
       )}
 
@@ -1239,6 +1269,9 @@ export default function StyleGalleryPage() {
   const [generating, setGenerating] = useState<string | null>(null);
   const [compareSet, setCompareSet] = useState<Set<string>>(new Set());
   const [judgingSet, setJudgingSet] = useState<Set<string>>(new Set());
+  // V1.0.6: rerun payload copy state
+  const [copyingRerunId, setCopyingRerunId] = useState<string | null>(null);
+  const [rerunCopiedId, setRerunCopiedId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare" | "templates">(() => {
@@ -1490,6 +1523,27 @@ export default function StyleGalleryPage() {
         next.delete(id);
         return next;
       });
+    }
+  };
+
+  // V1.0.6: 复制 rerun payload
+  const handleCopyRerun = async (id: string) => {
+    setCopyingRerunId(id);
+    try {
+      const resp = await fetch(`${API_BASE}/style-samples/${id}/rerun-payload`);
+      if (!resp.ok) {
+        const data = await resp.json();
+        throw new Error(data.detail || `HTTP ${resp.status}`);
+      }
+      const payload = await resp.json();
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setRerunCopiedId(id);
+      setTimeout(() => setRerunCopiedId(null), 3000);
+    } catch (e) {
+      setRerunCopiedId(id); // show error on this card
+      setTimeout(() => setRerunCopiedId(null), 3000);
+    } finally {
+      setCopyingRerunId(null);
     }
   };
 
@@ -1966,6 +2020,9 @@ export default function StyleGalleryPage() {
                   onPromote={handlePromote}
                   isHighlighted={highlightSampleId === s.id}
                   onOpenCompare={() => setActiveTab("compare")}
+                  copyingRerunId={copyingRerunId}
+                  rerunCopiedId={rerunCopiedId}
+                  onCopyRerun={handleCopyRerun}
                 />
               ))}
             </div>

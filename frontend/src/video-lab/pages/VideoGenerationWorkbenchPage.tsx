@@ -676,6 +676,9 @@ export default function VideoGenerationWorkbenchPage() {
             quality: fullResult.quality || {},
             warnings: fullResult.warnings || [],
             steps: fullResult.steps || [],
+            // V1.0.6: full content for reproducible rerun
+            fullContent: buildGenerationContent(),
+            contentHash: "",
           },
           output_type: "mp4",
           output_path: stripRuntimeUrlPrefix(fullResult.finalVideoUrl),

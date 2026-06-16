@@ -699,6 +699,20 @@ def update_sample_status(sample_id: str, request: dict[str, str]) -> dict[str, A
     return d
 
 
+# V1.0.6: Style Sample Replay
+@router.get("/style-samples/{sample_id}/rerun-payload")
+def get_style_sample_rerun_payload(sample_id: str) -> dict[str, Any]:
+    """Build a rerun payload from a StyleSample record. Does NOT execute generation."""
+    from app.video_lab.style_gallery import store as sg_store
+    from app.video_lab.style_gallery import replay
+
+    sample = sg_store.get_sample(sample_id)
+    if not sample:
+        raise HTTPException(status_code=404, detail=f"Sample not found: {sample_id}")
+
+    return replay.build_rerun_payload(sample)
+
+
 def _extract_video_frame(video_path: str, fraction: float = 0.4) -> str | None:
     """Extract one frame from video at fraction position. Kept in router for
     judge_style_sample compatibility."""
