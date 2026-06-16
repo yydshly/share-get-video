@@ -468,7 +468,16 @@ export default function VideoGenerationWorkbenchPage() {
     setInfoSummaryPlan(null);
     setInfoSummaryInputFingerprint("");
     setInfoSummaryError("");
+    // V1.2.1.3: also clear source-bound tracking
+    setLastGenerationSourceBound(false);
+    setLastGenerationInfoPointCount(0);
+    setLastGenerationFingerprint("");
   };
+
+  // V1.2.1.3: Track source-bound status for display in results area
+  const [lastGenerationSourceBound, setLastGenerationSourceBound] = useState(false);
+  const [lastGenerationInfoPointCount, setLastGenerationInfoPointCount] = useState(0);
+  const [lastGenerationFingerprint, setLastGenerationFingerprint] = useState("");
 
   // ── Save / Compare State ───────────────────────────────────────────────
   const [savedSampleId, setSavedSampleId] = useState<string | null>(null);
@@ -563,6 +572,19 @@ export default function VideoGenerationWorkbenchPage() {
     return [title.trim(), body.trim()].filter(Boolean).join("\n\n");
   };
 
+  // V1.2.1.3: Source-bound shot builder — all content must come from plan
+  const buildSourceBoundShot = (): { headline: string; display: string; emphasisTerms: string[] } => {
+    const headline = (infoSummaryPlan?.overview?.title || title).trim();
+    const firstItem = infoSummaryPlan?.items?.find((it) => it.selected);
+    const display = (firstItem?.description || infoSummaryPlan?.overview?.summary || body).trim();
+    const emphasisTerms = (infoSummaryPlan?.items || [])
+      .filter((it) => it.selected)
+      .slice(0, 5)
+      .map((it) => it.title)
+      .filter(Boolean);
+    return { headline, display, emphasisTerms };
+  };
+
   const buildVisualRouteParams = (): Record<string, unknown> => {
     let targetDuration = 45;
     let keyPointCount = 3;
@@ -572,12 +594,28 @@ export default function VideoGenerationWorkbenchPage() {
       keyPointCount = infoSummaryPlan.items.length || 5;
     }
 
-    const base = {
+    const isInfoSummaryMode = generationMode === "information_summary" && infoSummaryPlan;
+
+    const base: Record<string, unknown> = {
       targetDuration,
       aspectRatio: "9:16",
       keyPointCount,
-      useLlmPlan: true,
+      // V1.2.1.3: source-bound protection — no LLM re-planning in information_summary mode
+      useLlmPlan: isInfoSummaryMode ? false : true,
       coverTitle: title.trim(),
+      // V1.2.1.3: provenance params for source-bound generation
+      ...(isInfoSummaryMode
+        ? {
+            sourceBound: true,
+            allowNewFacts: false,
+            strictSourceMode: true,
+            generationMode: "information_summary",
+            inputFingerprint: infoSummaryInputFingerprint,
+            planItemCount: infoSummaryPlan!.items.filter((it) => it.selected).length,
+            planOverviewTitle: infoSummaryPlan!.overview?.title || "",
+            planConclusionTitle: infoSummaryPlan!.conclusion?.title || "",
+          }
+        : {}),
     };
     if (selectedRoute === "remotion_data_news") return { ...base, remotionFamily: "data_news" };
     if (selectedRoute === "remotion_card_stack") return { ...base, remotionFamily: "card_stack" };
@@ -623,8 +661,12 @@ export default function VideoGenerationWorkbenchPage() {
     }
     // V1.2.1.1: Validate plan freshness in information_summary mode
     if (generationMode === "information_summary") {
+      if (!infoSummaryPlan) {
+        setPreviewError("请先基于当前输入生成信息结构。");
+        return;
+      }
       const currentFingerprint = getCurrentInputFingerprint();
-      if (!infoSummaryPlan || infoSummaryInputFingerprint !== currentFingerprint) {
+      if (infoSummaryInputFingerprint !== currentFingerprint) {
         setPreviewError("输入已变化，请先重新生成信息结构。");
         return;
       }
@@ -642,7 +684,19 @@ export default function VideoGenerationWorkbenchPage() {
     const visualRoute = selectedVisualRoute;
     const params = { ...buildVisualRouteParams(), clipSeconds: 3 };
     const content = buildGenerationContent();
-    const shot = { headline: title.trim(), display: body.trim(), emphasisTerms: [] };
+    // V1.2.1.3: source-bound shot — use plan content instead of raw body
+    const shot =
+      generationMode === "information_summary" && infoSummaryPlan
+        ? buildSourceBoundShot()
+        : { headline: title.trim(), display: body.trim(), emphasisTerms: [] };
+    // V1.2.1.3: provenance for source-bound tracking in results display
+    const isSourceBound = generationMode === "information_summary" && !!infoSummaryPlan;
+    // V1.2.1.3: track source-bound state for results display
+    setLastGenerationSourceBound(isSourceBound);
+    setLastGenerationInfoPointCount(
+      isSourceBound && infoSummaryPlan ? infoSummaryPlan.items.filter((it) => it.selected).length : 0
+    );
+    setLastGenerationFingerprint(isSourceBound ? infoSummaryInputFingerprint : "");
     let payload: Record<string, unknown>;
 
     if (selectedRoute === "pillow") {
@@ -742,8 +796,13 @@ export default function VideoGenerationWorkbenchPage() {
     }
     // V1.2.1.1: Validate plan freshness in information_summary mode
     if (generationMode === "information_summary") {
+      if (!infoSummaryPlan) {
+        setFullError("请先基于当前输入生成信息结构。");
+        setFullLoading(false);
+        return;
+      }
       const currentFingerprint = getCurrentInputFingerprint();
-      if (!infoSummaryPlan || infoSummaryInputFingerprint !== currentFingerprint) {
+      if (infoSummaryInputFingerprint !== currentFingerprint) {
         setFullError("输入已变化，请先重新生成信息结构。");
         setFullLoading(false);
         return;
@@ -752,6 +811,13 @@ export default function VideoGenerationWorkbenchPage() {
     setFullLoading(true);
     setFullError("");
     setFullResult(null);
+    // V1.2.1.3: track source-bound state for results display
+    const isSourceBound = generationMode === "information_summary" && !!infoSummaryPlan;
+    setLastGenerationSourceBound(isSourceBound);
+    setLastGenerationInfoPointCount(
+      isSourceBound && infoSummaryPlan ? infoSummaryPlan.items.filter((it) => it.selected).length : 0
+    );
+    setLastGenerationFingerprint(isSourceBound ? infoSummaryInputFingerprint : "");
     setReviewStatus("pending");
     setSavedSampleId(null);
     setSaveError("");
@@ -1331,6 +1397,16 @@ export default function VideoGenerationWorkbenchPage() {
                 <span>耗时：<span style={{ color: "#1e293b" }}>{previewResult.elapsedMs}ms</span></span>
                 <span>地址：<span style={{ color: "#1e293b", fontFamily: "monospace", wordBreak: "break-all" }}>{previewResult.videoUrl}</span></span>
               </div>
+              {/* V1.2.1.3: source-bound generation provenance display */}
+              {lastGenerationSourceBound && (
+                <div style={{ marginBottom: "0.5rem", padding: "0.4rem 0.65rem", background: "#f0fdfa", border: "1px solid #99f6e4", borderRadius: 6, fontSize: "0.72rem", color: "#065f46", display: "flex", flexWrap: "wrap", gap: "0.5rem 1.2rem" }}>
+                  <span>📌 生成模式：<strong>信息总结视频</strong></span>
+                  <span>🔒 来源绑定：<strong>已开启</strong></span>
+                  <span>❌ 允许新增事实：<strong>否</strong></span>
+                  <span>📊 使用信息点：<strong>{lastGenerationInfoPointCount} 条</strong></span>
+                  <span>fingerprint：<span style={{ fontFamily: "monospace", fontSize: "0.68rem" }}>{lastGenerationFingerprint.slice(0, 24)}...</span></span>
+                </div>
+              )}
               {previewResult.videoUrl && (
                 <video controls src={resolveUrl(previewResult.videoUrl)} style={{ width: "100%", maxWidth: 400, borderRadius: 8, background: "#0f172a" }} />
               )}
@@ -1370,6 +1446,17 @@ export default function VideoGenerationWorkbenchPage() {
                 <span>subtitleCount：<span style={{ color: "#1e293b" }}>{fullResult.subtitleCount ?? "—"}</span></span>
                 <span>地址：<span style={{ color: "#1e293b", fontFamily: "monospace", wordBreak: "break-all" }}>{fullResult.finalVideoUrl}</span></span>
               </div>
+
+              {/* V1.2.1.3: source-bound generation provenance display */}
+              {lastGenerationSourceBound && (
+                <div style={{ marginBottom: "0.75rem", padding: "0.4rem 0.65rem", background: "#f0fdfa", border: "1px solid #99f6e4", borderRadius: 6, fontSize: "0.72rem", color: "#065f46", display: "flex", flexWrap: "wrap", gap: "0.5rem 1.2rem" }}>
+                  <span>📌 生成模式：<strong>信息总结视频</strong></span>
+                  <span>🔒 来源绑定：<strong>已开启</strong></span>
+                  <span>❌ 允许新增事实：<strong>否</strong></span>
+                  <span>📊 使用信息点：<strong>{lastGenerationInfoPointCount} 条</strong></span>
+                  <span>fingerprint：<span style={{ fontFamily: "monospace", fontSize: "0.68rem" }}>{lastGenerationFingerprint.slice(0, 24)}...</span></span>
+                </div>
+              )}
 
               {(fullResult.audioUrl || fullResult.srtUrl || fullResult.manifestUrl) && (
                 <div style={{ marginBottom: "0.75rem", fontSize: "0.75rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
