@@ -1,5 +1,5 @@
 // Video Lab - Home Page
-// V1.0.3: 视频生成能力实验室 · UI 入口收敛
+// V1.1.0: 视频生成能力实验室 · 产品主流程冻结
 // 三层结构：主工作台 / 样片库 / 高级实验区
 // 目标：让用户清楚"从哪里开始生成视频 / 哪里看历史 / 哪里做实验"
 
@@ -171,15 +171,15 @@ export default function VideoLabHome() {
               fontWeight: 700,
             }}
           >
-            V1.0.3
+            V1.1.0 · 主流程已冻结
           </span>
         </div>
         <p style={{ fontSize: "0.92rem", color: "rgba(255,255,255,0.88)", lineHeight: 1.65, margin: 0 }}>
-          Video Lab 当前是视频生成能力实验室：用于验证不同内容结构、视觉路线、样式参数和合成链路。
-          建议从 <strong>主工作台</strong> 开始生成 preview，再将有效样片保存到 <strong>样片库</strong>。
+          <strong>主流程：</strong>输入内容 → 生成 preview/full video → 保存样片 → 复制复现参数 → 加入对比 → 保存对比包。
+          建议从 <strong>主工作台</strong> 开始，再将有效样片保存到 <strong>样片库</strong>。
         </p>
         <p style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.7)", lineHeight: 1.6, margin: "0.5rem 0 0 0" }}>
-          ⚠️ 这是实验环境，不是产品。最终选择依赖人工观察与对比。
+          ⚠️ 高级实验区为调试/探索工具，不是主流程必经步骤。
         </p>
       </div>
 
