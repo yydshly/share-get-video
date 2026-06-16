@@ -213,6 +213,7 @@ def run_tts_subtitle_compose(
             "allowNewFacts": False,
             "strictSourceMode": True,
             "planSource": "informationSummaryPlan",
+            "structureType": plan.get("structureType", ""),
             "planItemCount": len(plan_shots_list),
             "inputFingerprint": params.get("inputFingerprint", ""),
         }
@@ -244,6 +245,12 @@ def run_tts_subtitle_compose(
         "totalPoints": len(kps_list),
         "selectedFrom": len(kps_list),
         "planSource": plan.get("source", "fallback"),
+        "structureType": plan.get("structureType", ""),
+        "overview": plan.get("overview", {}),
+        "sourceRefs": plan.get("sourceRefs", []),
+        "reportTitle": plan.get("reportTitle", ""),
+        "includeOverview": plan.get("includeOverview", True),
+        "includeConclusion": plan.get("includeConclusion", True),
     }
     all_logs.append(f"  plan source: {plan.get('source')}, shots: {len(kps_list)}")
 
@@ -760,6 +767,8 @@ def run_tts_subtitle_compose(
             "voiceoverSegments": _plan_debug_segments,
             "budgetDebug": _budget_debug,
         }
+        if plan.get("sourceRefs"):
+            manifest["planDebug"]["sourceRefs"] = plan.get("sourceRefs", [])
         if source_bound_provenance:
             manifest["planDebug"]["sourceBoundProvenance"] = source_bound_provenance
         # Persist updated manifest (with planDebug) back to disk

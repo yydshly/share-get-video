@@ -620,6 +620,7 @@ export default function VideoGenerationWorkbenchPage() {
             allowNewFacts: false,
             strictSourceMode: true,
             generationMode: "information_summary",
+            inputProfile: infoSummaryPlan!.inputProfile || inputProfile,
             inputFingerprint: infoSummaryInputFingerprint,
             planItemCount: selectedItems.length,
             informationSummaryPlan: {

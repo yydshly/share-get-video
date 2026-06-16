@@ -17,6 +17,8 @@ from app.video_lab.renderers.text_layout import (
     split_headline_and_detail,
     get_text_size,
     extract_highlights_by_mode,
+    fit_wrapped_text,
+    split_lines_with_max_count,
 )
 from app.video_lab.renderers.visual_theme import (
     TEMPLATE_VERSION,
@@ -99,6 +101,340 @@ def draw_centered_text_legacy(
     return total_height
 
 
+def _is_report_source_bound_style(style_params: dict) -> bool:
+    return (
+        isinstance(style_params, dict)
+        and style_params.get("sourceBound") is True
+        and style_params.get("generationMode") == "information_summary"
+        and style_params.get("inputProfile") == "report_overview_items"
+        and isinstance(style_params.get("informationSummaryPlan"), dict)
+    )
+
+
+def _first_sentence(text: str, max_len: int = 46) -> str:
+    text = (text or "").strip()
+    if not text:
+        return ""
+    first = text
+    for sep in ("。", "！", "？", "\n"):
+        if sep in first:
+            first = first.split(sep, 1)[0] + (sep if sep in "。！？" else "")
+            break
+    return truncate_text(first, max_len)
+
+
+def _render_report_text_frame(
+    *,
+    frame_name: str,
+    title: str,
+    body: str,
+    frames_dir: Path,
+    resolution: Tuple[int, int],
+    eyebrow: str = "",
+    footer: str = "",
+    background_path: str | None = None,
+) -> dict:
+    width, height = resolution
+    if background_path:
+        from app.video_lab.renderers.frame_templates import load_background_image
+        img = load_background_image(background_path, width, height, darken=0.5)
+    else:
+        img = render_gradient_background(width, height)
+        draw = ImageDraw.Draw(img)
+        draw_decorative_elements(draw, width, height)
+    draw = ImageDraw.Draw(img)
+
+    warnings: list[str] = []
+    scale = width / 1080
+    font_eyebrow, w1 = find_chinese_font(int(28 * scale))
+    font_title, w2 = find_chinese_font(int(58 * scale))
+    font_body_base, w3 = find_chinese_font(int(38 * scale))
+    font_footer, w4 = find_chinese_font(int(24 * scale))
+    warnings.extend(w1 + w2 + w3 + w4)
+
+    card_x1 = int(width * 0.07)
+    card_y1 = int(height * 0.12)
+    card_x2 = int(width * 0.93)
+    card_y2 = int(height * 0.90)
+    inner_x = card_x1 + int(48 * scale)
+    inner_w = (card_x2 - card_x1) - int(96 * scale)
+
+    draw.rounded_rectangle(
+        [(card_x1, card_y1), (card_x2, card_y2)],
+        radius=int(22 * scale),
+        fill=COLORS["bg_card"],
+        outline=COLORS["border_active"],
+        width=2,
+    )
+
+    y = card_y1 + int(46 * scale)
+    if eyebrow:
+        draw.text((inner_x, y), eyebrow, font=font_eyebrow, fill=COLORS["accent_cyan"])
+        y += int(46 * scale)
+
+    title_lines = split_lines_with_max_count((title or "").strip(), font_title, inner_w, draw, max_lines=3)
+    title_line_h = get_text_size("测试", font_title, draw)[1] + int(14 * scale)
+    for line in title_lines:
+        draw.text((inner_x, y), line, font=font_title, fill=COLORS["text_primary"])
+        y += title_line_h
+
+    y += int(24 * scale)
+    draw.rectangle([(inner_x, y), (card_x2 - int(48 * scale), y + 3)], fill=COLORS["accent_blue"])
+    y += int(42 * scale)
+
+    body_bottom = card_y2 - int(96 * scale)
+    body_h = max(120, body_bottom - y)
+    font_body, body_lines, body_size, body_line_h, overflow = fit_wrapped_text(
+        (body or "").strip(),
+        inner_w,
+        body_h,
+        draw,
+        size_max=int(42 * scale),
+        size_min=int(24 * scale),
+        line_spacing=int(12 * scale),
+    )
+    for line in body_lines:
+        draw.text((inner_x, y), line, font=font_body, fill=COLORS["text_secondary"])
+        y += body_line_h
+    if overflow:
+        warnings.append(f"{frame_name}: report body overflow")
+
+    if footer:
+        footer_lines = split_lines_with_max_count(footer, font_footer, inner_w, draw, max_lines=2)
+        fy = card_y2 - int(70 * scale)
+        for line in footer_lines:
+            draw.text((inner_x, fy), line, font=font_footer, fill=COLORS["text_dim"])
+            fy += int(32 * scale)
+
+    output_path = frames_dir / frame_name
+    img.save(output_path, "PNG")
+    return {
+        "path": output_path,
+        "frame_name": frame_name,
+        "warnings": warnings,
+        "template": "report_text",
+        "templateVersion": TEMPLATE_VERSION,
+        "visualPreset": VISUAL_PRESET,
+        "title": title,
+        "body": body,
+    }
+
+
+def _build_report_frame_sequence(
+    *,
+    frame_outputs: list[dict],
+    duration_per_frame: dict,
+    frames_dir: Path,
+    enable_transitions: bool,
+    transition_frames: int,
+) -> tuple[dict, dict]:
+    main_frame_paths = [Path(f["path"]) for f in frame_outputs]
+    if enable_transitions and len(main_frame_paths) >= 2:
+        trans_result = build_frame_sequence_with_transitions(
+            frame_paths=main_frame_paths,
+            frames_dir=frames_dir,
+            transition_frames=transition_frames,
+            enabled=True,
+            main_durations=duration_per_frame,
+        )
+        duration_by_path = trans_result["duration_per_frame"]
+        transition_info = {
+            "transitionEnabled": True,
+            "transitionType": TRANSITION_TYPE,
+            "transitionFrames": trans_result["transition_count"],
+            "transition_sequence": trans_result["sequence"],
+            "transition_duration_per_frame": trans_result["duration_per_frame"],
+        }
+    else:
+        sequence = [{"path": str(p), "type": "main", "index": i} for i, p in enumerate(main_frame_paths)]
+        duration_by_path = {}
+        for f in frame_outputs:
+            fp = Path(f["path"])
+            duration_by_path[str(fp)] = duration_per_frame.get(fp.name, 0.0)
+            duration_by_path[fp.name] = duration_per_frame.get(fp.name, 0.0)
+        transition_info = {
+            "transitionEnabled": False,
+            "transitionType": None,
+            "transitionFrames": 0,
+            "transition_sequence": sequence,
+            "transition_duration_per_frame": {},
+        }
+    return transition_info, duration_by_path
+
+
+def _generate_report_source_bound_frames(
+    *,
+    experiment_id: str,
+    structured: dict,
+    key_points: dict,
+    target_duration_sec: int,
+    resolution: Tuple[int, int],
+    enable_transitions: bool,
+    transition_frames: int,
+    include_overview: bool,
+    include_summary: bool,
+    segment_durations: list | None,
+    backgrounds: dict | None,
+    style_params: dict,
+) -> dict:
+    from app.video_lab.renderers.file_store import get_frames_dir as _get_frames_dir
+
+    frames_dir = _get_frames_dir(experiment_id)
+    frame_outputs: list[dict] = []
+    duration_per_frame: dict[str, float] = {}
+    all_warnings: list[str] = []
+
+    info_plan = style_params.get("informationSummaryPlan") or {}
+    plan_overview = key_points.get("overview") or info_plan.get("overview") or {}
+    overview_title = (plan_overview.get("title") or "内容概览").strip()
+    overview_summary = (plan_overview.get("summary") or structured.get("lead") or "").strip()
+    report_title = (
+        key_points.get("reportTitle")
+        or info_plan.get("reportTitle")
+        or info_plan.get("videoTitle")
+        or (info_plan.get("metadata") or {}).get("title")
+        or style_params.get("coverTitle")
+        or overview_title
+    )
+    source_refs = key_points.get("sourceRefs") or []
+    evidence_policy = style_params.get("evidencePolicy") or info_plan.get("evidencePolicy")
+    kps = key_points.get("keyPoints") or key_points.get("key_points") or []
+
+    seg_durs = [float(s.get("durationSec", 0)) for s in (segment_durations or [])]
+    opening_dur = seg_durs[0] if seg_durs else 6.0
+    item_durs = seg_durs[1:-1] if len(seg_durs) >= len(kps) + 2 else []
+    closing_dur = seg_durs[-1] if len(seg_durs) >= 2 else 4.0
+
+    cover = _render_report_text_frame(
+        frame_name="cover.png",
+        title=report_title,
+        body=_first_sentence(overview_summary) or "AI 前沿报告",
+        eyebrow="报告摘要",
+        footer=datetime.now().strftime("%Y年%m月%d日"),
+        frames_dir=frames_dir,
+        resolution=resolution,
+        background_path=(backgrounds or {}).get("cover"),
+    )
+    frame_outputs.append({"type": "cover", "path": cover["path"], "frame_name": "cover.png", "template": "report_cover", "title": report_title, "body": cover["body"], "templateVersion": TEMPLATE_VERSION, "visualPreset": VISUAL_PRESET})
+    duration_per_frame["cover.png"] = max(1.8, min(opening_dur * 0.25, 3.0))
+    all_warnings.extend(cover.get("warnings", []))
+
+    if include_overview:
+        overview = _render_report_text_frame(
+            frame_name="report_overview.png",
+            title=overview_title or "内容概览",
+            body=overview_summary,
+            eyebrow="首页总览",
+            footer="报告第一段总览",
+            frames_dir=frames_dir,
+            resolution=resolution,
+            background_path=(backgrounds or {}).get("cover"),
+        )
+        frame_outputs.append({"type": "overview", "path": overview["path"], "frame_name": "report_overview.png", "template": "report_overview", "title": overview_title, "body": overview_summary, "templateVersion": TEMPLATE_VERSION, "visualPreset": VISUAL_PRESET})
+        duration_per_frame["report_overview.png"] = max(2.0, opening_dur - duration_per_frame["cover.png"])
+        all_warnings.extend(overview.get("warnings", []))
+
+    total = max(len(kps), 1)
+    fallback_item_duration = max(3.5, (target_duration_sec - opening_dur - closing_dur) / max(total, 1))
+    for i, kp in enumerate(kps, 1):
+        headline = (kp.get("headline") or kp.get("title") or f"信息点 {i}").strip()
+        detail = (kp.get("display") or kp.get("body") or "").strip()
+        frame_result = render_keypoint_template(
+            index=i,
+            total=total,
+            category="",
+            title=headline,
+            body=detail,
+            source="",
+            frames_dir=frames_dir,
+            resolution=resolution,
+            background_path=(backgrounds or {}).get(i),
+            emphasis_terms=kp.get("emphasisTerms") or None,
+            metrics=kp.get("metrics"),
+        )
+        frame_outputs.append({
+            "type": "keypoint",
+            "frame_num": i,
+            "path": frame_result["path"],
+            "frame_name": frame_result["frame_name"],
+            "template": "report_keypoint",
+            "title": headline,
+            "body": detail,
+            "templateVersion": TEMPLATE_VERSION,
+            "visualPreset": VISUAL_PRESET,
+            "highlights": frame_result.get("highlights", []),
+            "metrics": frame_result.get("metrics"),
+        })
+        duration_per_frame[frame_result["frame_name"]] = round(max(2.0, item_durs[i - 1] if i - 1 < len(item_durs) else fallback_item_duration), 2)
+        all_warnings.extend(frame_result.get("warnings", []))
+
+    conclusion = info_plan.get("conclusion") if isinstance(info_plan.get("conclusion"), dict) else {}
+    conclusion_text = (conclusion.get("text") or "").strip()
+    if include_summary and conclusion_text:
+        result = _render_report_text_frame(
+            frame_name="report_conclusion.png",
+            title=conclusion.get("title") or "趋势总结",
+            body=conclusion_text,
+            eyebrow="尾部总结",
+            frames_dir=frames_dir,
+            resolution=resolution,
+        )
+        frame_outputs.append({"type": "conclusion", "path": result["path"], "frame_name": "report_conclusion.png", "template": "report_conclusion", "title": conclusion.get("title") or "趋势总结", "body": conclusion_text, "templateVersion": TEMPLATE_VERSION, "visualPreset": VISUAL_PRESET})
+        duration_per_frame["report_conclusion.png"] = round(max(1.5, closing_dur), 2)
+        all_warnings.extend(result.get("warnings", []))
+
+    source_lines: list[str] = []
+    if evidence_policy == "ending_sources":
+        for ref in source_refs:
+            for ev in ref.get("evidence", []) or []:
+                if ev and ev not in source_lines:
+                    source_lines.append(ev)
+    if source_lines:
+        result = _render_report_text_frame(
+            frame_name="report_sources.png",
+            title="资料来源",
+            body="\n".join(source_lines),
+            eyebrow="Sources",
+            frames_dir=frames_dir,
+            resolution=resolution,
+        )
+        frame_outputs.append({"type": "sources", "path": result["path"], "frame_name": "report_sources.png", "template": "report_sources", "title": "资料来源", "body": "\n".join(source_lines), "templateVersion": TEMPLATE_VERSION, "visualPreset": VISUAL_PRESET})
+        duration_per_frame["report_sources.png"] = 3.0
+        all_warnings.extend(result.get("warnings", []))
+
+    transition_info, duration_by_path = _build_report_frame_sequence(
+        frame_outputs=frame_outputs,
+        duration_per_frame=duration_per_frame,
+        frames_dir=frames_dir,
+        enable_transitions=enable_transitions,
+        transition_frames=transition_frames,
+    )
+    total_duration = round(sum(duration_per_frame.get(Path(f["path"]).name, 0.0) for f in frame_outputs), 2)
+    return {
+        "frames": frame_outputs,
+        "cover": frame_outputs[0]["path"] if frame_outputs else None,
+        "duration_per_frame": duration_per_frame,
+        "total_frames": len(frame_outputs),
+        "total_duration_sec": total_duration,
+        "warnings": all_warnings,
+        "visualPreset": VISUAL_PRESET,
+        "templateVersion": TEMPLATE_VERSION,
+        "transitionEnabled": transition_info["transitionEnabled"],
+        "transitionType": transition_info["transitionType"],
+        "transitionFrames": transition_info["transitionFrames"],
+        "highlightTerms": [],
+        "overview_frame": next((f["path"] for f in frame_outputs if f["type"] == "overview"), None),
+        "summary_frame": next((f["path"] for f in frame_outputs if f["type"] in ("conclusion", "sources")), None),
+        "frameSequence": transition_info["transition_sequence"],
+        "durationByPath": duration_by_path,
+        "frameSequenceCount": len(transition_info["transition_sequence"]),
+        "highlightMode": "report_source_bound",
+        "includeOverview": include_overview,
+        "includeSummary": include_summary,
+        "structureType": "report_source_bound",
+    }
+
+
 # ─────────────────────────────────────────
 # V0.2.4 Frame Generation with Transitions
 # ─────────────────────────────────────────
@@ -158,6 +494,21 @@ def generate_frames(
 
     # 样式参数（配色/对齐/图标），来自调试台/对比页参数
     sp = style_params or {}
+    if _is_report_source_bound_style(sp):
+        return _generate_report_source_bound_frames(
+            experiment_id=experiment_id,
+            structured=structured,
+            key_points=key_points,
+            target_duration_sec=target_duration_sec,
+            resolution=resolution,
+            enable_transitions=enable_transitions,
+            transition_frames=transition_frames,
+            include_overview=include_overview,
+            include_summary=include_summary,
+            segment_durations=segment_durations,
+            backgrounds=backgrounds,
+            style_params=sp,
+        )
 
     def _color(v):
         if isinstance(v, (list, tuple)) and len(v) >= 3:
