@@ -39,6 +39,11 @@ interface PreviewResult {
   message: string;
   failedReason: string | null;
   jobRun?: JobRun;
+  // V1.2.1.5: preview segment debug info
+  previewSegmentMode?: string;
+  previewStartFrame?: number;
+  previewFrameRange?: string;
+  previewFamily?: string;
 }
 
 interface FullVideoResult {
@@ -434,6 +439,9 @@ export default function VideoGenerationWorkbenchPage() {
   // ── Section 3: Generation Control ───────────────────────────────────────
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
+  // V1.2.1.5: preview segment mode — lets users jump to the most representative part of each route
+  type PreviewSegmentMode = "opening" | "first_item" | "route_demo";
+  const [previewSegmentMode, setPreviewSegmentMode] = useState<PreviewSegmentMode>("route_demo");
   const [fullLoading, setFullLoading] = useState(false);
   const [fullError, setFullError] = useState("");
 
@@ -738,7 +746,7 @@ export default function VideoGenerationWorkbenchPage() {
     setCompareSuccess(false);
 
     const visualRoute = selectedVisualRoute;
-    const params = { ...buildVisualRouteParams(), clipSeconds: 3 };
+    const params = { ...buildVisualRouteParams(), clipSeconds: 3, previewSegmentMode };
     const content = buildGenerationContent();
     // V1.2.1.3: source-bound shot — use plan content instead of raw body
     const shot =
@@ -840,6 +848,11 @@ export default function VideoGenerationWorkbenchPage() {
         message: data.message || "",
         failedReason: null,
         jobRun: (data.jobRun as JobRun | undefined) || undefined,
+        // V1.2.1.5: preview segment debug info returned by backend
+        previewSegmentMode: data.previewSegmentMode,
+        previewStartFrame: data.previewStartFrame,
+        previewFrameRange: data.previewFrameRange,
+        previewFamily: data.previewFamily,
       });
     } catch (e) {
       setPreviewError(String(e));
@@ -1395,6 +1408,28 @@ export default function VideoGenerationWorkbenchPage() {
         </div>
 
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+          {/* V1.2.1.5: preview segment mode selector */}
+          <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+            <span style={{ fontSize: "0.78rem", color: "#64748b", whiteSpace: "nowrap" }}>预览片段</span>
+            <select
+              value={previewSegmentMode}
+              onChange={(e) => setPreviewSegmentMode(e.target.value as PreviewSegmentMode)}
+              style={{
+                fontSize: "0.78rem",
+                padding: "0.35rem 0.5rem",
+                borderRadius: 6,
+                border: "1px solid #cbd5e1",
+                background: "#fff",
+                color: "#334155",
+                cursor: "pointer",
+              }}
+            >
+              <option value="opening">首页总览</option>
+              <option value="first_item">首个信息点</option>
+              <option value="route_demo">路线差异</option>
+            </select>
+          </div>
+
           <button
             onClick={callPreview}
             disabled={previewLoading || selectedRouteUnavailable}
@@ -1488,6 +1523,15 @@ export default function VideoGenerationWorkbenchPage() {
                   <span>❌ 允许新增事实：<strong>否</strong></span>
                   <span>📊 使用信息点：<strong>{lastGenerationInfoPointCount} 条</strong></span>
                   <span>fingerprint：<span style={{ fontFamily: "monospace", fontSize: "0.68rem" }}>{lastGenerationFingerprint.slice(0, 24)}...</span></span>
+                </div>
+              )}
+              {/* V1.2.1.5: preview segment debug info */}
+              {previewResult.previewSegmentMode && (
+                <div style={{ marginBottom: "0.5rem", padding: "0.35rem 0.6rem", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.72rem", color: "#475569", display: "flex", flexWrap: "wrap", gap: "0.4rem 1rem" }}>
+                  <span>预览片段：<strong>{previewResult.previewSegmentMode === "route_demo" ? "路线差异" : previewResult.previewSegmentMode === "first_item" ? "首个信息点" : "首页总览"}</strong></span>
+                  {previewResult.previewFamily && <span>路线：<strong>{previewResult.previewFamily}</strong></span>}
+                  {previewResult.previewFrameRange && <span>帧范围：<strong style={{ fontFamily: "monospace" }}>{previewResult.previewFrameRange}</strong></span>}
+                  {previewResult.previewStartFrame !== undefined && <span>起始帧：<strong style={{ fontFamily: "monospace" }}>{previewResult.previewStartFrame}</strong></span>}
                 </div>
               )}
               {previewResult.videoUrl && (

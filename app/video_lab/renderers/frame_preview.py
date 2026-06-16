@@ -268,6 +268,90 @@ def _ken_burns_clip(image_path: str, out_path: Path, seconds: int, resolution: t
         return {"success": False, "message": f"FFmpeg exception: {e}"}
 
 
+def _estimate_remotion_preview_timeline(
+    props: dict[str, Any],
+    params: dict[str, Any],
+    fps: int = 30,
+) -> dict[str, Any]:
+    """Estimate Remotion preview timeline (cover / card / summary start frames).
+
+    Returns:
+        {
+            "cover_frames": int,
+            "card_frames_arr": list[int],
+            "card_starts": list[int],
+            "summary_start": int,
+        }
+
+    Prefers real segmentDurations from props; falls back to Remotion defaults.
+    """
+    fps = fps or 30
+
+    # V1.2.1.5: Prefer real segment durations from props (set by props_builder)
+    segment_durations = props.get("segmentDurations") or {}
+    cover_sec = segment_durations.get("coverSec")
+    card_secs = segment_durations.get("cardSecs") or []
+    summary_sec = segment_durations.get("summarySec")
+
+    if cover_sec is not None:
+        cover_frames = max(30, round(cover_sec * fps))
+    else:
+        cover_frames = 75  # Remotion template default coverFrames
+
+    if card_secs:
+        card_frames_arr = [max(45, round(sec * fps)) for sec in card_secs]
+    else:
+        num_kps = len(props.get("keyPoints") or [])
+        card_frames_arr = [135] * num_kps if num_kps > 0 else []
+
+    card_starts: list[int] = []
+    acc = cover_frames
+    for frames in card_frames_arr:
+        card_starts.append(acc)
+        acc += frames
+
+    summary_start = acc
+
+    return {
+        "cover_frames": cover_frames,
+        "card_frames_arr": card_frames_arr,
+        "card_starts": card_starts,
+        "summary_start": summary_start,
+    }
+
+
+def _select_preview_start_frame(
+    preview_mode: str,
+    remotion_family: str,
+    timeline: dict[str, Any],
+) -> int:
+    """Select the start frame for a Remotion preview based on previewSegmentMode.
+
+    Args:
+        preview_mode: "opening" | "first_item" | "route_demo"
+        remotion_family: "data_news" | "card_stack" | etc.
+        timeline: result of _estimate_remotion_preview_timeline
+
+    Returns:
+        Start frame index (0-based).
+    """
+    cover_frames = timeline.get("cover_frames", 75)
+    card_starts = timeline.get("card_starts", [])
+
+    if preview_mode == "opening":
+        return 0
+
+    if preview_mode == "first_item":
+        return cover_frames
+
+    # route_demo
+    if remotion_family == "card_stack" and len(card_starts) >= 2:
+        # Skip to second card so prev/current/next stack is visible
+        return card_starts[1]
+    # data_news or any family with < 2 cards: show first keypoint
+    return cover_frames
+
+
 def render_clip_preview(
     content: str,
     visual_route: str,
@@ -356,13 +440,23 @@ def render_clip_preview(
             from app.video_lab.renderers.remotion.props_builder import build_remotion_props
             from app.video_lab.renderers.remotion.remotion_renderer import render_remotion_video
 
+            # V1.2.1.5: previewSegmentMode — opening / first_item / route_demo
+            preview_mode = params.get("previewSegmentMode", "route_demo")
+            remotion_family = params.get("remotionFamily", "data_news")
+
             exp_id = f"clip_{uuid.uuid4().hex[:8]}"
             props = build_remotion_props(exp_id, structured, key_points, params, segment_durations=segment_durations)
             fps = 30
-            frames = max(30, int(clip_seconds * fps))
+
+            # V1.2.1.5: Estimate timeline to pick the right preview start frame
+            timeline = _estimate_remotion_preview_timeline(props, params, fps)
+            clip_frames = max(30, int(clip_seconds * fps))
+            start_frame = _select_preview_start_frame(preview_mode, remotion_family, timeline)
+            frame_range = f"{start_frame}-{start_frame + clip_frames}"
+
             res = render_remotion_video(
                 exp_id, props, timeout=240,
-                frame_range=f"0-{frames}", output_name="clip.mp4",
+                frame_range=frame_range, output_name="clip.mp4",
             )
             elapsed = int((time.time() - t0) * 1000)
             if res.get("success"):
@@ -373,7 +467,11 @@ def render_clip_preview(
                     "clipSeconds": clip_seconds,
                     "elapsedMs": elapsed,
                     "structureType": "report_source_bound",
-                    "frameType": "opening",
+                    # V1.2.1.5: preview segment debug info for workbench display
+                    "previewSegmentMode": preview_mode,
+                    "previewStartFrame": start_frame,
+                    "previewFrameRange": frame_range,
+                    "previewFamily": remotion_family,
                 }
             return {
                 "success": False,
@@ -381,6 +479,11 @@ def render_clip_preview(
                 "message": res.get("message", "Remotion report clip render failed"),
                 "warnings": res.get("warnings", []),
                 "elapsedMs": elapsed,
+                # V1.2.1.5: still return debug info on failure
+                "previewSegmentMode": preview_mode,
+                "previewStartFrame": start_frame,
+                "previewFrameRange": frame_range,
+                "previewFamily": remotion_family,
             }
 
     # Pillow / AI 素材：单帧 → Ken Burns 动效片段
@@ -417,6 +520,10 @@ def render_clip_preview(
     from app.video_lab.renderers.remotion.props_builder import build_remotion_props
     from app.video_lab.renderers.remotion.remotion_renderer import render_remotion_video
 
+    # V1.2.1.5: previewSegmentMode — opening / first_item / route_demo
+    preview_mode = params.get("previewSegmentMode", "route_demo")
+    remotion_family = params.get("remotionFamily", "data_news")
+
     max_items = int(params.get("keyPointCount", 4))
     plan = plan_shots(content, max_items=max_items, use_llm=bool(params.get("useLlmPlan", True)))
     kps = []
@@ -437,10 +544,16 @@ def render_clip_preview(
     exp_id = f"clip_{uuid.uuid4().hex[:8]}"
     props = build_remotion_props(exp_id, structured, key_points, params)
     fps = 30
-    frames = max(30, int(clip_seconds * fps))
+
+    # V1.2.1.5: Estimate timeline to pick the right preview start frame
+    timeline = _estimate_remotion_preview_timeline(props, params, fps)
+    clip_frames = max(30, int(clip_seconds * fps))
+    start_frame = _select_preview_start_frame(preview_mode, remotion_family, timeline)
+    frame_range = f"{start_frame}-{start_frame + clip_frames}"
+
     res = render_remotion_video(
         exp_id, props, timeout=240,
-        frame_range=f"0-{frames}", output_name="clip.mp4",
+        frame_range=frame_range, output_name="clip.mp4",
     )
     elapsed = int((time.time() - t0) * 1000)
     if res.get("success"):
@@ -450,6 +563,11 @@ def render_clip_preview(
             "clipUrl": res.get("videoUrl", ""),
             "clipSeconds": clip_seconds,
             "elapsedMs": elapsed,
+            # V1.2.1.5: preview segment debug info
+            "previewSegmentMode": preview_mode,
+            "previewStartFrame": start_frame,
+            "previewFrameRange": frame_range,
+            "previewFamily": remotion_family,
         }
     return {
         "success": False,
@@ -457,4 +575,9 @@ def render_clip_preview(
         "message": res.get("message", "Remotion clip render failed"),
         "warnings": res.get("warnings", []),
         "elapsedMs": elapsed,
+        # V1.2.1.5: preview segment debug info on failure
+        "previewSegmentMode": preview_mode,
+        "previewStartFrame": start_frame,
+        "previewFrameRange": frame_range,
+        "previewFamily": remotion_family,
     }
