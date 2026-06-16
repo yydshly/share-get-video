@@ -81,7 +81,7 @@ function getMethodRuntimePosition(id: string, status: string): string {
     return "方案参考 / 已部分使用：对应 Pillow / 本地图像帧能力；Workbench 与视觉对比页可见，但不是 Style Sweep 主推路线";
   }
   if (id === "method_ai_asset_then_compose") {
-    return "部分验证：AI 素材路线已在 Style Sweep 提供实验，但仍非 Workbench 默认可用路线（preview_only）";
+    return "已接入：AI 素材路线在 Style Sweep、技术探测台与 Workbench 均可生成预览与完整视频（生图较慢、耗 API）";
   }
   if (id === "method_ai_video_direct") {
     return "后续预留：当前未接入主流程；如需生成需额外接入文生视频模型";

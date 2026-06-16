@@ -93,8 +93,8 @@ const ROUTES: RouteOption[] = [
     suitable: ["追求视觉丰富", "氛围感强的内容", "演示场景"],
     speed: "慢（30秒+）",
     cost: "高",
-    status: "preview_only",
-    note: "暂未接入完整视频生成",
+    status: "experimental",
+    note: "AI 生图背景 + 信息卡，预览与完整视频均已接入（生图较慢、耗 API）",
   },
 ];
 
@@ -129,7 +129,11 @@ const ROUTE_SAMPLE_META: Record<RouteId, { route_id: string; route_name: string;
     route_name: "Remotion Card Stack",
     style_name: "Workbench / Remotion Card Stack",
   },
-  ai_asset: null,
+  ai_asset: {
+    route_id: "ai_asset_then_compose",
+    route_name: "AI 素材氛围",
+    style_name: "Workbench / AI 素材氛围",
+  },
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -333,8 +337,18 @@ export default function VideoGenerationWorkbenchPage() {
         frameType: "keypoint",
         params: { clipSeconds: 3, aspectRatio: "9:16", keyPointCount: 3, remotionFamily: "card_stack" },
       };
+    } else if (selectedRoute === "ai_asset") {
+      // AI 素材：单帧(AI 生图背景+叠卡) → Ken Burns 动效片段（需图像 API，较慢）
+      payload = {
+        visualRoute: "ai_asset_then_compose",
+        content: body.trim(),
+        shot,
+        frameType: "keypoint",
+        coverTitle: title.trim(),
+        params: { clipSeconds: 3, aspectRatio: "9:16" },
+      };
     } else {
-      setPreviewError("AI 素材路线暂未接入预览");
+      setPreviewError("未知路线");
       setPreviewLoading(false);
       return;
     }
@@ -594,12 +608,12 @@ export default function VideoGenerationWorkbenchPage() {
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.75rem" }}>
           <button
             onClick={callPreview}
-            disabled={previewLoading || selectedRoute === "ai_asset"}
+            disabled={previewLoading}
             style={{
-              background: previewLoading || selectedRoute === "ai_asset" ? "#94a3b8" : "#0f766e",
+              background: previewLoading ? "#94a3b8" : "#0f766e",
               color: "white", border: "none", borderRadius: 8,
               padding: "0.6rem 1.5rem", fontSize: "0.9rem", fontWeight: 600,
-              cursor: previewLoading || selectedRoute === "ai_asset" ? "not-allowed" : "pointer",
+              cursor: previewLoading ? "not-allowed" : "pointer",
             }}
           >
             {previewLoading ? "预览生成中..." : "生成预览"}
@@ -607,12 +621,12 @@ export default function VideoGenerationWorkbenchPage() {
 
           <button
             onClick={callFullVideo}
-            disabled={fullLoading || selectedRoute === "ai_asset"}
+            disabled={fullLoading}
             style={{
-              background: fullLoading || selectedRoute === "ai_asset" ? "#94a3b8" : "#7c3aed",
+              background: fullLoading ? "#94a3b8" : "#7c3aed",
               color: "white", border: "none", borderRadius: 8,
               padding: "0.6rem 1.5rem", fontSize: "0.9rem", fontWeight: 600,
-              cursor: fullLoading || selectedRoute === "ai_asset" ? "not-allowed" : "pointer",
+              cursor: fullLoading ? "not-allowed" : "pointer",
             }}
           >
             {fullLoading ? "完整视频生成中（约 30-90 秒）..." : "生成完整视频"}
@@ -627,7 +641,7 @@ export default function VideoGenerationWorkbenchPage() {
 
         {selectedRoute === "ai_asset" && (
           <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginBottom: "0.5rem" }}>
-            AI 素材路线暂未接入完整视频生成
+            AI 素材路线会先调用图像 API 生成背景图，预览与完整视频都比其它路线慢、且消耗 API 额度。
           </div>
         )}
 
