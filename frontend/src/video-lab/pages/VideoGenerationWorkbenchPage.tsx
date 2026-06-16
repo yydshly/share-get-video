@@ -585,8 +585,8 @@ export default function VideoGenerationWorkbenchPage() {
       setPreviewResult({
         experimentId: data.experimentId || "—",
         success: true,
-        videoUrl: data.clipUrl || data.videoUrl || "",
-        runtimePath: data.clipPath || data.runtimePath || "",
+        videoUrl: data.clipUrl || data.videoUrl || data.artifacts?.videoUrl || "",
+        runtimePath: data.clipPath || data.runtimePath || data.artifacts?.videoUrl || "",
         elapsedMs: data.elapsedMs || 0,
         route: data.route || selectedRoute,
         message: data.message || "",

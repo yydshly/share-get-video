@@ -131,6 +131,7 @@ def run_clip_preview_contract(request) -> dict[str, Any]:
                 "status": "success",
                 "contractStatus": "success",
                 **run_ctx.to_response_base(),
+                "clipUrl": clip_url,
                 "artifacts": {
                     "videoUrl": clip_url,
                     "coverUrl": "",
@@ -156,8 +157,9 @@ def run_clip_preview_contract(request) -> dict[str, Any]:
                 "status": "failed",
                 "contractStatus": "failed",
                 **run_ctx.to_response_base(),
+                "clipUrl": clip_url,
                 "artifacts": {
-                    "videoUrl": "",
+                    "videoUrl": clip_url,
                     "coverUrl": "",
                     "manifestUrl": manifest_url,
                 },
