@@ -105,6 +105,12 @@ def test_report_frame_sequence_uses_report_overview_not_old_keypoint_list(monkey
         enable_transitions=False,
         include_overview=True,
         include_summary=True,
+        segment_durations=[
+            {"durationSec": 9.5},
+            {"durationSec": 4.0},
+            {"durationSec": 4.5},
+            {"durationSec": 3.0},
+        ],
         style_params={
             "sourceBound": True,
             "generationMode": "information_summary",
@@ -113,12 +119,19 @@ def test_report_frame_sequence_uses_report_overview_not_old_keypoint_list(monkey
         },
     )
     frames = result["frames"]
-    assert [frame["type"] for frame in frames] == ["cover", "overview", "keypoint", "keypoint", "conclusion", "sources"]
-    overview = next(frame for frame in frames if frame["type"] == "overview")
-    assert "今日AI前沿呈现多条并行进展线索" in overview["body"]
-    assert "ProReviewer主动调查评审" not in overview["body"]
+    assert [frame["type"] for frame in frames] == ["opening", "keypoint", "keypoint", "conclusion", "sources"]
+    assert frames[0]["type"] == "opening"
+    assert frames[0]["template"] == "report_opening"
+    assert "cover" not in [frame["type"] for frame in frames]
+    assert "今日AI前沿呈现多条并行进展线索" in frames[0]["body"]
+    assert "ProReviewer主动调查评审" in frames[0]["itemTitles"]
+    assert "RogueAI欺骗检测新范式" in frames[0]["itemTitles"]
+    assert result["duration_per_frame"]["opening.png"] == 9.5
+    assert result["frameSequence"][0]["path"].endswith("opening.png")
     assert all(frame.get("title") != "今日重点" for frame in frames)
-    assert all("依据" not in frame.get("body", "") for frame in frames if frame["type"] in ("cover", "overview", "keypoint", "conclusion"))
+    assert all(frame.get("template") != "report_cover" for frame in frames)
+    assert all(frame.get("title") != "报告摘要" for frame in frames)
+    assert all("依据" not in frame.get("body", "") for frame in frames if frame["type"] in ("opening", "keypoint", "conclusion"))
 
 
 def test_report_tts_voiceover_does_not_include_evidence(monkeypatch, tmp_path):

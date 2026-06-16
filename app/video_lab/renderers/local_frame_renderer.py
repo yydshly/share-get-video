@@ -220,6 +220,115 @@ def _render_report_text_frame(
     }
 
 
+def _render_report_opening_frame(
+    *,
+    frame_name: str,
+    report_title: str,
+    overview_title: str,
+    overview_summary: str,
+    item_titles: list[str],
+    frames_dir: Path,
+    resolution: Tuple[int, int],
+    footer: str = "",
+    background_path: str | None = None,
+) -> dict:
+    width, height = resolution
+    if background_path:
+        from app.video_lab.renderers.frame_templates import load_background_image
+        img = load_background_image(background_path, width, height, darken=0.5)
+    else:
+        img = render_gradient_background(width, height)
+        draw = ImageDraw.Draw(img)
+        draw_decorative_elements(draw, width, height)
+    draw = ImageDraw.Draw(img)
+
+    warnings: list[str] = []
+    scale = width / 1080
+    font_eyebrow, w1 = find_chinese_font(int(26 * scale))
+    font_title, w2 = find_chinese_font(int(54 * scale))
+    font_body, w3 = find_chinese_font(int(30 * scale))
+    font_item, w4 = find_chinese_font(int(24 * scale))
+    font_footer, w5 = find_chinese_font(int(22 * scale))
+    warnings.extend(w1 + w2 + w3 + w4 + w5)
+
+    card_x1 = int(width * 0.06)
+    card_y1 = int(height * 0.08)
+    card_x2 = int(width * 0.94)
+    card_y2 = int(height * 0.92)
+    inner_x = card_x1 + int(46 * scale)
+    inner_w = (card_x2 - card_x1) - int(92 * scale)
+
+    draw.rounded_rectangle(
+        [(card_x1, card_y1), (card_x2, card_y2)],
+        radius=int(22 * scale),
+        fill=COLORS["bg_card"],
+        outline=COLORS["border_active"],
+        width=2,
+    )
+
+    y = card_y1 + int(42 * scale)
+    draw.text((inner_x, y), "首页总览", font=font_eyebrow, fill=COLORS["accent_cyan"])
+    y += int(40 * scale)
+
+    title = (overview_title or report_title or "内容概览").strip()
+    title_lines = split_lines_with_max_count(title, font_title, inner_w, draw, max_lines=2)
+    title_line_h = get_text_size("测试", font_title, draw)[1] + int(12 * scale)
+    for line in title_lines:
+        draw.text((inner_x, y), line, font=font_title, fill=COLORS["text_primary"])
+        y += title_line_h
+
+    y += int(18 * scale)
+    draw.rectangle([(inner_x, y), (card_x2 - int(46 * scale), y + 3)], fill=COLORS["accent_blue"])
+    y += int(32 * scale)
+
+    summary_h = int(height * 0.30)
+    summary_font, summary_lines, _, summary_line_h, overflow = fit_wrapped_text(
+        overview_summary,
+        inner_w,
+        summary_h,
+        draw,
+        size_max=int(32 * scale),
+        size_min=int(22 * scale),
+        line_spacing=int(10 * scale),
+    )
+    for line in summary_lines:
+        draw.text((inner_x, y), line, font=summary_font, fill=COLORS["text_secondary"])
+        y += summary_line_h
+    if overflow:
+        warnings.append(f"{frame_name}: opening summary overflow")
+
+    y += int(28 * scale)
+    if item_titles:
+        draw.text((inner_x, y), "本期信息点", font=font_eyebrow, fill=COLORS["highlight_yellow"])
+        y += int(38 * scale)
+        item_line_h = get_text_size("测试", font_item, draw)[1] + int(10 * scale)
+        max_items = min(8, len(item_titles))
+        for i, item_title in enumerate(item_titles[:max_items], 1):
+            line = f"{i:02d} {truncate_text(item_title, 30)}"
+            draw.text((inner_x, y), line, font=font_item, fill=COLORS["text_primary"])
+            y += item_line_h
+
+    if footer:
+        footer_lines = split_lines_with_max_count(footer, font_footer, inner_w, draw, max_lines=1)
+        fy = card_y2 - int(58 * scale)
+        for line in footer_lines:
+            draw.text((inner_x, fy), line, font=font_footer, fill=COLORS["text_dim"])
+
+    output_path = frames_dir / frame_name
+    img.save(output_path, "PNG")
+    return {
+        "path": output_path,
+        "frame_name": frame_name,
+        "warnings": warnings,
+        "template": "report_opening",
+        "templateVersion": TEMPLATE_VERSION,
+        "visualPreset": VISUAL_PRESET,
+        "title": title,
+        "body": overview_summary,
+        "itemTitles": item_titles,
+    }
+
+
 def _build_report_frame_sequence(
     *,
     frame_outputs: list[dict],
@@ -305,34 +414,35 @@ def _generate_report_source_bound_frames(
     item_durs = seg_durs[1:-1] if len(seg_durs) >= len(kps) + 2 else []
     closing_dur = seg_durs[-1] if len(seg_durs) >= 2 else 4.0
 
-    cover = _render_report_text_frame(
-        frame_name="cover.png",
-        title=report_title,
-        body=_first_sentence(overview_summary) or "AI 前沿报告",
-        eyebrow="报告摘要",
+    item_titles = [
+        (kp.get("headline") or kp.get("title") or "").strip()
+        for kp in kps
+        if (kp.get("headline") or kp.get("title") or "").strip()
+    ]
+    opening = _render_report_opening_frame(
+        frame_name="opening.png",
+        report_title=report_title,
+        overview_title=overview_title or "内容概览",
+        overview_summary=overview_summary,
+        item_titles=item_titles,
         footer=datetime.now().strftime("%Y年%m月%d日"),
         frames_dir=frames_dir,
         resolution=resolution,
         background_path=(backgrounds or {}).get("cover"),
     )
-    frame_outputs.append({"type": "cover", "path": cover["path"], "frame_name": "cover.png", "template": "report_cover", "title": report_title, "body": cover["body"], "templateVersion": TEMPLATE_VERSION, "visualPreset": VISUAL_PRESET})
-    duration_per_frame["cover.png"] = max(1.8, min(opening_dur * 0.25, 3.0))
-    all_warnings.extend(cover.get("warnings", []))
-
-    if include_overview:
-        overview = _render_report_text_frame(
-            frame_name="report_overview.png",
-            title=overview_title or "内容概览",
-            body=overview_summary,
-            eyebrow="首页总览",
-            footer="报告第一段总览",
-            frames_dir=frames_dir,
-            resolution=resolution,
-            background_path=(backgrounds or {}).get("cover"),
-        )
-        frame_outputs.append({"type": "overview", "path": overview["path"], "frame_name": "report_overview.png", "template": "report_overview", "title": overview_title, "body": overview_summary, "templateVersion": TEMPLATE_VERSION, "visualPreset": VISUAL_PRESET})
-        duration_per_frame["report_overview.png"] = max(2.0, opening_dur - duration_per_frame["cover.png"])
-        all_warnings.extend(overview.get("warnings", []))
+    frame_outputs.append({
+        "type": "opening",
+        "path": opening["path"],
+        "frame_name": "opening.png",
+        "template": "report_opening",
+        "title": opening["title"],
+        "body": opening["body"],
+        "itemTitles": item_titles,
+        "templateVersion": TEMPLATE_VERSION,
+        "visualPreset": VISUAL_PRESET,
+    })
+    duration_per_frame["opening.png"] = round(max(3.0, opening_dur), 2)
+    all_warnings.extend(opening.get("warnings", []))
 
     total = max(len(kps), 1)
     fallback_item_duration = max(3.5, (target_duration_sec - opening_dur - closing_dur) / max(total, 1))
@@ -423,7 +533,7 @@ def _generate_report_source_bound_frames(
         "transitionType": transition_info["transitionType"],
         "transitionFrames": transition_info["transitionFrames"],
         "highlightTerms": [],
-        "overview_frame": next((f["path"] for f in frame_outputs if f["type"] == "overview"), None),
+        "overview_frame": next((f["path"] for f in frame_outputs if f["type"] == "opening"), None),
         "summary_frame": next((f["path"] for f in frame_outputs if f["type"] in ("conclusion", "sources")), None),
         "frameSequence": transition_info["transition_sequence"],
         "durationByPath": duration_by_path,
