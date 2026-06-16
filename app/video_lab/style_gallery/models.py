@@ -1,6 +1,7 @@
 """
 style_gallery/models.py - Style Sample data models
 V0.3.7: Style Sample Gallery — lightweight JSONL-backed style experiment records
+V1.0.5: Asset formalization — source/generation/asset_meta/quality_meta/review_meta/job_run fields
 """
 
 from datetime import datetime
@@ -8,6 +9,52 @@ from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+
+# V1.0.5: Experiment asset metadata models
+class SampleSource(BaseModel):
+    source_type: str = Field(default="unknown")
+    source_page: str = Field(default="")
+    source_run_id: str = Field(default="")
+    experiment_id: str = Field(default="")
+    job_id: str = Field(default="")
+    run_id: str = Field(default="")
+    workbench_route: str = Field(default="")
+    saved_from: str = Field(default="")
+
+
+class SampleGenerationMeta(BaseModel):
+    visual_route: str = Field(default="")
+    visual_profile: str = Field(default="")
+    remotion_family: str = Field(default="")
+    route_preset: str = Field(default="")
+    aspect_ratio: str = Field(default="")
+    target_duration: float = Field(default=0.0)
+    key_point_count: int = Field(default=0)
+    content_hash: str = Field(default="")
+
+
+class SampleAssetMeta(BaseModel):
+    final_video_url: str = Field(default="")
+    cover_url: str = Field(default="")
+    audio_url: str = Field(default="")
+    srt_url: str = Field(default="")
+    manifest_url: str = Field(default="")
+    runtime_prefix: str = Field(default="")
+    artifact_count: int = Field(default=0)
+
+
+class SampleQualityMeta(BaseModel):
+    structural_score: float | None = None
+    visual_score: float | None = None
+    warnings: list[str] = Field(default_factory=list)
+    steps: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SampleReviewMeta(BaseModel):
+    review_status: str = Field(default="")
+    review_notes: str = Field(default="")
+    problem_tags: list[str] = Field(default_factory=list)
 
 
 class SampleStatus(str, Enum):
@@ -67,6 +114,14 @@ class StyleSample(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow, description="创建时间")
     # V0.4.0: 视觉评分结果 (可选，兼容旧记录)
     visual_judgement: VisualJudgement | None = Field(default=None, description="AI 视觉评分结果")
+    # V1.0.5: Experiment asset metadata (backward compat — defaults fill missing fields)
+    source: SampleSource = Field(default_factory=SampleSource)
+    generation: SampleGenerationMeta = Field(default_factory=SampleGenerationMeta)
+    asset_meta: SampleAssetMeta = Field(default_factory=SampleAssetMeta)
+    quality_meta: SampleQualityMeta = Field(default_factory=SampleQualityMeta)
+    review_meta: SampleReviewMeta = Field(default_factory=SampleReviewMeta)
+    job_run: dict[str, Any] = Field(default_factory=dict)
+    schema_version: str = Field(default="1.0.5")
 
     def to_dict(self) -> dict[str, Any]:
         d = self.model_dump(mode="json")
@@ -80,4 +135,19 @@ class StyleSample(BaseModel):
         # V0.4.0: visual_judgement is optional - pass through if missing (backward compat)
         if "visual_judgement" not in d:
             d["visual_judgement"] = None
+        # V1.0.5: asset metadata — fill defaults if missing (backward compat with old records)
+        if "source" not in d:
+            d["source"] = {}
+        if "generation" not in d:
+            d["generation"] = {}
+        if "asset_meta" not in d:
+            d["asset_meta"] = {}
+        if "quality_meta" not in d:
+            d["quality_meta"] = {}
+        if "review_meta" not in d:
+            d["review_meta"] = {}
+        if "job_run" not in d:
+            d["job_run"] = {}
+        if "schema_version" not in d:
+            d["schema_version"] = "1.0.4"  # pre-formalization version
         return cls(**d)

@@ -503,10 +503,12 @@ def get_chain_benchmark(benchmark_id: str) -> dict[str, Any]:
 def list_style_samples(
     route_id: str | None = None,
     status: str | None = None,
+    source_type: str | None = None,
+    tag: str | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
     from app.video_lab.style_gallery import store as sg_store
-    samples = sg_store.list_samples(route_id=route_id, status=status, limit=limit)
+    samples = sg_store.list_samples(route_id=route_id, status=status, source_type=source_type, tag=tag, limit=limit)
     out = []
     for s in samples:
         d = s.to_dict()
@@ -587,6 +589,8 @@ def save_style_sample(request: StyleSampleSaveRequest) -> dict[str, Any]:
     from datetime import datetime
     from app.video_lab.style_gallery.models import (
         StyleSample, SampleStatus, StyleSampleOutput, EvaluationScore,
+        SampleSource, SampleGenerationMeta, SampleAssetMeta,
+        SampleQualityMeta, SampleReviewMeta,
     )
     from app.video_lab.style_gallery import store as sg_store
 
@@ -627,6 +631,14 @@ def save_style_sample(request: StyleSampleSaveRequest) -> dict[str, Any]:
         duration_sec=request.duration_sec,
         audio_duration_sec=request.audio_duration_sec,
         created_at=datetime.utcnow(),
+        # V1.0.5: Experiment asset metadata
+        source=SampleSource(**request.source) if request.source else SampleSource(),
+        generation=SampleGenerationMeta(**request.generation) if request.generation else SampleGenerationMeta(),
+        asset_meta=SampleAssetMeta(**request.asset_meta) if request.asset_meta else SampleAssetMeta(),
+        quality_meta=SampleQualityMeta(**request.quality_meta) if request.quality_meta else SampleQualityMeta(),
+        review_meta=SampleReviewMeta(**request.review_meta) if request.review_meta else SampleReviewMeta(),
+        job_run=request.job_run or {},
+        schema_version=request.schema_version or "1.0.5",
     )
 
     sg_store.save_sample(sample)

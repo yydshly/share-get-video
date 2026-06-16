@@ -266,3 +266,11 @@ class StyleSampleSaveRequest(BaseModel):
     evaluation_stability: int | None = Field(default=None, ge=1, le=5)
     evaluation_cost: int | None = Field(default=None, ge=1, le=5)
     evaluation_notes: str = Field(default="")
+    # V1.0.5: Experiment asset metadata
+    source: dict[str, Any] = Field(default_factory=dict)
+    generation: dict[str, Any] = Field(default_factory=dict)
+    asset_meta: dict[str, Any] = Field(default_factory=dict)
+    quality_meta: dict[str, Any] = Field(default_factory=dict)
+    review_meta: dict[str, Any] = Field(default_factory=dict)
+    job_run: dict[str, Any] = Field(default_factory=dict)
+    schema_version: str = Field(default="1.0.5")

@@ -96,6 +96,58 @@ interface StyleSample {
   audio_duration_sec: number;
   created_at: string;
   visual_judgement: VisualJudgement | null;
+  // V1.0.5: Experiment asset metadata
+  source?: {
+    source_type?: string;
+    source_page?: string;
+    source_run_id?: string;
+    experiment_id?: string;
+    job_id?: string;
+    run_id?: string;
+    workbench_route?: string;
+    saved_from?: string;
+  };
+  generation?: {
+    visual_route?: string;
+    visual_profile?: string;
+    remotion_family?: string;
+    route_preset?: string;
+    aspect_ratio?: string;
+    target_duration?: number;
+    key_point_count?: number;
+    content_hash?: string;
+  };
+  asset_meta?: {
+    final_video_url?: string;
+    cover_url?: string;
+    audio_url?: string;
+    srt_url?: string;
+    manifest_url?: string;
+    runtime_prefix?: string;
+    artifact_count?: number;
+  };
+  quality_meta?: {
+    structural_score?: number | null;
+    visual_score?: number | null;
+    warnings?: string[];
+    steps?: Array<Record<string, unknown>>;
+  };
+  review_meta?: {
+    review_status?: string;
+    review_notes?: string;
+    problem_tags?: string[];
+  };
+  job_run?: {
+    jobId?: string;
+    runId?: string;
+    experimentId?: string;
+    routeId?: string;
+    status?: string;
+    stage?: string;
+    progress?: number;
+    stageLabel?: string;
+  };
+  schema_version?: string;
 }
 
 interface GenerateResult {
@@ -720,6 +772,85 @@ function SampleCard({
         >
           {judging ? "评分中..." : "🔍 视觉评分"}
         </button>
+      )}
+
+      {/* V1.0.5: 实验资产信息 */}
+      {(sample.source || sample.generation || sample.asset_meta || sample.job_run || sample.schema_version) && (
+        <div style={{ background: "#f8fafc", borderRadius: 8, padding: "0.6rem", fontSize: "0.68rem" }}>
+          <div style={{ fontWeight: 600, color: "#475569", marginBottom: "0.3rem" }}>实验资产信息</div>
+          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 8, rowGap: 2 }}>
+            {sample.source?.source_type && (
+              <>
+                <span style={{ color: "#94a3b8" }}>来源类型</span>
+                <span style={{ color: "#1e293b" }}>{sample.source.source_type}</span>
+              </>
+            )}
+            {sample.source?.experiment_id && (
+              <>
+                <span style={{ color: "#94a3b8" }}>experimentId</span>
+                <span style={{ fontFamily: "monospace", wordBreak: "break-all" }}>{sample.source.experiment_id}</span>
+              </>
+            )}
+            {sample.source?.run_id && (
+              <>
+                <span style={{ color: "#94a3b8" }}>runId</span>
+                <span style={{ fontFamily: "monospace" }}>{sample.source.run_id}</span>
+              </>
+            )}
+            {sample.source?.job_id && (
+              <>
+                <span style={{ color: "#94a3b8" }}>jobId</span>
+                <span style={{ fontFamily: "monospace" }}>{sample.source.job_id}</span>
+              </>
+            )}
+            {sample.generation?.visual_route && (
+              <>
+                <span style={{ color: "#94a3b8" }}>visualRoute</span>
+                <span style={{ color: "#1e293b" }}>{sample.generation.visual_route}</span>
+              </>
+            )}
+            {sample.generation?.visual_profile && (
+              <>
+                <span style={{ color: "#94a3b8" }}>visualProfile</span>
+                <span style={{ color: "#1e293b" }}>{sample.generation.visual_profile}</span>
+              </>
+            )}
+            {sample.generation?.remotion_family && (
+              <>
+                <span style={{ color: "#94a3b8" }}>remotionFamily</span>
+                <span style={{ color: "#1e293b" }}>{sample.generation.remotion_family}</span>
+              </>
+            )}
+            {sample.job_run?.status && (
+              <>
+                <span style={{ color: "#94a3b8" }}>jobRun状态</span>
+                <span style={{ color: sample.job_run.status === "succeeded" ? "#10b981" : "#f59e0b" }}>
+                  {sample.job_run.status} {sample.job_run.stageLabel ? `/ ${sample.job_run.stageLabel}` : ""}
+                </span>
+              </>
+            )}
+            {sample.asset_meta?.manifest_url && (
+              <>
+                <span style={{ color: "#94a3b8" }}>manifest</span>
+                <a href={sample.asset_meta.manifest_url} target="_blank" rel="noreferrer" style={{ color: "#0f766e", wordBreak: "break-all" }}>
+                  {sample.asset_meta.manifest_url.split("/").pop()}
+                </a>
+              </>
+            )}
+            {sample.quality_meta?.structural_score != null && (
+              <>
+                <span style={{ color: "#94a3b8" }}>structuralScore</span>
+                <span style={{ color: "#1e293b" }}>{sample.quality_meta.structural_score}</span>
+              </>
+            )}
+            {sample.review_meta?.review_status && (
+              <>
+                <span style={{ color: "#94a3b8" }}>reviewStatus</span>
+                <span style={{ color: "#1e293b" }}>{sample.review_meta.review_status}</span>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {/* 标签 */}

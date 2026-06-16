@@ -55,9 +55,11 @@ def _write_all(records: list[dict[str, Any]]) -> None:
 def list_samples(
     route_id: str | None = None,
     status: str | None = None,
+    source_type: str | None = None,
+    tag: str | None = None,
     limit: int = 50,
 ) -> list[StyleSample]:
-    """列出样片，支持按路线和状态过滤。"""
+    """列出样片，支持按路线、状态、来源类型和标签过滤。"""
     records = _read_all()
     results = []
     for r in records:
@@ -65,6 +67,16 @@ def list_samples(
             continue
         if status and r.get("status") != status:
             continue
+        # V1.0.5: filter by source.source_type
+        if source_type:
+            src = r.get("source", {})
+            if (src.get("source_type") or "unknown") != source_type:
+                continue
+        # V1.0.5: filter by tag
+        if tag:
+            tags = r.get("tags", [])
+            if tag not in tags:
+                continue
         results.append(StyleSample.from_dict(r))
     # 按时间倒序
     results.sort(key=lambda s: s.created_at, reverse=True)
