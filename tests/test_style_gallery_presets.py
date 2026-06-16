@@ -38,7 +38,7 @@ def test_routes_are_known():
 
 def test_remotion_family_values_are_supported():
     """remotionFamily 只能用真实支持的值（props_builder + AiNewsVideo.tsx 都已实现）。"""
-    supported = {"data_news", "card_stack", "timeline_news"}
+    supported = {"data_news", "card_stack", "timeline_news", "dashboard_brief", "caption_story"}
     for p in list_preset_styles():
         fam = p["params"].get("remotionFamily")
         if fam is not None:
@@ -51,11 +51,29 @@ def test_card_stack_paradigm_is_offered():
     assert "card_stack" in fams
 
 
+def test_all_style_family_paradigms_are_offered():
+    """Remotion family research page should map to real preset values."""
+    fams = {p["params"].get("remotionFamily") for p in list_preset_styles()}
+    assert {"card_stack", "timeline_news", "dashboard_brief", "caption_story"}.issubset(fams)
+
+
+def test_remotion_style_family_variants_are_offered():
+    """Landable style-family variants should have real Style Gallery presets."""
+    ids = {p["style_id"] for p in list_preset_styles()}
+    assert {
+        "remotion_chart_story",
+        "remotion_ranking_strip",
+        "remotion_timeline_route_map",
+        "remotion_caption_intro",
+        "remotion_cta_overlay",
+    }.issubset(ids)
+
+
 def test_expanded_style_coverage():
     """扩充后各路线样式数（覆盖更大风格跨度）。"""
     by_route = Counter(p["route_id"] for p in list_preset_styles())
     assert by_route["local_frame_compose"] >= 5
-    assert by_route["template_programmatic_render"] >= 6
+    assert by_route["template_programmatic_render"] >= 14
     assert by_route["ai_asset_then_compose"] >= 5
 
 
@@ -67,7 +85,7 @@ def test_endpoint_returns_presets():
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == len(list_preset_styles())
-    assert len(data) >= 9
+    assert len(data) >= 14
 
 
 if __name__ == "__main__":

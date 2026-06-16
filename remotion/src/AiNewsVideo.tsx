@@ -508,6 +508,7 @@ const KeyPointCard: React.FC<{
   const hl = vstyle?.highlightColor || tonePreset.highlight;
   const fs = vstyle?.fontScale || 1;
   const showIcon = vstyle?.showIcon ?? true;
+  const variant = vstyle?.familyVariant;
   const iconGlyph = tonePreset.glyph;
   const metricAnimation = vstyle?.metricAnimation ?? "countup_bar";
 
@@ -1196,12 +1197,43 @@ const TimelineNewsLayout: React.FC<{
   const hl = vstyle?.highlightColor || C.highlight;
   const fs = vstyle?.fontScale || 1;
   const showIcon = vstyle?.showIcon ?? true;
+  const variant = vstyle?.familyVariant;
 
   // Container wraps from coverFrames to summaryStart; we center content vertically.
   // node center X is at left padding + 27 (half of 54)
   const NODE_SIZE = 54;
   const NODE_LEFT = 60; // padding-left
   const NODE_CENTER_X = NODE_LEFT + NODE_SIZE / 2;
+
+  if (variant === "route_map") {
+    return (
+      <AbsoluteFill style={{ background: C.bg, padding: "72px 58px", justifyContent: "center" }}>
+        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 18% 18%, ${accent}1f, transparent 34%), radial-gradient(circle at 82% 76%, ${hl}16, transparent 34%)` }} />
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 42 }}>Route Map</div>
+          <div style={{ position: "relative", height: 720 }}>
+            <div style={{ position: "absolute", left: 70, right: 70, top: 330, height: 6, borderRadius: 999, background: C.surface }} />
+            <div style={{ position: "absolute", left: 70, top: 330, width: `calc((100% - 140px) * ${progress})`, height: 6, borderRadius: 999, background: `linear-gradient(90deg, ${accent}, ${hl})`, boxShadow: `0 0 22px ${accent}66` }} />
+            {keyPoints.slice(0, 5).map((kp, i) => {
+              const state = states[i];
+              const isActive = state === "active";
+              const isPast = state === "past";
+              const left = `${8 + i * (84 / Math.max(1, Math.min(5, keyPoints.length) - 1))}%`;
+              const top = i % 2 === 0 ? 210 : 420;
+              return (
+                <div key={i} style={{ position: "absolute", left, top, width: 220, transform: "translateX(-50%)", opacity: isActive ? 1 : isPast ? 0.7 : 0.38 }}>
+                  <div style={{ width: 58, height: 58, borderRadius: "50%", margin: "0 auto 14px", background: isActive ? `linear-gradient(135deg, ${accent}, ${hl})` : C.card, border: `2px solid ${isActive ? hl : C.border}`, color: isActive ? C.bg : C.textMuted, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 900, boxShadow: isActive ? `0 0 36px ${accent}66` : "none" }}>{i + 1}</div>
+                  <div style={{ background: isActive ? C.card : C.surface, border: `1px solid ${isActive ? accent : C.border}`, borderRadius: 16, padding: "14px 16px", textAlign: "center" }}>
+                    <div style={{ color: isActive ? C.textPrimary : C.textSecondary, fontSize: Math.round((isActive ? 22 : 18) * fs), fontWeight: 800, lineHeight: 1.28 }}>{kp.title}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
 
   return (
     <AbsoluteFill
@@ -1445,6 +1477,281 @@ const TimelineNewsLayout: React.FC<{
             </div>
           );
         })}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+const DashboardBriefLayout: React.FC<{
+  keyPoints: KeyPoint[];
+  cardStarts: number[];
+  cardFramesArr: number[];
+  transitionOverlap: number;
+  fps: number;
+  vstyle?: RemotionStyle;
+  showDataViz?: boolean;
+}> = ({ keyPoints, cardFramesArr, vstyle, showDataViz = true }) => {
+  const localFrame = useCurrentFrame();
+  const accent = vstyle?.accentColor || "#f59e0b";
+  const hl = vstyle?.highlightColor || "#fde047";
+  const fs = vstyle?.fontScale || 1;
+  const variant = vstyle?.familyVariant;
+  const relativeStarts: number[] = [];
+  {
+    let acc = 0;
+    for (const f of cardFramesArr) {
+      relativeStarts.push(acc);
+      acc += f;
+    }
+  }
+  const activeIndex = Math.max(
+    0,
+    Math.min(
+      keyPoints.length - 1,
+      relativeStarts.findIndex((start, i) => {
+        const next = relativeStarts[i + 1] ?? Number.POSITIVE_INFINITY;
+        return localFrame >= start && localFrame < next;
+      }),
+    ),
+  );
+  const totalCardFrames = cardFramesArr.reduce((a, b) => a + b, 0);
+  const progress = totalCardFrames > 0 ? Math.min(1, Math.max(0, localFrame / totalCardFrames)) : 0;
+  const active = keyPoints[activeIndex] ?? keyPoints[0];
+  const stats = keyPoints
+    .map((kp, i) => ({ kp, stat: findPrimaryStat(kp), index: i }))
+    .filter((item) => item.stat)
+    .slice(0, 3);
+
+  if (variant === "ranking_strip") {
+    return (
+      <AbsoluteFill style={{ background: C.bg, padding: "70px 58px", justifyContent: "center" }}>
+        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 50% 0%, ${accent}24, transparent 42%)` }} />
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 22 }}>Ranking Strip</div>
+          <h2 style={{ color: C.textPrimary, fontSize: 52, fontWeight: 900, lineHeight: 1.15, margin: 0, marginBottom: 34 }}>Top signals by impact</h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {keyPoints.slice(0, 5).map((kp, i) => {
+              const activeRow = i === activeIndex;
+              const width = `${Math.max(34, 100 - i * 12)}%`;
+              return (
+                <div key={i} style={{ background: activeRow ? C.card : C.surface, border: `1px solid ${activeRow ? accent : C.border}`, borderRadius: 18, padding: "20px 22px", opacity: activeRow ? 1 : 0.72, boxShadow: activeRow ? `0 0 34px ${accent}28` : "none" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 18, alignItems: "center" }}>
+                    <div style={{ color: activeRow ? hl : C.textMuted, fontSize: 44, fontWeight: 900 }}>{String(i + 1).padStart(2, "0")}</div>
+                    <div>
+                      <div style={{ color: activeRow ? C.textPrimary : C.textSecondary, fontSize: Math.round(28 * fs), fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kp.title}</div>
+                      <div style={{ height: 10, background: "#0b1220", borderRadius: 999, overflow: "hidden", marginTop: 12 }}>
+                        <div style={{ width, height: "100%", background: `linear-gradient(90deg, ${accent}, ${hl})`, borderRadius: 999 }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (variant === "chart_story") {
+    const points = keyPoints.slice(0, 5).map((kp, i) => {
+      const stat = findPrimaryStat(kp);
+      return Math.min(100, Math.max(12, stat?.value ?? 30 + i * 13));
+    });
+    return (
+      <AbsoluteFill style={{ background: C.bg, padding: "66px 56px" }}>
+        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${accent}18 0%, transparent 38%)` }} />
+        <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column" }}>
+          <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase" }}>Chart Story</div>
+          <h2 style={{ color: C.textPrimary, fontSize: 48, fontWeight: 900, margin: "14px 0 26px", lineHeight: 1.15 }}>{active?.title}</h2>
+          <div style={{ flex: 1, background: C.card, border: `1px solid ${accent}55`, borderRadius: 24, padding: "36px 34px", display: "flex", alignItems: "end", gap: 18 }}>
+            {points.map((value, i) => {
+              const activeBar = i === activeIndex;
+              const h = `${value}%`;
+              return (
+                <div key={i} style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", justifyContent: "end", gap: 12 }}>
+                  <div style={{ height: h, minHeight: 60, borderRadius: "18px 18px 8px 8px", background: `linear-gradient(180deg, ${activeBar ? hl : accent}, ${accent})`, opacity: activeBar ? 1 : 0.45, boxShadow: activeBar ? `0 0 34px ${hl}44` : "none" }} />
+                  <div style={{ color: activeBar ? C.textPrimary : C.textMuted, fontSize: 18, fontWeight: 800, textAlign: "center" }}>0{i + 1}</div>
+                </div>
+              );
+            })}
+          </div>
+          <p style={{ color: C.textSecondary, fontSize: 27, lineHeight: 1.5, margin: "24px 0 0" }}>{active?.body}</p>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  return (
+    <AbsoluteFill style={{ background: C.bg, padding: "58px 50px" }}>
+      <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 20% 12%, ${accent}22, transparent 32%), radial-gradient(circle at 80% 88%, ${C.accent2}18, transparent 34%)` }} />
+      <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", gap: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 4, textTransform: "uppercase" }}>
+              Dashboard Brief
+            </div>
+            <div style={{ color: C.textPrimary, fontSize: 42, fontWeight: 900, marginTop: 8 }}>
+              AI News Signal Board
+            </div>
+          </div>
+          <div style={{ width: 126, height: 126, borderRadius: 28, background: `${accent}18`, border: `1px solid ${accent}55`, display: "flex", alignItems: "center", justifyContent: "center", color: hl, fontSize: 42, fontWeight: 900, boxShadow: `0 0 40px ${accent}30` }}>
+            {Math.round(progress * 100)}%
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          {stats.length > 0 ? stats.map(({ kp, stat, index }) => (
+            <div key={index} style={{ background: C.card, border: `1px solid ${index === activeIndex ? accent : C.border}`, borderRadius: 18, padding: "22px 20px", minHeight: 178, boxShadow: index === activeIndex ? `0 0 34px ${accent}28` : "none" }}>
+              <div style={{ color: C.textMuted, fontSize: 17, fontWeight: 700, marginBottom: 12 }}>
+                {stat!.label || `Metric ${index + 1}`}
+              </div>
+              <div style={{ color: hl, fontSize: 56, fontWeight: 900, lineHeight: 1, textShadow: `0 0 24px ${hl}44` }}>
+                {showDataViz ? (
+                  <CountUpNumber value={stat!.value} suffix={stat!.suffix} decimals={stat!.value % 1 === 0 ? 0 : 1} />
+                ) : (
+                  <>{stat!.value}{stat!.suffix}</>
+                )}
+              </div>
+              <div style={{ color: C.textSecondary, fontSize: 19, lineHeight: 1.35, marginTop: 12 }}>
+                {kp.title}
+              </div>
+            </div>
+          )) : keyPoints.slice(0, 3).map((kp, i) => (
+            <div key={i} style={{ background: C.card, border: `1px solid ${i === activeIndex ? accent : C.border}`, borderRadius: 18, padding: "22px 20px", minHeight: 178 }}>
+              <div style={{ color: hl, fontSize: 48, fontWeight: 900 }}>0{i + 1}</div>
+              <div style={{ color: C.textSecondary, fontSize: 20, lineHeight: 1.4, marginTop: 10 }}>{kp.title}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: 18, minHeight: 0 }}>
+          <div style={{ background: C.card, border: `1px solid ${accent}55`, borderRadius: 22, padding: "30px 32px", boxShadow: `0 0 50px ${accent}20` }}>
+            <div style={{ color: accent, fontSize: 18, fontWeight: 800, marginBottom: 18 }}>ACTIVE SIGNAL</div>
+            <h2 style={{ color: C.textPrimary, fontSize: Math.round(44 * fs), lineHeight: 1.2, margin: 0, marginBottom: 18 }}>
+              <HighlightedText text={active?.title ?? ""} style={{}} highlightColor={hl} emphasisTerms={active?.emphasisTerms} />
+            </h2>
+            <p style={{ color: C.textSecondary, fontSize: Math.round(27 * fs), lineHeight: 1.55, margin: 0 }}>
+              <HighlightedText text={active?.body ?? ""} style={{}} highlightColor={hl} emphasisTerms={active?.emphasisTerms} />
+            </p>
+          </div>
+
+          <div style={{ background: "#0f172a", border: `1px solid ${C.border}`, borderRadius: 22, padding: "26px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ color: C.textMuted, fontSize: 18, fontWeight: 800 }}>RANKING</div>
+            {keyPoints.slice(0, 5).map((kp, i) => {
+              const activeRow = i === activeIndex;
+              const width = `${Math.max(26, 100 - i * 14)}%`;
+              return (
+                <div key={i} style={{ opacity: activeRow ? 1 : 0.58 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ color: activeRow ? hl : C.textMuted, fontSize: 20, fontWeight: 900 }}>{i + 1}</span>
+                    <span style={{ color: activeRow ? C.textPrimary : C.textSecondary, fontSize: 18, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kp.title}</span>
+                  </div>
+                  <div style={{ height: 9, background: C.surface, borderRadius: 999, overflow: "hidden" }}>
+                    <div style={{ width, height: "100%", background: `linear-gradient(90deg, ${accent}, ${hl})`, borderRadius: 999 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+const CaptionStoryLayout: React.FC<{
+  keyPoints: KeyPoint[];
+  cardStarts: number[];
+  cardFramesArr: number[];
+  transitionOverlap: number;
+  fps: number;
+  vstyle?: RemotionStyle;
+  showDataViz?: boolean;
+}> = ({ keyPoints, cardFramesArr, vstyle }) => {
+  const localFrame = useCurrentFrame();
+  const accent = vstyle?.accentColor || "#ec4899";
+  const hl = vstyle?.highlightColor || "#f9a8d4";
+  const fs = vstyle?.fontScale || 1;
+  const variant = vstyle?.familyVariant;
+  const relativeStarts: number[] = [];
+  {
+    let acc = 0;
+    for (const f of cardFramesArr) {
+      relativeStarts.push(acc);
+      acc += f;
+    }
+  }
+  const activeIndex = Math.max(
+    0,
+    Math.min(
+      keyPoints.length - 1,
+      relativeStarts.findIndex((start, i) => {
+        const next = relativeStarts[i + 1] ?? Number.POSITIVE_INFINITY;
+        return localFrame >= start && localFrame < next;
+      }),
+    ),
+  );
+  const active = keyPoints[activeIndex] ?? keyPoints[0];
+  const segmentStart = relativeStarts[activeIndex] ?? 0;
+  const segmentFrame = Math.max(0, localFrame - segmentStart);
+  const titleOpacity = interpolate(segmentFrame, [0, 14], [0, 1], { extrapolateRight: "clamp" });
+  const titleY = interpolate(segmentFrame, [0, 18], [40, 0], { extrapolateRight: "clamp" });
+  const bodyOpacity = interpolate(segmentFrame, [10, 30], [0, 1], { extrapolateRight: "clamp" });
+
+  if (variant === "caption_intro") {
+    return (
+      <AbsoluteFill style={{ background: C.bg, padding: "88px 66px", justifyContent: "center", alignItems: "center" }}>
+        <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 50% 40%, ${accent}2b, transparent 42%), linear-gradient(180deg, transparent, rgba(0,0,0,0.38))` }} />
+        <div style={{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 930 }}>
+          <div style={{ display: "inline-flex", border: `1px solid ${accent}66`, color: accent, borderRadius: 999, padding: "8px 18px", fontSize: 18, fontWeight: 800, letterSpacing: 4, textTransform: "uppercase", marginBottom: 34 }}>Cinematic Intro</div>
+          <h2 style={{ color: C.textPrimary, fontSize: Math.round(82 * fs), lineHeight: 1.05, margin: 0, opacity: titleOpacity, transform: `translateY(${titleY}px)`, textShadow: `0 0 86px ${accent}55` }}>
+            <HighlightedText text={active?.title ?? ""} style={{}} highlightColor={hl} emphasisTerms={active?.emphasisTerms} />
+          </h2>
+          <p style={{ color: C.textSecondary, fontSize: Math.round(31 * fs), lineHeight: 1.5, margin: "34px auto 0", opacity: bodyOpacity, maxWidth: 820 }}>{active?.body}</p>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (variant === "cta_overlay") {
+    return (
+      <AbsoluteFill style={{ background: C.bg, padding: "72px 58px", justifyContent: "center" }}>
+        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(145deg, ${accent}24 0%, transparent 48%)` }} />
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 900 }}>
+          <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 32 }}>CTA Overlay</div>
+          <h2 style={{ color: C.textPrimary, fontSize: Math.round(68 * fs), lineHeight: 1.08, margin: 0, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
+            <HighlightedText text={active?.title ?? ""} style={{}} highlightColor={hl} emphasisTerms={active?.emphasisTerms} />
+          </h2>
+          <p style={{ color: C.textSecondary, fontSize: Math.round(31 * fs), lineHeight: 1.5, margin: "30px 0 0", opacity: bodyOpacity }}>{active?.body}</p>
+        </div>
+        <div style={{ position: "absolute", left: 58, right: 58, bottom: 72, background: "rgba(15,23,42,0.88)", border: `1px solid ${accent}77`, borderRadius: 22, padding: "24px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: `0 0 42px ${accent}33` }}>
+          <div style={{ color: C.textPrimary, fontSize: 30, fontWeight: 900 }}>继续关注这条 AI 变化</div>
+          <div style={{ background: `linear-gradient(135deg, ${accent}, ${hl})`, color: C.bg, borderRadius: 999, padding: "12px 22px", fontSize: 22, fontWeight: 900 }}>NEXT</div>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  return (
+    <AbsoluteFill style={{ background: C.bg, padding: "72px 58px", justifyContent: "center" }}>
+      <div style={{ position: "absolute", inset: 0, background: `linear-gradient(160deg, ${accent}24 0%, transparent 42%), radial-gradient(circle at 70% 20%, ${hl}1f, transparent 34%)` }} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 38 }}>
+          Caption Story · {String(activeIndex + 1).padStart(2, "0")} / {keyPoints.length}
+        </div>
+        <h2 style={{ color: C.textPrimary, fontSize: Math.round(74 * fs), lineHeight: 1.08, letterSpacing: 0, margin: 0, opacity: titleOpacity, transform: `translateY(${titleY}px)`, textShadow: `0 0 70px ${accent}44` }}>
+          <HighlightedText text={active?.title ?? ""} style={{}} highlightColor={hl} emphasisTerms={active?.emphasisTerms} />
+        </h2>
+        <div style={{ width: 150, height: 6, borderRadius: 999, background: `linear-gradient(90deg, ${accent}, ${hl})`, marginTop: 34, marginBottom: 34, opacity: titleOpacity }} />
+        <p style={{ color: C.textSecondary, fontSize: Math.round(34 * fs), lineHeight: 1.5, margin: 0, opacity: bodyOpacity, maxWidth: 900 }}>
+          <HighlightedText text={active?.body ?? ""} style={{}} highlightColor={hl} emphasisTerms={active?.emphasisTerms} />
+        </p>
+      </div>
+      <div style={{ position: "absolute", left: 58, right: 58, bottom: 58, display: "flex", gap: 10 }}>
+        {keyPoints.map((_, i) => (
+          <div key={i} style={{ flex: 1, height: 7, borderRadius: 999, background: i <= activeIndex ? `linear-gradient(90deg, ${accent}, ${hl})` : C.surface, opacity: i === activeIndex ? 1 : 0.55 }} />
+        ))}
       </div>
     </AbsoluteFill>
   );
@@ -1779,6 +2086,36 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
           durationInFrames={Math.max(1, summaryStart - coverFrames + safeOverlap)}
         >
           <TimelineNewsLayout
+            keyPoints={keyPoints}
+            cardStarts={cardStarts}
+            cardFramesArr={cardFramesArr}
+            transitionOverlap={safeOverlap}
+            fps={fps}
+            vstyle={style}
+            showDataViz={showDataViz}
+          />
+        </Sequence>
+      ) : remotionFamily === "dashboard_brief" ? (
+        <Sequence
+          from={coverFrames}
+          durationInFrames={Math.max(1, summaryStart - coverFrames + safeOverlap)}
+        >
+          <DashboardBriefLayout
+            keyPoints={keyPoints}
+            cardStarts={cardStarts}
+            cardFramesArr={cardFramesArr}
+            transitionOverlap={safeOverlap}
+            fps={fps}
+            vstyle={style}
+            showDataViz={showDataViz}
+          />
+        </Sequence>
+      ) : remotionFamily === "caption_story" ? (
+        <Sequence
+          from={coverFrames}
+          durationInFrames={Math.max(1, summaryStart - coverFrames + safeOverlap)}
+        >
+          <CaptionStoryLayout
             keyPoints={keyPoints}
             cardStarts={cardStarts}
             cardFramesArr={cardFramesArr}

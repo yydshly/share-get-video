@@ -523,23 +523,22 @@ def style_family_compare(request: StyleFamilyCompareRequest) -> dict[str, Any]:
     clip_seconds = int(params.get("clipSeconds", 3))
     key_point_count = int(params.get("keyPointCount", 3))
 
-    # Render Data News
-    dn_params = {**params, "remotionFamily": "data_news", "keyPointCount": key_point_count}
-    dn_result = render_clip_preview(
-        content=content,
-        visual_route="template_programmatic_render",
-        params=dn_params,
-        clip_seconds=clip_seconds,
-    )
-
-    # Render Card Stack
-    cs_params = {**params, "remotionFamily": "card_stack", "keyPointCount": key_point_count}
-    cs_result = render_clip_preview(
-        content=content,
-        visual_route="template_programmatic_render",
-        params=cs_params,
-        clip_seconds=clip_seconds,
-    )
+    family_specs = [
+        ("dataNews", "data_news"),
+        ("cardStack", "card_stack"),
+        ("timelineNews", "timeline_news"),
+        ("dashboardBrief", "dashboard_brief"),
+        ("captionStory", "caption_story"),
+    ]
+    family_results: dict[str, dict[str, Any]] = {}
+    for response_key, family_id in family_specs:
+        family_params = {**params, "remotionFamily": family_id, "keyPointCount": key_point_count}
+        family_results[response_key] = render_clip_preview(
+            content=content,
+            visual_route="template_programmatic_render",
+            params=family_params,
+            clip_seconds=clip_seconds,
+        )
 
     elapsed = int((time.time() - t0) * 1000)
 
@@ -555,8 +554,7 @@ def style_family_compare(request: StyleFamilyCompareRequest) -> dict[str, Any]:
         }
 
     return {
-        "dataNews": parse_result(dn_result),
-        "cardStack": parse_result(cs_result),
+        **{key: parse_result(value) for key, value in family_results.items()},
         "totalElapsedMs": elapsed,
     }
 

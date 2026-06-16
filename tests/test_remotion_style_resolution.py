@@ -75,6 +75,34 @@ class TestStyleResolution:
         assert "contentDebug" in props
         assert props["contentDebug"].get("remotionFamily") == "timeline_news"
 
+    def test_remotion_family_dashboard_brief(self):
+        """remotionFamily=dashboard_brief is preserved in props."""
+        structured = {"lead": "娴嬭瘯", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {"remotionFamily": "dashboard_brief"}
+        props = _build_props(structured, key_points, params)
+        assert props.get("remotionFamily") == "dashboard_brief"
+        assert props["contentDebug"].get("remotionFamily") == "dashboard_brief"
+
+    def test_remotion_family_caption_story(self):
+        """remotionFamily=caption_story is preserved in props."""
+        structured = {"lead": "娴嬭瘯", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {"remotionFamily": "caption_story"}
+        props = _build_props(structured, key_points, params)
+        assert props.get("remotionFamily") == "caption_story"
+        assert props["contentDebug"].get("remotionFamily") == "caption_story"
+
+    def test_family_variant_is_applied_to_style(self):
+        """familyVariant should be passed through to Remotion style props."""
+        structured = {"lead": "娴嬭瘯", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {"remotionFamily": "dashboard_brief", "familyVariant": "chart_story"}
+        props = _build_props(structured, key_points, params)
+        assert props.get("remotionFamily") == "dashboard_brief"
+        assert props["style"].get("familyVariant") == "chart_story"
+        assert props["contentDebug"]["style"].get("familyVariant") == "chart_story"
+
     def test_unknown_remotion_family_fallback_no_error(self):
         """Unknown remotionFamily is silently ignored (no exception)."""
         structured = {"lead": "测试", "subtitle": "AI"}

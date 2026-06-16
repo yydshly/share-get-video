@@ -259,22 +259,26 @@ function PresetStyleCard({
   preset,
   onGenerate,
   generating,
+  highlighted = false,
 }: {
   preset: PresetStyle;
   onGenerate: (p: PresetStyle) => void;
   generating: boolean;
+  highlighted?: boolean;
 }) {
   const color = ROUTE_COLORS[preset.route_id] ?? "#64748b";
   return (
     <div
+      data-highlighted-style={highlighted ? "true" : undefined}
       style={{
-        background: "white",
-        border: `1px solid ${color}30`,
+        background: highlighted ? `${color}08` : "white",
+        border: `1px solid ${highlighted ? color : `${color}30`}`,
         borderRadius: 12,
         padding: "1rem",
         display: "flex",
         flexDirection: "column",
         gap: "0.5rem",
+        boxShadow: highlighted ? `0 0 0 3px ${color}18, 0 10px 24px ${color}16` : undefined,
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem" }}>
@@ -1082,10 +1086,15 @@ function CompareCard({
 
 export default function StyleGalleryPage() {
   const [searchParams] = useSearchParams();
+  const highlightedPresetStyleId = searchParams.get("style_id") || "";
   const [presets, setPresets] = useState<PresetStyle[]>([]);
   const [samples, setSamples] = useState<StyleSample[]>([]);
   const [templates, setTemplates] = useState<StyleTemplate[]>([]);
-  const [filterRoute, setFilterRoute] = useState<string>("");
+  const [filterRoute, setFilterRoute] = useState<string>(() => {
+    const routeFromUrl = searchParams.get("route_id") || searchParams.get("route");
+    if (routeFromUrl) return routeFromUrl;
+    return highlightedPresetStyleId.startsWith("remotion_") ? "template_programmatic_render" : "";
+  });
   const [filterStatus, setFilterStatus] = useState<string>("");
   // V0.7.3: 新增来源筛选 + Workbench 高亮定位
   const [filterSource, setFilterSource] = useState<"" | "workbench" | "gallery">(() => {
@@ -1411,7 +1420,14 @@ export default function StyleGalleryPage() {
   const workbenchComparing = workbenchSamples.filter((s) => s.status === "comparing").length;
   const workbenchApproved = workbenchSamples.filter((s) => s.status === "approved").length;
 
-  const filteredPresets = filterRoute ? presets.filter((p) => p.route_id === filterRoute) : presets;
+  const filteredPresets = (filterRoute ? presets.filter((p) => p.route_id === filterRoute) : presets)
+    .slice()
+    .sort((a, b) => {
+      if (!highlightedPresetStyleId) return 0;
+      if (a.style_id === highlightedPresetStyleId) return -1;
+      if (b.style_id === highlightedPresetStyleId) return 1;
+      return 0;
+    });
   const filteredTemplates = filterRoute ? templates.filter((t) => t.route_id === filterRoute) : templates;
   const groupedPresets = filteredPresets.reduce((acc, p) => {
     if (!acc[p.route_id]) acc[p.route_id] = [];
@@ -1655,6 +1671,48 @@ export default function StyleGalleryPage() {
               进入 Style Sweep
             </Link>
           </div>
+          {filterRoute === "template_programmatic_render" && (
+            <div
+              data-testid="remotion-preset-focus"
+              style={{
+                background: "#f8fafc",
+                border: "1px solid #cbd5e1",
+                borderRadius: 10,
+                padding: "0.7rem 0.9rem",
+                marginBottom: "1rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.75rem",
+                flexWrap: "wrap",
+                color: "#334155",
+                fontSize: "0.78rem",
+                lineHeight: 1.5,
+              }}
+            >
+              <div>
+                Remotion 样式扩展预设已按范式筛选；可直接生成样片，再进入样片库做评分、对比和沉淀。
+                {highlightedPresetStyleId && (
+                  <span style={{ color: "#2563eb", fontWeight: 700 }}> 当前聚焦：{highlightedPresetStyleId}</span>
+                )}
+              </div>
+              <Link
+                to="/video-lab/remotion-style-family"
+                style={{
+                  background: "#0f172a",
+                  color: "white",
+                  textDecoration: "none",
+                  borderRadius: 6,
+                  padding: "0.35rem 0.85rem",
+                  fontSize: "0.78rem",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                返回 Remotion 范式
+              </Link>
+            </div>
+          )}
           {Object.entries(groupedPresets).map(([routeId, routePresets]) => {
             const color = ROUTE_COLORS[routeId] ?? "#64748b";
             return (
@@ -1673,6 +1731,7 @@ export default function StyleGalleryPage() {
                       preset={p}
                       onGenerate={handleGenerate}
                       generating={generating === p.style_id}
+                      highlighted={p.style_id === highlightedPresetStyleId}
                     />
                   ))}
                 </div>

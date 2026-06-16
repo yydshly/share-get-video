@@ -1,7 +1,7 @@
 // Video Generation Workbench Page - V0.7.2
 // 视频生成实验台 V0.7.2：approved 后保存样片 / 加入对比真实功能
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { resolveUrl, stripRuntimeUrlPrefix, API_BASE } from "../utils/url";
 
@@ -34,8 +34,20 @@ interface FullVideoResult {
   subtitleCount?: number;
   failedReason?: string;
   warnings?: string[];
+  quality?: {
+    overallScore?: number;
+    dimensionScores?: Record<string, number>;
+    counts?: Record<string, number>;
+  };
   params?: Record<string, unknown>;
   steps?: Array<{ name: string; status: string; output: string }>;
+}
+
+interface VisualRouteAvailability {
+  routeId: string;
+  displayName: string;
+  available: boolean;
+  availabilityMessage: string;
 }
 
 interface RouteOption {
@@ -141,12 +153,15 @@ const ROUTE_SAMPLE_META: Record<RouteId, { route_id: string; route_name: string;
 function RouteCard({
   route,
   selected,
+  availability,
   onSelect,
 }: {
   route: RouteOption;
   selected: boolean;
+  availability?: VisualRouteAvailability;
   onSelect: () => void;
 }) {
+  const unavailable = availability?.available === false;
   const statusColor = {
     stable: "#16a34a",
     experimental: "#f59e0b",
@@ -161,14 +176,14 @@ function RouteCard({
 
   return (
     <div
-      onClick={route.status === "preview_only" ? undefined : onSelect}
+      onClick={route.status === "preview_only" || unavailable ? undefined : onSelect}
       style={{
         border: selected ? "2px solid #0f766e" : "1px solid #e2e8f0",
         borderRadius: 12,
         padding: "0.85rem 1rem",
         background: selected ? "#f0fdfa" : "white",
-        cursor: route.status === "preview_only" ? "not-allowed" : "pointer",
-        opacity: route.status === "preview_only" ? 0.6 : 1,
+        cursor: route.status === "preview_only" || unavailable ? "not-allowed" : "pointer",
+        opacity: route.status === "preview_only" || unavailable ? 0.6 : 1,
         transition: "all 0.15s",
       }}
     >
@@ -200,6 +215,11 @@ function RouteCard({
       </div>
       {route.note && (
         <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: 4 }}>{route.note}</div>
+      )}
+      {availability && (
+        <div style={{ fontSize: "0.7rem", color: availability.available ? "#16a34a" : "#dc2626", marginTop: 4 }}>
+          {availability.available ? "运行环境可用" : `不可用：${availability.availabilityMessage}`}
+        </div>
       )}
     </div>
   );
@@ -240,6 +260,8 @@ export default function VideoGenerationWorkbenchPage() {
 
   // ── Section 2: Route Selection ──────────────────────────────────────────
   const [selectedRoute, setSelectedRoute] = useState<RouteId>("pillow");
+  const [routeAvailability, setRouteAvailability] = useState<Record<string, VisualRouteAvailability>>({});
+  const [routeAvailabilityError, setRouteAvailabilityError] = useState("");
 
   // ── Section 3: Generation Control ───────────────────────────────────────
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -290,8 +312,45 @@ export default function VideoGenerationWorkbenchPage() {
     ai_asset: "ai_asset_then_compose",
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadRouteAvailability = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/visual-routes`);
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+        const next: Record<string, VisualRouteAvailability> = {};
+        for (const item of data as VisualRouteAvailability[]) {
+          next[item.routeId] = item;
+        }
+        if (!cancelled) {
+          setRouteAvailability(next);
+          setRouteAvailabilityError("");
+        }
+      } catch (e) {
+        if (!cancelled) setRouteAvailabilityError(String(e));
+      }
+    };
+    loadRouteAvailability();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedVisualRoute = routeToVisualRoute[selectedRoute];
+  const selectedAvailability = routeAvailability[selectedVisualRoute];
+  const selectedRouteUnavailable = selectedAvailability?.available === false;
+
+  const buildGenerationContent = () => [title.trim(), body.trim()].filter(Boolean).join("\n\n");
+
   const buildVisualRouteParams = (): Record<string, unknown> => {
-    const base = { targetDuration: 45, aspectRatio: "9:16", keyPointCount: 3, useLlmPlan: true };
+    const base = {
+      targetDuration: 45,
+      aspectRatio: "9:16",
+      keyPointCount: 3,
+      useLlmPlan: true,
+      coverTitle: title.trim(),
+    };
     if (selectedRoute === "remotion_data_news") return { ...base, remotionFamily: "data_news" };
     if (selectedRoute === "remotion_card_stack") return { ...base, remotionFamily: "card_stack" };
     return base;
@@ -299,6 +358,10 @@ export default function VideoGenerationWorkbenchPage() {
 
   // ── Preview ─────────────────────────────────────────────────────────────
   const callPreview = async () => {
+    if (selectedRouteUnavailable) {
+      setPreviewError(selectedAvailability?.availabilityMessage || "Selected route is not available");
+      return;
+    }
     setPreviewLoading(true);
     setPreviewError("");
     setPreviewResult(null);
@@ -309,43 +372,46 @@ export default function VideoGenerationWorkbenchPage() {
     setCompareError("");
     setCompareSuccess(false);
 
+    const visualRoute = selectedVisualRoute;
+    const params = { ...buildVisualRouteParams(), clipSeconds: 3 };
+    const content = buildGenerationContent();
     const shot = { headline: title.trim(), display: body.trim(), emphasisTerms: [] };
     let payload: Record<string, unknown>;
 
     if (selectedRoute === "pillow") {
       payload = {
-        visualRoute: "local_frame_compose",
-        content: body.trim(),
+        visualRoute,
+        content,
         shot,
         frameType: "keypoint",
         coverTitle: title.trim(),
-        params: { clipSeconds: 3, aspectRatio: "9:16" },
+        params,
       };
     } else if (selectedRoute === "remotion_data_news") {
       payload = {
-        visualRoute: "template_programmatic_render",
-        content: body.trim(),
+        visualRoute,
+        content,
         shot: {},
         frameType: "keypoint",
-        params: { clipSeconds: 3, aspectRatio: "9:16", keyPointCount: 3, remotionFamily: "data_news" },
+        params,
       };
     } else if (selectedRoute === "remotion_card_stack") {
       payload = {
-        visualRoute: "template_programmatic_render",
-        content: body.trim(),
+        visualRoute,
+        content,
         shot: {},
         frameType: "keypoint",
-        params: { clipSeconds: 3, aspectRatio: "9:16", keyPointCount: 3, remotionFamily: "card_stack" },
+        params,
       };
     } else if (selectedRoute === "ai_asset") {
       // AI 素材：单帧(AI 生图背景+叠卡) → Ken Burns 动效片段（需图像 API，较慢）
       payload = {
-        visualRoute: "ai_asset_then_compose",
-        content: body.trim(),
+        visualRoute,
+        content,
         shot,
         frameType: "keypoint",
         coverTitle: title.trim(),
-        params: { clipSeconds: 3, aspectRatio: "9:16" },
+        params,
       };
     } else {
       setPreviewError("未知路线");
@@ -386,6 +452,10 @@ export default function VideoGenerationWorkbenchPage() {
 
   // ── Full Video ───────────────────────────────────────────────────────────
   const callFullVideo = async () => {
+    if (selectedRouteUnavailable) {
+      setFullError(selectedAvailability?.availabilityMessage || "Selected route is not available");
+      return;
+    }
     setFullLoading(true);
     setFullError("");
     setFullResult(null);
@@ -396,7 +466,7 @@ export default function VideoGenerationWorkbenchPage() {
     setCompareError("");
     setCompareSuccess(false);
 
-    const visualRoute = routeToVisualRoute[selectedRoute];
+    const visualRoute = selectedVisualRoute;
     if (!visualRoute) {
       setFullError("该路线不支持完整视频生成");
       setFullLoading(false);
@@ -408,7 +478,7 @@ export default function VideoGenerationWorkbenchPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: body.trim(),
+          content: buildGenerationContent(),
           visualRoute,
           params: buildVisualRouteParams(),
         }),
@@ -426,7 +496,7 @@ export default function VideoGenerationWorkbenchPage() {
   };
 
   // ── Save Approved Sample ─────────────────────────────────────────────────
-  const saveApprovedSample = async (): Promise<string | null> => {
+  const saveApprovedSample = async (status: "approved" | "rejected" = "approved"): Promise<string | null> => {
     if (!fullResult || fullResult.status !== "succeeded" || !fullResult.finalVideoUrl) return null;
     const sampleMeta = ROUTE_SAMPLE_META[selectedRoute];
     if (!sampleMeta) return null;
@@ -444,14 +514,18 @@ export default function VideoGenerationWorkbenchPage() {
           route_id: sampleMeta.route_id,
           route_name: sampleMeta.route_name,
           style_name: sampleMeta.style_name,
-          description: `Workbench approved: ${title.trim().slice(0, 80)}`,
-          status: "approved",
+          description: `Workbench ${status}: ${title.trim().slice(0, 80)}`,
+          status,
           params: {
             ...(fullResult.params || {}),
             source: "workbench",
             workbenchRoute: selectedRoute,
             experimentId: fullResult.experimentId,
+            reviewStatus: status,
             reviewNotes,
+            quality: fullResult.quality || {},
+            warnings: fullResult.warnings || [],
+            steps: fullResult.steps || [],
           },
           output_type: "mp4",
           output_path: stripRuntimeUrlPrefix(fullResult.finalVideoUrl),
@@ -459,11 +533,15 @@ export default function VideoGenerationWorkbenchPage() {
           audio_url: stripRuntimeUrlPrefix(fullResult.audioUrl || ""),
           srt_url: stripRuntimeUrlPrefix(fullResult.srtUrl || ""),
           manifest_url: stripRuntimeUrlPrefix(fullResult.manifestUrl || ""),
-          content_preview: body.trim().slice(0, 160),
+          content_preview: buildGenerationContent().slice(0, 160),
           duration_sec: Number(fullResult.audioDurationSec || 0),
           audio_duration_sec: Number(fullResult.audioDurationSec || 0),
-          tags: ["workbench", selectedRoute, "approved"],
-          evaluation_notes: reviewNotes,
+          tags: ["workbench", selectedRoute, status],
+          evaluation_notes: [
+            reviewNotes,
+            fullResult.quality?.overallScore != null ? `quality=${fullResult.quality.overallScore}` : "",
+            fullResult.warnings?.length ? `warnings=${fullResult.warnings.join("；")}` : "",
+          ].filter(Boolean).join("\n"),
         }),
       });
       const data = await resp.json();
@@ -471,7 +549,7 @@ export default function VideoGenerationWorkbenchPage() {
 
       const savedId = data.id || `workbench_${fullResult.experimentId}`;
       setSavedSampleId(savedId);
-      setSaveSuccess(`已保存为样片：${savedId}`);
+      setSaveSuccess(status === "approved" ? `已保存为样片：${savedId}` : `已记录问题样片：${savedId}`);
       return savedId;
     } catch (e) {
       setSaveError(`保存失败：${String(e)}`);
@@ -510,6 +588,10 @@ export default function VideoGenerationWorkbenchPage() {
   };
 
   // ── Human Review ────────────────────────────────────────────────────────
+  const recordProblemSample = async () => {
+    await saveApprovedSample("rejected");
+  };
+
   const hasFullVideo = fullResult && fullResult.status === "succeeded" && fullResult.finalVideoUrl;
   const hasPreview = previewResult && previewResult.success;
 
@@ -590,10 +672,19 @@ export default function VideoGenerationWorkbenchPage() {
               key={route.id}
               route={route}
               selected={selectedRoute === route.id}
-              onSelect={() => { if (route.status !== "preview_only") setSelectedRoute(route.id); }}
+              availability={routeAvailability[routeToVisualRoute[route.id]]}
+              onSelect={() => {
+                const unavailable = routeAvailability[routeToVisualRoute[route.id]]?.available === false;
+                if (route.status !== "preview_only" && !unavailable) setSelectedRoute(route.id);
+              }}
             />
           ))}
         </div>
+        {routeAvailabilityError && (
+          <div style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "#d97706" }}>
+            路线可用性读取失败：{routeAvailabilityError}
+          </div>
+        )}
       </div>
 
       {/* ── Section 3: Generation Control ───────────────────────────────── */}
@@ -608,12 +699,12 @@ export default function VideoGenerationWorkbenchPage() {
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.75rem" }}>
           <button
             onClick={callPreview}
-            disabled={previewLoading}
+            disabled={previewLoading || selectedRouteUnavailable}
             style={{
-              background: previewLoading ? "#94a3b8" : "#0f766e",
+              background: previewLoading || selectedRouteUnavailable ? "#94a3b8" : "#0f766e",
               color: "white", border: "none", borderRadius: 8,
               padding: "0.6rem 1.5rem", fontSize: "0.9rem", fontWeight: 600,
-              cursor: previewLoading ? "not-allowed" : "pointer",
+              cursor: previewLoading || selectedRouteUnavailable ? "not-allowed" : "pointer",
             }}
           >
             {previewLoading ? "预览生成中..." : "生成预览"}
@@ -621,12 +712,12 @@ export default function VideoGenerationWorkbenchPage() {
 
           <button
             onClick={callFullVideo}
-            disabled={fullLoading}
+            disabled={fullLoading || selectedRouteUnavailable}
             style={{
-              background: fullLoading ? "#94a3b8" : "#7c3aed",
+              background: fullLoading || selectedRouteUnavailable ? "#94a3b8" : "#7c3aed",
               color: "white", border: "none", borderRadius: 8,
               padding: "0.6rem 1.5rem", fontSize: "0.9rem", fontWeight: 600,
-              cursor: fullLoading ? "not-allowed" : "pointer",
+              cursor: fullLoading || selectedRouteUnavailable ? "not-allowed" : "pointer",
             }}
           >
             {fullLoading ? "完整视频生成中（约 30-90 秒）..." : "生成完整视频"}
@@ -638,6 +729,12 @@ export default function VideoGenerationWorkbenchPage() {
             </span>
           )}
         </div>
+
+        {selectedRouteUnavailable && (
+          <div style={{ fontSize: "0.78rem", color: "#dc2626", marginBottom: "0.5rem" }}>
+            当前路线不可用：{selectedAvailability?.availabilityMessage}
+          </div>
+        )}
 
         {selectedRoute === "ai_asset" && (
           <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginBottom: "0.5rem" }}>
@@ -734,6 +831,35 @@ export default function VideoGenerationWorkbenchPage() {
                 <div style={{ marginBottom: "0.75rem", padding: "0.5rem 0.75rem", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, fontSize: "0.75rem", color: "#92400e" }}>
                   警告：{fullResult.warnings.join("；")}
                 </div>
+              )}
+
+              {fullResult.quality && fullResult.quality.overallScore != null && (
+                <div style={{ marginBottom: "0.75rem", padding: "0.65rem 0.75rem", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.75rem", color: "#475569" }}>
+                  <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4 }}>
+                    结构质量分：{fullResult.quality.overallScore}
+                  </div>
+                  {fullResult.quality.dimensionScores && (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {Object.entries(fullResult.quality.dimensionScores).map(([key, value]) => (
+                        <span key={key}>{key}: {value}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {fullResult.steps && fullResult.steps.length > 0 && (
+                <details style={{ marginBottom: "0.75rem", fontSize: "0.75rem", color: "#475569" }}>
+                  <summary style={{ cursor: "pointer", fontWeight: 600, color: "#334155" }}>生成步骤</summary>
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                    {fullResult.steps.map((step, idx) => (
+                      <div key={`${step.name}-${idx}`} style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 8 }}>
+                        <span style={{ color: step.status === "failed" ? "#dc2626" : "#64748b" }}>{step.status}</span>
+                        <span>{step.name}{step.output ? `：${step.output}` : ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
               )}
 
               <video controls src={resolveUrl(fullResult.finalVideoUrl)} style={{ width: "100%", maxWidth: 480, borderRadius: 8, background: "#0f172a" }} />
@@ -841,7 +967,7 @@ export default function VideoGenerationWorkbenchPage() {
                     </span>
                   ) : (
                     <button
-                      onClick={saveApprovedSample}
+                      onClick={() => saveApprovedSample()}
                       disabled={saveLoading}
                       style={{
                         background: saveLoading ? "#94a3b8" : "#0f766e",
@@ -910,10 +1036,25 @@ export default function VideoGenerationWorkbenchPage() {
                   🔄 重新生成
                 </button>
                 <button
-                  style={{ background: "#f1f5f9", color: "#94a3b8", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.5rem 1.1rem", fontSize: "0.82rem", cursor: "not-allowed" }}
+                  onClick={recordProblemSample}
+                  disabled={saveLoading}
+                  style={{
+                    background: saveLoading ? "#f1f5f9" : "#fff7ed",
+                    color: saveLoading ? "#94a3b8" : "#c2410c",
+                    border: "1px solid #fed7aa",
+                    borderRadius: 8,
+                    padding: "0.5rem 1.1rem",
+                    fontSize: "0.82rem",
+                    cursor: saveLoading ? "not-allowed" : "pointer",
+                  }}
                 >
-                  📝 记录问题功能下一阶段接入
+                  {saveLoading ? "记录中..." : "📝 记录问题样片"}
                 </button>
+                {(saveSuccess || saveError) && (
+                  <span style={{ alignSelf: "center", fontSize: "0.75rem", color: saveError ? "#dc2626" : "#16a34a" }}>
+                    {saveError || saveSuccess}
+                  </span>
+                )}
               </div>
             )}
 

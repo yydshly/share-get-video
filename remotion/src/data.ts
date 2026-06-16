@@ -34,6 +34,12 @@ export type CoverStyle = "editorial" | "cinematic" | "minimal";
 export type OverviewStyle = "timeline" | "grid" | "clean";
 export type MetricAnimation = "countup_bar" | "countup_number" | "none";
 export type TransitionStyle = "slide_fade" | "fade" | "slide";
+export type FamilyVariant =
+  | "chart_story"
+  | "ranking_strip"
+  | "route_map"
+  | "caption_intro"
+  | "cta_overlay";
 
 export type RemotionStyle = {
   accentColor?: string;     // 主题强调色（标号/分隔线/数据条/图标）
@@ -46,11 +52,17 @@ export type RemotionStyle = {
   overviewStyle?: OverviewStyle;         // 概览风格: timeline / grid / clean
   metricAnimation?: MetricAnimation;    // 指标动画: countup_bar / countup_number / none
   transitionStyle?: TransitionStyle;   // 转场风格: slide_fade / fade / slide
+  familyVariant?: FamilyVariant;
 };
 
 // V0.6.2: Remotion family — selects visual presentation paradigm
 // V0.8.9: Added "timeline_news" for AI news event evolution timelines.
-export type RemotionFamily = "data_news" | "card_stack" | "timeline_news";
+export type RemotionFamily =
+  | "data_news"
+  | "card_stack"
+  | "timeline_news"
+  | "dashboard_brief"
+  | "caption_story";
 
 export type AiNewsVideoProps = {
   title: string;

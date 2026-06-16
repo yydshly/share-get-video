@@ -27,6 +27,9 @@ interface CompareResult {
 interface CompareResponse {
   dataNews: CompareResult;
   cardStack: CompareResult;
+  timelineNews?: CompareResult;
+  dashboardBrief?: CompareResult;
+  captionStory?: CompareResult;
   totalElapsedMs: number;
 }
 
@@ -91,7 +94,7 @@ const FAMILIES: StyleFamily[] = [
       "趋势箭头",
     ],
     requiredComponents: ["MetricCard", "AnimatedCounter", "TrendArrow", "HeadlineHighlight"],
-    styleSweepMapping: ["remotion_metric_motion", "remotion_minimal_clean"],
+    styleSweepMapping: ["remotion_metric_motion", "remotion_minimal_clean", "remotion_chart_story", "remotion_ranking_strip"],
     nextExperiment:
       "把 metricAnimation 从 countup_bar 扩展到 chart_story / ranking_strip",
   },
@@ -173,7 +176,7 @@ const FAMILIES: StyleFamily[] = [
       "历史节点淡化",
     ],
     requiredComponents: ["TimelineNode", "ProgressLine", "EventCard"],
-    styleSweepMapping: ["remotion_timeline_news"],
+    styleSweepMapping: ["remotion_timeline_news", "remotion_timeline_route_map"],
     nextExperiment:
       "增强节点节奏、事件日期/阶段标签、结尾路线总览",
   },
@@ -197,7 +200,7 @@ const FAMILIES: StyleFamily[] = [
       "矩阵布局",
       "小型指标组件",
     ],
-    currentStatus: "待探索 — 复杂度较高，需谨慎投入",
+    currentStatus: "已有最小可生成预设 — remotion_dashboard_brief，先覆盖 3 指标卡 + 活动信号 + 排行列表",
     priority: "P2",
     priorityReason: "信息密度高但复杂度也高，容易过度设计",
     accentColor: "#f59e0b",
@@ -215,7 +218,7 @@ const FAMILIES: StyleFamily[] = [
       "进度条 / 小图表",
     ],
     requiredComponents: ["DashboardPanel", "RankingList", "MiniBar", "MiniSpark"],
-    styleSweepMapping: [],
+    styleSweepMapping: ["remotion_dashboard_brief", "remotion_chart_story", "remotion_ranking_strip"],
     nextExperiment:
       "新增 remotion_dashboard_brief，先做 3 指标面板 + 1 个排行榜模块",
   },
@@ -239,7 +242,7 @@ const FAMILIES: StyleFamily[] = [
       "节奏跟随旁白",
       "情绪色彩渐变",
     ],
-    currentStatus: "待探索 — 更适合另一个文案/情绪视频产品线",
+    currentStatus: "已有最小可生成预设 — remotion_caption_story，先覆盖大字标题 + 旁白节奏 + 进度条叙事",
     priority: "P2",
     priorityReason: "更偏向情绪内容，与当前 AI 新闻定位差异较大",
     accentColor: "#ec4899",
@@ -256,7 +259,7 @@ const FAMILIES: StyleFamily[] = [
       "旁白节奏驱动",
     ],
     requiredComponents: ["WordCaption", "SentenceCard", "AmbientBackground"],
-    styleSweepMapping: [],
+    styleSweepMapping: ["remotion_caption_story", "remotion_caption_intro", "remotion_cta_overlay"],
     nextExperiment:
       "新增 remotion_caption_story，用大字幕 + word highlight 做一版 AI 新闻口播",
   },
@@ -369,6 +372,14 @@ const MIN_SAMPLE = {
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
+
+const REMOTION_GALLERY_BASE =
+  "/video-lab/style-gallery?tab=presets&route_id=template_programmatic_render";
+
+const getFamilyGalleryUrl = (family: StyleFamily): string => {
+  const styleId = family.styleSweepMapping?.[0];
+  return styleId ? `${REMOTION_GALLERY_BASE}&style_id=${styleId}` : REMOTION_GALLERY_BASE;
+};
 
 function FamilyCard({ family }: { family: StyleFamily }) {
   const priorityColor = {
@@ -496,6 +507,37 @@ function FamilyCard({ family }: { family: StyleFamily }) {
           <span style={{ fontWeight: 600, color: family.accentColor }}>{family.priority} 原因：</span>
           {family.priorityReason}
         </div>
+        <div
+          style={{
+            marginTop: "0.85rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.75rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ fontSize: "0.72rem", color: "#64748b" }}>
+            {family.styleSweepMapping?.length
+              ? `Gallery preset: ${family.styleSweepMapping.join(", ")}`
+              : "No dedicated preset yet"}
+          </div>
+          <Link
+            to={getFamilyGalleryUrl(family)}
+            style={{
+              background: family.styleSweepMapping?.length ? family.accentColor : "#64748b",
+              color: "white",
+              textDecoration: "none",
+              borderRadius: "8px",
+              padding: "0.4rem 0.8rem",
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {family.styleSweepMapping?.length ? "去生成该范式" : "查看 Remotion 预设"}
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -512,6 +554,8 @@ function CoveragePanel() {
     { name: "Data News", note: "AiNewsVideo 当前形态即 Data News 范式" },
     { name: "Card Stack", note: "V0.6.5.2 已支持 prev/next 三层卡片 UI 预览对比" },
     { name: "Timeline News", note: "V0.8.9 已在 AiNewsVideo 中实现 TimelineNewsLayout 最小模板（竖向时间线 + 节点高亮 + 进度线）" },
+    { name: "Dashboard Brief", note: "V0.9.0 已接入 remotion_dashboard_brief：指标卡 + 活动信号 + 排行列表" },
+    { name: "Caption Story", note: "V0.9.0 已接入 remotion_caption_story：大字标题 + 旁白节奏 + 进度条叙事" },
   ];
   const partial = [
     { name: "Data News 指标动画", note: "已有 countup_bar；chart_story / ranking_strip 待扩展" },
@@ -519,8 +563,6 @@ function CoveragePanel() {
     { name: "Timeline News 竖向时间线", note: "已有节点高亮 + 进度线；事件日期 / 阶段标签 / 结尾路线总览待增强" },
   ];
   const missing = [
-    { name: "Dashboard", note: "新增 remotion_dashboard_brief" },
-    { name: "Subtitle Story", note: "新增 remotion_caption_story" },
     { name: "Map Journey", note: "未纳入本轮主流程" },
     { name: "Code Walkthrough", note: "未纳入本轮主流程" },
     { name: "Audio Wave", note: "未纳入本轮主流程" },
@@ -672,15 +714,15 @@ const REFERENCE_MAPPING: {
     referenceExample: "Bar + Line Chart",
     familyId: "data_news",
     content: "Benchmark / 排名",
-    status: "部分可做",
-    next: "chart_story",
+    status: "已有基础",
+    next: "remotion_chart_story",
   },
   {
     referenceExample: "Ranking / Leaderboard",
     familyId: "data_news",
     content: "榜单 / Top 10",
-    status: "部分可做",
-    next: "ranking_strip",
+    status: "已有基础",
+    next: "remotion_ranking_strip",
   },
   {
     referenceExample: "Product Demo",
@@ -700,50 +742,50 @@ const REFERENCE_MAPPING: {
     referenceExample: "Rocket Launches Timeline",
     familyId: "timeline",
     content: "事件演进 / 历史里程碑",
-    status: "待实现",
+    status: "已有基础",
     next: "remotion_timeline_news",
   },
   {
     referenceExample: "Travel Route Map",
     familyId: "timeline",
     content: "路线 / 路径展示",
-    status: "待实现",
-    next: "remotion_timeline_news（路线变体）",
+    status: "已有基础",
+    next: "remotion_timeline_route_map",
   },
   {
     referenceExample: "Three.js Ranking",
     familyId: "dashboard",
     content: "模型排行 / 3D 数据展示",
-    status: "待实现",
+    status: "已有基础",
     next: "remotion_dashboard_brief",
   },
   {
     referenceExample: "Benchmark dashboard",
     familyId: "dashboard",
     content: "Benchmark 矩阵 / 分数对比",
-    status: "待实现",
+    status: "已有基础",
     next: "remotion_dashboard_brief",
   },
   {
     referenceExample: "TikTok word-by-word captions",
     familyId: "subtitle_story",
     content: "口播 / 情绪 / 观点",
-    status: "待实现",
+    status: "已有基础",
     next: "remotion_caption_story",
   },
   {
     referenceExample: "Cinematic Tech Intro",
     familyId: "subtitle_story",
     content: "科技开场 / 品牌感",
-    status: "待实现",
-    next: "remotion_caption_story（intro 变体）",
+    status: "已有基础",
+    next: "remotion_caption_intro",
   },
   {
     referenceExample: "Transparent CTA overlay",
     familyId: "subtitle_story",
     content: "行动号召 / 透明叠加",
-    status: "待实现",
-    next: "remotion_caption_story（CTA 变体）",
+    status: "已有基础",
+    next: "remotion_cta_overlay",
   },
 ];
 
@@ -823,7 +865,16 @@ function ReferenceMappingPanel() {
                       {row.status}
                     </span>
                   </td>
-                  <td style={{ ...tdLabelStyle, fontSize: "0.75rem", color: "#475569" }}>{row.next}</td>
+                  <td style={{ ...tdLabelStyle, fontSize: "0.75rem", color: "#475569" }}>
+                    {row.next.startsWith("remotion_") ? (
+                      <Link
+                        to={`${REMOTION_GALLERY_BASE}&style_id=${row.next}`}
+                        style={{ color: "#2563eb", fontWeight: 700, textDecoration: "none" }}
+                      >
+                        {row.next}
+                      </Link>
+                    ) : row.next}
+                  </td>
                 </tr>
               );
             })}
@@ -915,6 +966,20 @@ export default function RemotionStyleFamilyPage() {
   const resolveUrl = (u: string) =>
     u && u.startsWith("/runtime/") ? `${API_BASE.replace(/\/video-lab$/, "")}${u}` : u || "";
 
+  const compareItems = compareResult ? [
+    { key: "dataNews", name: "Data News", color: "#7c3aed", note: "数字指标 / 新闻卡片", result: compareResult.dataNews },
+    { key: "cardStack", name: "Card Stack", color: "#2563eb", note: "卡片堆叠 / 信息流", result: compareResult.cardStack },
+    { key: "timelineNews", name: "Timeline", color: "#0891b2", note: "事件演进 / 时间线", result: compareResult.timelineNews },
+    { key: "dashboardBrief", name: "Dashboard", color: "#f59e0b", note: "指标看板 / 排行", result: compareResult.dashboardBrief },
+    { key: "captionStory", name: "Caption Story", color: "#ec4899", note: "大字旁白 / 叙事", result: compareResult.captionStory },
+  ].filter((item): item is {
+    key: string;
+    name: string;
+    color: string;
+    note: string;
+    result: CompareResult;
+  } => Boolean(item.result)) : [];
+
   return (
     <div style={{ padding: "2rem", maxWidth: "1100px", margin: "0 auto" }}>
       {/* Header */}
@@ -952,7 +1017,7 @@ export default function RemotionStyleFamilyPage() {
           进入 Style Sweep
         </Link>
         <Link
-          to="/video-lab/style-gallery"
+          to={REMOTION_GALLERY_BASE}
           style={{
             background: "#10b981",
             color: "white",
@@ -1288,6 +1353,40 @@ export default function RemotionStyleFamilyPage() {
                 </div>
               </div>
             </div>
+
+            {compareItems.length > 2 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.25rem", marginTop: "1.25rem" }}>
+                {compareItems.slice(2).map((item) => (
+                  <div key={item.key} style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden" }}>
+                    <div style={{ background: `linear-gradient(135deg, ${item.color}18 0%, ${item.color}08 100%)`, padding: "0.75rem 1rem", borderBottom: "1px solid #e2e8f0" }}>
+                      <div style={{ fontWeight: 700, fontSize: "0.9rem", color: item.color }}>{item.name}</div>
+                      <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{item.note}</div>
+                    </div>
+                    <div style={{ padding: "1rem" }}>
+                      {item.result.success && item.result.videoUrl ? (
+                        <>
+                          <video
+                            controls
+                            src={resolveUrl(item.result.videoUrl)}
+                            style={{ width: "100%", borderRadius: "8px", background: "#0f172a" }}
+                          />
+                          <div style={{ marginTop: "0.5rem", fontSize: "0.72rem", color: "#64748b" }}>
+                            {item.result.clipSeconds}s · {item.result.elapsedMs}ms
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ color: "#ef4444", fontSize: "0.82rem", padding: "1rem", textAlign: "center" }}>
+                          渲染失败：{item.result.message}
+                        </div>
+                      )}
+                      <div style={{ marginTop: "0.5rem", fontSize: "0.7rem", color: "#94a3b8", wordBreak: "break-all" }}>
+                        ID：{item.result.experimentId || "—"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Comparison summary */}
             <div
