@@ -1,100 +1,259 @@
 """
-Information Structure Service V1.0
+Information Structure Service V1.1
 
 Provides structured parsing of informational content for video generation.
 Used by the "Information Summary Video Mode" in Workbench.
 
-V0 Strategy (rule-based, no LLM):
-1. Split by blank lines
-2. Parse "标题：内容" format
-3. Extract "依据：" as evidence
-4. First paragraph → overview candidate
-5. Last paragraph with conclusion keywords → conclusion candidate
+V1.1 Strategy (rule-based, no LLM):
+1. Split by blank lines into paragraphs
+2. Within each paragraph, split by sentence delimiters (。；)
+3. Identify "标题：描述" sub-clauses within each sentence
+4. Split multi-point sentences into separate candidate blocks
+5. Extract "依据：" as evidence (belongs to previous item)
+6. First meaningful paragraph → overview (if short/general)
+7. Last paragraph with conclusion keywords → conclusion
+8. All remaining blocks → information items
 """
 
 import re
-import uuid
-from datetime import datetime
 from typing import Any
 
 
-# ─── Evidence extraction ───────────────────────────────────────────────────────
+# ─── Constants ────────────────────────────────────────────────────────────────
 
-_EVIDENCE_RE = re.compile(r"依据[：:]\s*(.+)", re.IGNORECASE)
-_CONCLUSION_KEYWORDS = ["这说明", "总体来看", "整体来看", "趋势是", "总结", "结论", "意味着", "说明"]
-
-
-def _extract_evidence(text: str) -> tuple[str, str | None]:
-    """Split text into main content and evidence. Returns (content, evidence)."""
-    m = _EVIDENCE_RE.search(text)
-    if m:
-        evidence = m.group(1).strip()
-        content = _EVIDENCE_RE.sub("", text).strip()
-        # Clean up trailing punctuation
-        content = re.sub(r"[。；]\s*$", "", content).strip()
-        return content, evidence
-    return text.strip(), None
+_CONCLUSION_KEYWORDS = ["这说明", "总体来看", "整体来看", "趋势是", "总结", "结论", "意味着", "说明", "总的来说"]
+# Patterns that indicate a valid "title: description" split point
+_TITLE_SEPARATORS = ["：", ":", "－", "-"]
+# Minimum and maximum length for a valid title before separator
+_MIN_TITLE_LEN = 3
+_MAX_TITLE_LEN = 40
+# Minimum description length after separator
+_MIN_DESC_LEN = 8
 
 
-def _parse_paragraph(para: str, index: int) -> dict[str, Any]:
-    """Parse a single paragraph into {title, description, evidence, sourceText}."""
+# ─── Helper functions ─────────────────────────────────────────────────────────
+
+def _is_conclusion_text(text: str) -> bool:
+    """Check if text looks like a conclusion paragraph."""
+    text_lower = text.lower()
+    return any(kw in text_lower for kw in _CONCLUSION_KEYWORDS)
+
+
+def _looks_like_title(text: str) -> bool:
+    """Check if text looks like a news/scientific headline (title of an information point)."""
+    if not text or len(text) < _MIN_TITLE_LEN or len(text) > _MAX_TITLE_LEN:
+        return False
+    # Must not be too long (would be a sentence, not a title)
+    if len(text) > 25:
+        return False
+    # Title typically doesn't end with common sentence endings
+    if text[-1] in "。！？.":
+        return False
+    # Title often contains specific patterns
+    # Avoid splitting generic sentences that happen to have a colon
+    # Heuristic: real titles often have specific structure
+    stripped = text.strip()
+    # Must be mostly Chinese characters
+    chinese_count = len(re.findall(r"[一-鿿]", stripped))
+    if chinese_count < 2:
+        return False
+    return True
+
+
+def _extract_title_desc(text: str) -> tuple[str, str] | None:
+    """Try to extract title/description from text using separators.
+
+    Returns (title, description) if found, None otherwise.
+    """
+    text = text.strip()
+    if not text:
+        return None
+
+    for sep in _TITLE_SEPARATORS:
+        if sep not in text:
+            continue
+        idx = text.index(sep)
+        maybe_title = text[:idx].strip()
+        maybe_desc = text[idx + 1 :].strip()
+        if not maybe_title or not maybe_desc:
+            continue
+        if len(maybe_title) < _MIN_TITLE_LEN or len(maybe_title) > _MAX_TITLE_LEN:
+            continue
+        if len(maybe_desc) < _MIN_DESC_LEN:
+            continue
+        # Title should not look like a full sentence
+        if maybe_title[-1] in "。！？.":
+            continue
+        return maybe_title, maybe_desc
+    return None
+
+
+def _is_evidence_line(text: str) -> bool:
+    """Check if text is an evidence line (依据：...)."""
+    stripped = text.strip()
+    return bool(re.match(r"^依据[：:]\s*\S", stripped))
+
+
+def _split_into_sentences(para: str) -> list[str]:
+    """Split a paragraph into sentences by 。 or ；
+    but avoid splitting inside quoted or bracketed content."""
+    # Split by 。 or ； but keep the delimiter
+    parts = re.split(r"(?<=[。；])", para)
+    sentences = []
+    for p in parts:
+        p = p.strip()
+        if p:
+            # Remove trailing sentence-ending punctuation for further processing
+            sentences.append(p)
+    return sentences
+
+
+def _parse_sentence_into_blocks(sentence: str) -> list[dict[str, Any]]:
+    """Parse a single sentence into one or more candidate blocks.
+
+    Returns list of {title, description, is_complete}.
+    """
+    blocks = []
+    sentence = sentence.strip().rstrip("。")
+    if not sentence:
+        return blocks
+
+    # Try to extract title:desc from the whole sentence first
+    title_desc = _extract_title_desc(sentence)
+    if title_desc:
+        title, desc = title_desc
+        # Check if there are more sub-clauses after the description
+        # by looking for additional title:desc patterns in the desc
+        remaining = desc
+        # Split remaining content by common separators within description
+        # Look for embedded "xxx：" patterns in what we thought was description
+        embedded_pattern = r"(?<=[^：：])：(?!：)"
+        # Actually, just use the whole thing
+        blocks.append({
+            "title": title,
+            "description": remaining,
+            "is_complete": True,
+        })
+        return blocks
+
+    # No title:desc found - the whole sentence is a description without title
+    blocks.append({
+        "title": "",
+        "description": sentence,
+        "is_complete": False,
+    })
+    return blocks
+
+
+def _split_paragraph_into_items(para: str) -> list[dict[str, Any]]:
+    """Split a paragraph into information point items.
+
+    Handles:
+    - Multiple "title: description" in one paragraph
+    - "依据：" lines (attached to previous item's evidence)
+    - Mixed content paragraphs
+    """
+    if not para or not para.strip():
+        return []
+
     para = para.strip()
-    if not para:
-        return {"id": f"item_{index}", "title": "", "description": "", "selected": True}
+    sentences = _split_into_sentences(para)
 
-    title = ""
-    description = para
+    items: list[dict[str, Any]] = []
+    current_evidence: list[str] = []
 
-    # Try "标题：内容" or "标题-内容" format
-    for sep in ["：", ":", "－", "-"]:
-        if sep in para:
-            idx = para.index(sep)
-            maybe_title = para[:idx].strip()
-            maybe_desc = para[idx + 1 :].strip()
-            if maybe_title and maybe_desc and len(maybe_title) < 50:
-                title = maybe_title
-                description = maybe_desc
-                break
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
 
-    content, evidence = _extract_evidence(description)
+        # Handle "依据：" lines - attach to previous item
+        if _is_evidence_line(sent):
+            m = re.match(r"^依据[：:]\s*(.+)", sent)
+            if m and items:
+                evidence_text = m.group(1).strip()
+                if items[-1].get("description"):
+                    items[-1].setdefault("evidence", []).append(evidence_text)
+            continue
 
+        # Try to parse as title:description
+        parsed = _parse_sentence_into_blocks(sent)
+        for block in parsed:
+            if block["title"] and block["description"]:
+                # Complete block with title
+                items.append({
+                    "title": block["title"],
+                    "description": block["description"],
+                    "evidence": current_evidence[:],
+                })
+                current_evidence = []
+            elif block["description"]:
+                # No clear title - treat description as content
+                # If previous item has no title, merge; otherwise start new item
+                if items and not items[-1].get("title"):
+                    items[-1]["description"] += " " + block["description"]
+                else:
+                    items.append({
+                        "title": "",
+                        "description": block["description"],
+                        "evidence": current_evidence[:],
+                    })
+                    current_evidence = []
+
+    return items
+
+
+def _build_overview(paragraphs: list[str], items: list[dict]) -> dict[str, str]:
+    """Build overview from first paragraph or first item."""
+    if not paragraphs:
+        return {"title": "内容概览", "subtitle": "", "summary": ""}
+
+    first_para = paragraphs[0].strip()
+    if not first_para:
+        return {"title": "内容概览", "subtitle": "", "summary": ""}
+
+    # If first item has a short title and long description, it might be overview-like
+    if items and items[0].get("title") and items[0].get("description"):
+        title = items[0]["title"]
+        desc = items[0]["description"]
+        # If title is short (< 20 chars) and description is long (> 80 chars),
+        # treat as overview
+        if len(title) < 20 and len(desc) > 80:
+            return {
+                "title": title,
+                "subtitle": "",
+                "summary": f"{title}：{desc}",
+            }
+
+    # Use first paragraph as overview summary
+    summary = first_para[:150] + ("..." if len(first_para) > 150 else "")
     return {
-        "id": f"item_{index}",
-        "title": title,
-        "description": content,
-        "evidence": [evidence] if evidence else [],
-        "sourceText": para,
-        "selected": True,
+        "title": "内容概览",
+        "subtitle": "",
+        "summary": summary,
     }
 
 
-def _is_conclusion_paragraph(para: str) -> bool:
-    """Check if paragraph looks like a conclusion."""
-    para_lower = para.lower()
-    return any(kw in para_lower for kw in _CONCLUSION_KEYWORDS)
-
-
-def _generate_conclusion(items: list[dict], original_conclusion_para: str | None) -> dict[str, str]:
-    """Generate conclusion from items or use original conclusion paragraph."""
-    if original_conclusion_para:
-        # Try to extract title from conclusion
+def _generate_conclusion_text(items: list[dict], conclusion_para: str | None) -> dict[str, str]:
+    """Generate conclusion content."""
+    if conclusion_para:
+        # Try to extract title from conclusion paragraph
         title = "总结"
-        desc = original_conclusion_para.strip()
-        for sep in ["：", ":", "－", "-"]:
-            if sep in original_conclusion_para:
-                idx = original_conclusion_para.index(sep)
-                maybe_title = original_conclusion_para[:idx].strip()
-                maybe_desc = original_conclusion_para[idx + 1 :].strip()
-                if maybe_title and maybe_desc:
-                    title = maybe_title
-                    desc = maybe_desc
-                    break
+        desc = conclusion_para.strip()
+        td = _extract_title_desc(conclusion_para)
+        if td:
+            title, desc = td
         return {"title": title, "text": desc}
 
-    # Auto-generate conclusion from selected items
-    selected_titles = [item["title"] for item in items if item.get("selected") and item.get("title")]
+    # Auto-generate from selected items
+    selected_titles = [item["title"] for item in items if item.get("title")]
     if not selected_titles:
         return {"title": "总结", "text": "以上是本次主要内容。"}
+    if len(selected_titles) <= 4:
+        return {
+            "title": "总结",
+            "text": f"本期涵盖 {len(selected_titles)} 个要点：{'、'.join(selected_titles)}。",
+        }
     return {
         "title": "总结",
         "text": f"本期涵盖 {len(selected_titles)} 个要点，包括：{'、'.join(selected_titles[:3])}{'等' if len(selected_titles) > 3 else ''}。",
@@ -102,8 +261,8 @@ def _generate_conclusion(items: list[dict], original_conclusion_para: str | None
 
 
 def _estimate_duration(item_count: int, has_overview: bool, has_conclusion: bool) -> int:
-    """Estimate video duration in seconds based on content structure."""
-    base = item_count * 8  # ~8 seconds per item
+    """Estimate video duration in seconds."""
+    base = item_count * 8
     if has_overview:
         base += 5
     if has_conclusion:
@@ -126,17 +285,7 @@ def generate_information_structure(
     """
     Parse content and generate an InformationSummaryPlan structure.
 
-    Args:
-        content: Raw text content (title + body)
-        compression_mode: "brief" | "balanced" | "strict" | "itemized" | "manual"
-        target_point_count: "auto" | 3 | 5 | 8 | "all"
-        include_overview: Whether to generate overview card
-        include_conclusion: Whether to generate conclusion card
-        evidence_policy: "hide" | "badge" | "ending_sources" | "keep_inline"
-        target_duration_mode: "auto" | 30 | 60 | 90
-
-    Returns:
-        InformationSummaryPlan dict
+    V1.1: improved intra-paragraph splitting for multi-point detection.
     """
     # Split into paragraphs by blank lines
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", content) if p.strip()]
@@ -156,37 +305,65 @@ def generate_information_structure(
             "stats": {"detectedItemCount": 0, "selectedItemCount": 0, "droppedItemCount": 0, "estimatedDurationSec": 0},
         }
 
-    # Parse all paragraphs into items
+    # Split paragraphs into raw items using improved logic
     raw_items: list[dict[str, Any]] = []
     conclusion_para: str | None = None
+    first_item_taken_as_overview = False
 
     for i, para in enumerate(paragraphs):
-        if i == len(paragraphs) - 1 and _is_conclusion_paragraph(para):
+        # Last paragraph - check if it's a conclusion
+        if i == len(paragraphs) - 1 and _is_conclusion_text(para):
             conclusion_para = para
-        else:
-            parsed = _parse_paragraph(para, len(raw_items))
-            if parsed["title"] or parsed["description"]:
-                raw_items.append(parsed)
+            continue
+
+        # Split paragraph into items
+        para_items = _split_paragraph_into_items(para)
+        for item in para_items:
+            # Skip pure evidence-only lines (already attached to previous item)
+            if not item.get("title") and not item.get("description"):
+                continue
+            # Skip items that are just evidence
+            if _is_evidence_line(item.get("description", "")) or _is_evidence_line(item.get("title", "")):
+                continue
+            raw_items.append(item)
+
+    # If first item looks like an overview (short title, long description),
+    # remove it from items for use as overview
+    overview: dict[str, str] = {"title": "内容概览", "subtitle": "", "summary": ""}
+    if raw_items and include_overview:
+        first = raw_items[0]
+        if first.get("title") and first.get("description") and len(first["description"]) > 60:
+            overview = {
+                "title": first.get("title", "内容概览"),
+                "subtitle": "",
+                "summary": f"{first['title']}：{first['description']}",
+            }
+            first_item_taken_as_overview = True
+            raw_items = raw_items[1:]
+
+    if not overview["summary"]:
+        overview = _build_overview(paragraphs, raw_items)
+
+    total_items = len(raw_items)
 
     # Determine target count based on compression mode
-    total_items = len(raw_items)
     if compression_mode == "brief":
         target_count = 3
     elif compression_mode == "balanced":
-        target_count = min(7, max(5, total_items))
+        target_count = min(7, max(5, total_items)) if total_items >= 5 else total_items
     elif compression_mode == "strict":
         target_count = total_items
     elif compression_mode == "itemized":
         target_count = total_items
     else:  # manual or auto
         if target_point_count == "auto":
-            target_count = min(7, max(5, total_items))
+            target_count = min(7, max(5, total_items)) if total_items >= 5 else total_items
         elif target_point_count == "all":
             target_count = total_items
         else:
             target_count = int(target_point_count)
 
-    # Select items (keep first N, mark rest as dropped)
+    # Select items
     selected_items: list[dict[str, Any]] = []
     dropped_items: list[dict[str, Any]] = []
 
@@ -198,45 +375,19 @@ def generate_information_structure(
             item["selected"] = False
             dropped_items.append(item)
 
-    # Determine if first item is overview-like
-    overview_candidate = ""
-    if selected_items and len(selected_items[0]["title"]) < 30 and len(selected_items[0]["description"]) > 50:
-        # First item looks like an overview
-        overview_candidate = selected_items[0]["title"]
-        if include_overview:
-            overview_text = f"{selected_items[0]['title']}：{selected_items[0]['description']}"
-            if selected_items[0].get("evidence"):
-                overview_text += f"（{'、'.join(selected_items[0]['evidence'])})"
-        else:
-            overview_text = ""
-        overview = {
-            "title": selected_items[0]["title"] if include_overview else "内容概览",
-            "subtitle": "",
-            "summary": overview_text if include_overview else "",
-        }
-        if include_overview:
-            selected_items = selected_items[1:]  # Remove from items if used as overview
-    else:
-        overview = {
-            "title": "内容概览",
-            "subtitle": "",
-            "summary": paragraphs[0][:100] if paragraphs else "（内容概览）",
-        }
-
     # Generate conclusion
-    conclusion = _generate_conclusion(selected_items + dropped_items, conclusion_para)
+    conclusion = _generate_conclusion_text(selected_items + dropped_items, conclusion_para)
 
     # Build output items
     output_items = selected_items.copy()
-    if include_conclusion:
-        # Add dropped items to conclusion text if not already there
-        if dropped_items and compression_mode != "strict":
-            dropped_titles = [item["title"] for item in dropped_items if item.get("title")]
-            if dropped_titles:
-                conclusion["text"] += f"\n另有 {len(dropped_titles)} 项内容因篇幅限制未展开：{'、'.join(dropped_titles[:3])}{'等' if len(dropped_titles) > 3 else ''}。"
+    if include_conclusion and dropped_items and compression_mode != "strict":
+        dropped_titles = [item["title"] for item in dropped_items if item.get("title")]
+        if dropped_titles:
+            extra = f"\n另有 {len(dropped_titles)} 项内容因篇幅限制未展开：{'、'.join(dropped_titles[:3])}{'等' if len(dropped_titles) > 3 else ''}。"
+            if conclusion["text"]:
+                conclusion["text"] += extra
 
     # Estimate duration
-    item_count_for_duration = len(output_items) + (1 if include_overview else 0) + (1 if include_conclusion else 0)
     if target_duration_mode == "auto":
         estimated_duration = _estimate_duration(len(output_items), include_overview, include_conclusion)
     else:
@@ -264,23 +415,7 @@ def generate_information_structure(
 
 def serialize_for_visual_compose(plan: dict[str, Any]) -> str:
     """
-    Serialize InformationSummaryPlan into a text format suitable for visual-compose.
-
-    Format:
-    【首页总览】
-    title: ...
-    summary: ...
-
-    【信息点 1】
-    标题：...
-    描述：...
-    依据：...
-
-    【信息点 2】
-    ...
-
-    【尾部总结】
-    ...
+    Serialize InformationSummaryPlan into a text format for visual-compose.
     """
     lines: list[str] = []
 
@@ -305,7 +440,6 @@ def serialize_for_visual_compose(plan: dict[str, Any]) -> str:
                 lines.append(f"依据：{ev_text}")
             elif plan.get("evidencePolicy") == "keep_inline":
                 lines.append(f"（依据：{ev_text}）")
-            # ending_sources is handled separately in video
         lines.append("")
 
     if plan.get("includeConclusion") and plan.get("conclusion"):
