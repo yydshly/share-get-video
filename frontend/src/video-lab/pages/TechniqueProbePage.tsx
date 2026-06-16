@@ -67,9 +67,16 @@ const GUIDE_STEPS = [
   { n: 1, t: "粘贴内容", d: "把一段 AI 资讯/报告原文放进下面的输入框" },
   { n: 2, t: "确认参数", d: "时长、要点数、是否用 LLM 规划（默认即可）" },
   { n: 3, t: "开始探测", d: "勾选确认后点击——会依次为每条技术各出一支完整短视频" },
-  { n: 4, t: "看排名与推荐", d: "系统按统一质量分排名，给出最适合这份内容的技术" },
-  { n: 5, t: "并排比成片", d: "三支成片并排播放，亲眼对比哪种最优雅好用" },
+  { n: 4, t: "并排对比", d: "三支成片并排播放，标注速度/成本/特点供你权衡" },
+  { n: 5, t: "你来挑", d: "质量分接近时，按你的取舍（速度/成本/风格）挑你中意的那条" },
 ];
+
+// 各路线的客观取舍维度（速度/成本/特点）——质量分接近时，靠这些做选择
+const ROUTE_META: Record<string, { speed: string; cost: string; trait: string; fit: string }> = {
+  local_frame_compose: { speed: "快（秒级渲染）", cost: "低（无生图）", trait: "干净静态卡 + Ken Burns 缓动", fit: "求快、稳定、批量" },
+  template_programmatic_render: { speed: "中（10-30秒）", cost: "低", trait: "动效：数字滚动 / 数据条 / 卡片", fit: "数据驱动、想要动感" },
+  ai_asset_then_compose: { speed: "慢（要 AI 生图）", cost: "高（图像 API）", trait: "AI 氛围背景 + 叠卡", fit: "追求视觉氛围、演示" },
+};
 
 export default function TechniqueProbePage() {
   const [content, setContent] = useState(DEFAULT_CONTENT);
@@ -124,13 +131,12 @@ export default function TechniqueProbePage() {
   const resultByRoute = (route: string) =>
     data?.results.find((r) => r.visualRoute === route);
 
-  const medal = (rank: number) => (rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`);
 
   return (
     <div style={{ padding: "2rem", maxWidth: 1100, margin: "0 auto" }}>
       <h1 style={{ fontSize: "1.6rem", fontWeight: 700, marginBottom: "0.25rem" }}>🔎 最佳技术探测台</h1>
       <p style={{ color: "#64748b", marginBottom: "1.5rem" }}>
-        投一份内容，自动让每种技术各出一支完整短视频，按统一质量分排名，告诉你哪种最适合。
+        投一份内容，每种技术各出一支完整短视频，并排标注速度/成本/特点——质量分接近时由你按取舍挑。
       </p>
 
       {/* 数据驱动推荐（基于历史真实评分，非写死） */}
@@ -221,34 +227,41 @@ export default function TechniqueProbePage() {
       {/* 结果：推荐 + 排名 + 并排成片 */}
       {data && (
         <div style={{ marginTop: "2rem" }}>
-          {/* 推荐横幅 */}
-          <div style={{ background: data.recommendedRoute ? "linear-gradient(135deg,#059669,#10b981)" : "#64748b", color: "white", borderRadius: 12, padding: "1.25rem 1.5rem", marginBottom: "1.5rem" }}>
-            <div style={{ fontSize: "0.8rem", opacity: 0.85 }}>探测结论（{data.succeededCount}/{data.totalCount} 成功）</div>
-            <div style={{ fontSize: "1.3rem", fontWeight: 700 }}>
-              {data.recommendedRoute ? `推荐技术：${data.recommendedDisplayName}` : "本次无成功路线，请检查 API 配置或内容"}
+          {/* 对比横幅 —— 不替你拍板，给你权衡依据，由你挑 */}
+          <div style={{ background: data.succeededCount > 0 ? "linear-gradient(135deg,#0e7490,#0891b2)" : "#64748b", color: "white", borderRadius: 12, padding: "1.25rem 1.5rem", marginBottom: "1rem" }}>
+            <div style={{ fontSize: "0.8rem", opacity: 0.85 }}>{data.succeededCount}/{data.totalCount} 条成功出片</div>
+            <div style={{ fontSize: "1.15rem", fontWeight: 700 }}>
+              {data.succeededCount > 0 ? "三条都出片了 —— 按你的取舍挑一条" : "本次无成功路线，请检查 API 配置或内容"}
             </div>
+            {data.succeededCount > 0 && (
+              <div style={{ fontSize: "0.82rem", opacity: 0.9, marginTop: 4 }}>
+                质量分接近时分不出高下，<b>看速度 / 成本 / 风格挑你中意的</b>。质量分仅供参考{data.recommendedDisplayName ? `（本次参考分最高：${data.recommendedDisplayName}）` : ""}。
+              </div>
+            )}
           </div>
 
           {/* 排名 + 成片并排 */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1.25rem" }}>
             {data.ranking.map((item) => {
               const r = resultByRoute(item.visualRoute);
-              const isTop = item.rank === 1 && item.status === "succeeded";
+              const meta = ROUTE_META[item.visualRoute];
               return (
-                <div key={item.visualRoute} style={{ background: "white", border: isTop ? "2px solid #10b981" : "1px solid #e2e8f0", borderRadius: 12, padding: "1rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "0.75rem" }}>
-                    <span style={{ fontSize: "1.2rem" }}>{medal(item.rank)}</span>
-                    <strong style={{ fontSize: "0.95rem" }}>{item.displayName}</strong>
+                <div key={item.visualRoute} style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "1rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "0.5rem" }}>
+                    <strong style={{ fontSize: "0.98rem" }}>{item.displayName}</strong>
                     {item.combinedScore !== null && (
-                      <span style={{ marginLeft: "auto", background: isTop ? "#059669" : "#1f6feb", color: "white", borderRadius: 10, padding: "2px 10px", fontSize: "0.78rem", fontWeight: 600 }}>
-                        综合 {item.combinedScore}
+                      <span title="质量分仅供参考，分不开时由你定" style={{ marginLeft: "auto", color: "#64748b", border: "1px solid #e2e8f0", borderRadius: 10, padding: "1px 8px", fontSize: "0.72rem" }}>
+                        参考分 {item.combinedScore}
                       </span>
                     )}
                   </div>
-                  {item.status === "succeeded" && (
-                    <div style={{ fontSize: "0.72rem", color: "#64748b", marginBottom: "0.6rem" }}>
-                      结构 {item.score ?? "—"}/5 · 视觉 {item.visualScore ?? "—"}/5
-                      <span style={{ color: "#94a3b8" }}>（综合 0-100 = 结构、视觉各×20 后各半）</span>
+                  {/* 客观取舍维度 —— 真正帮你选的依据 */}
+                  {meta && item.status === "succeeded" && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.6rem" }}>
+                      <span style={{ fontSize: "0.72rem", background: "#f0fdfa", color: "#0f766e", borderRadius: 6, padding: "2px 7px" }}>⚡ {meta.speed}</span>
+                      <span style={{ fontSize: "0.72rem", background: "#fffbeb", color: "#92400e", borderRadius: 6, padding: "2px 7px" }}>💰 {meta.cost}</span>
+                      <span style={{ fontSize: "0.72rem", background: "#f5f3ff", color: "#6d28d9", borderRadius: 6, padding: "2px 7px" }}>🎨 {meta.trait}</span>
+                      <span style={{ fontSize: "0.72rem", color: "#94a3b8", padding: "2px 2px" }}>适合：{meta.fit}</span>
                     </div>
                   )}
 
