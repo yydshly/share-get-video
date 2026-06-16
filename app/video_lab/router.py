@@ -421,6 +421,7 @@ class InformationStructureRequest(BaseModel):
     include_conclusion: bool = Field(default=True, description="是否生成尾部总结")
     evidence_policy: str = Field(default="ending_sources", description="隐藏 | 角标 | 片尾来源 | 原文保留")
     target_duration_mode: str = Field(default="auto", description="自动匹配信息量 | 30秒快讯 | 60秒标准总结 | 90秒完整展开")
+    input_profile: str = Field(default="auto", description="auto | report_overview_items")
 
 
 @router.post("/information-structure")
@@ -443,6 +444,7 @@ def generate_information_structure(request: InformationStructureRequest) -> dict
         include_conclusion=request.include_conclusion,
         evidence_policy=request.evidence_policy,
         target_duration_mode=request.target_duration_mode,
+        input_profile=request.input_profile,
     )
 
     # Also provide serialized version for visual-compose

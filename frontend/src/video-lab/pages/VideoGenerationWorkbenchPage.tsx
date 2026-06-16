@@ -89,6 +89,7 @@ type CompressionMode = "brief" | "balanced" | "strict" | "itemized" | "manual";
 type TargetPointCount = "auto" | "3" | "5" | "8" | "all";
 type EvidencePolicy = "hide" | "badge" | "ending_sources" | "keep_inline";
 type DurationMode = "auto" | "30" | "60" | "90";
+type InputProfile = "auto" | "report_overview_items";
 
 interface InformationSummaryPlan {
   mode: GenerationMode;
@@ -98,6 +99,7 @@ interface InformationSummaryPlan {
   includeConclusion: boolean;
   evidencePolicy: EvidencePolicy;
   targetDurationMode: DurationMode;
+  inputProfile?: InputProfile;
   overview: { title: string; subtitle: string; summary: string };
   items: Array<{
     id: string;
@@ -456,12 +458,16 @@ export default function VideoGenerationWorkbenchPage() {
   const [includeConclusion, setIncludeConclusion] = useState(true);
   const [evidencePolicy, setEvidencePolicy] = useState<EvidencePolicy>("ending_sources");
   const [targetDurationMode, setTargetDurationMode] = useState<DurationMode>("auto");
+  const [inputProfile, setInputProfile] = useState<InputProfile>("report_overview_items");
 
   // V1.2.1.1: Helper - compute input fingerprint
   const getCurrentInputFingerprint = () => {
     const text = [title.trim(), body.trim()].filter(Boolean).join("\n\n");
     return `${text.length}:${text.slice(0, 80)}:${text.slice(-80)}`;
   };
+
+  const inputProfileLabel = (value: InputProfile | undefined) =>
+    value === "report_overview_items" ? "报告型：首段总览 + 后续信息点" : "自动识别";
 
   // V1.2.1.1: Helper - clear info summary plan (call on any input/param change)
   const clearInfoSummaryPlan = () => {
@@ -648,6 +654,7 @@ export default function VideoGenerationWorkbenchPage() {
           include_conclusion: includeConclusion,
           evidence_policy: evidencePolicy,
           target_duration_mode: targetDurationMode,
+          input_profile: inputProfile,
         }),
       });
       const data = await resp.json();
@@ -1149,6 +1156,19 @@ export default function VideoGenerationWorkbenchPage() {
           {generationMode === "information_summary" && (
             <div style={{ marginTop: "0.85rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.5rem" }}>
+                {/* Input Profile */}
+                <div>
+                  <label style={{ fontSize: "0.72rem", color: "#64748b", display: "block", marginBottom: 2 }}>输入格式</label>
+                  <select
+                    value={inputProfile}
+                    onChange={(e) => { setInputProfile(e.target.value as InputProfile); clearInfoSummaryPlan(); }}
+                    style={{ width: "100%", padding: "0.3rem 0.5rem", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.78rem" }}
+                  >
+                    <option value="report_overview_items">报告型：首段总览 + 后续信息点</option>
+                    <option value="auto">自动识别</option>
+                  </select>
+                </div>
+
                 {/* Compression Mode */}
                 <div>
                   <label style={{ fontSize: "0.72rem", color: "#64748b", display: "block", marginBottom: 2 }}>内容处理模式</label>
@@ -1273,6 +1293,16 @@ export default function VideoGenerationWorkbenchPage() {
                     )}
                   </div>
 
+                  <div style={{ fontSize: "0.7rem", color: "#475569", marginBottom: "0.5rem", padding: "0.35rem 0.5rem", background: "#f8fafc", borderRadius: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <span>输入格式：{inputProfileLabel(infoSummaryPlan.inputProfile)}</span>
+                    <span>总览：{infoSummaryPlan.overview?.summary ? "已识别" : "未识别"}</span>
+                    <span>信息点：{infoSummaryPlan.stats.detectedItemCount} 条</span>
+                    <span>
+                      依据：{infoSummaryPlan.items.reduce((sum, item) => sum + (item.evidence?.length || 0), 0)} 条
+                    </span>
+                    <span>预计时长：{infoSummaryPlan.stats.estimatedDurationSec} 秒</span>
+                  </div>
+
                   {infoSummaryPlan.includeOverview && infoSummaryPlan.overview && (
                     <div style={{ marginBottom: "0.6rem", padding: "0.5rem", background: "#f0fdfa", borderRadius: 6, borderLeft: "3px solid #0f766e" }}>
                       <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#0f766e" }}>🏠 首页总览：{infoSummaryPlan.overview.title}</div>
@@ -1283,12 +1313,12 @@ export default function VideoGenerationWorkbenchPage() {
                   )}
 
                   <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#475569", marginBottom: "0.3rem" }}>
-                    📌 信息点（{infoSummaryPlan.stats.selectedItemCount}/{infoSummaryPlan.stats.detectedItemCount} 已选）
+                    📌 信息点列表（{infoSummaryPlan.stats.selectedItemCount}/{infoSummaryPlan.stats.detectedItemCount} 已选）
                   </div>
                   {infoSummaryPlan.items.map((item, i) => (
                     <div key={item.id} style={{ marginBottom: "0.4rem", padding: "0.4rem 0.5rem", background: "#f8fafc", borderRadius: 5, borderLeft: `3px solid ${item.selected ? "#16a34a" : "#94a3b8"}` }}>
                       <div style={{ fontSize: "0.72rem", fontWeight: 600, color: item.selected ? "#16a34a" : "#94a3b8" }}>
-                        {i + 1}. {item.title || "(无标题)"}
+                        {i + 1}. {item.title || `信息点 ${i + 1}`}
                       </div>
                       {item.description && (
                         <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: 1 }}>{item.description.slice(0, 60)}{item.description.length > 60 ? "..." : ""}</div>

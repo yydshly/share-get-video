@@ -30,6 +30,10 @@ _MAX_TITLE_LEN = 40
 # Minimum description length after separator
 _MIN_DESC_LEN = 8
 
+_INPUT_PROFILE_AUTO = "auto"
+_INPUT_PROFILE_REPORT_OVERVIEW_ITEMS = "report_overview_items"
+_VALID_INPUT_PROFILES = {_INPUT_PROFILE_AUTO, _INPUT_PROFILE_REPORT_OVERVIEW_ITEMS}
+
 
 # ─── Helper functions ─────────────────────────────────────────────────────────
 
@@ -270,6 +274,188 @@ def _estimate_duration(item_count: int, has_overview: bool, has_conclusion: bool
     return max(15, base)
 
 
+def _split_report_paragraphs(content: str) -> list[str]:
+    """Split report input into non-empty paragraphs while preserving paragraph text."""
+    return [p.strip() for p in re.split(r"\n\s*\n", content or "") if p.strip()]
+
+
+def _derive_report_overview_title(summary: str) -> str:
+    """Derive a compact title from the first report paragraph without inventing facts."""
+    text = (summary or "").strip()
+    if not text:
+        return "内容概览"
+    first_clause = re.split(r"[。；;，,\n]", text, maxsplit=1)[0].strip()
+    title_candidate = first_clause.split("：", 1)[0].split(":", 1)[0].strip()
+    if 4 <= len(title_candidate) <= 24:
+        return title_candidate
+    if 4 <= len(first_clause) <= 24:
+        return first_clause
+    return "内容概览"
+
+
+def _extract_report_conclusion_from_overview(summary: str) -> str:
+    """Copy a final trend/conclusion sentence from overview when it is explicit."""
+    sentences = [s.strip() for s in re.split(r"(?<=[。！？])", summary or "") if s.strip()]
+    if not sentences:
+        return ""
+    last_sentence = sentences[-1]
+    if any(kw in last_sentence for kw in ["整体来看", "总体来看", "总结", "结论", "趋势"]):
+        return last_sentence
+    return ""
+
+
+def _is_report_evidence_line(line: str) -> bool:
+    return bool(re.match(r"^依据[：:]\s*\S", (line or "").strip()))
+
+
+def _split_report_title_desc(text: str) -> tuple[str, str]:
+    stripped = (text or "").strip()
+    for sep in ("：", ":"):
+        if sep in stripped:
+            title, desc = stripped.split(sep, 1)
+            return title.strip(), desc.strip()
+    return "", stripped
+
+
+def _parse_report_item_paragraph(paragraph: str, index: int) -> dict[str, Any] | None:
+    lines = [line.strip() for line in paragraph.splitlines() if line.strip()]
+    if not lines:
+        return None
+
+    item_lines: list[str] = []
+    evidence: list[str] = []
+    for line in lines:
+        if _is_report_evidence_line(line):
+            ev = re.sub(r"^依据[：:]\s*", "", line).strip()
+            if ev:
+                evidence.append(ev)
+        else:
+            item_lines.append(line)
+
+    item_text = " ".join(item_lines).strip()
+    if not item_text:
+        return None
+
+    title, description = _split_report_title_desc(item_text)
+    return {
+        "id": f"item-{index}",
+        "title": title,
+        "description": description,
+        "evidence": evidence,
+        "sourceText": paragraph.strip(),
+    }
+
+
+def _select_items(
+    raw_items: list[dict[str, Any]],
+    compression_mode: str,
+    target_point_count: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    total_items = len(raw_items)
+    if compression_mode == "brief":
+        target_count = 3
+    elif compression_mode == "balanced":
+        target_count = min(7, max(5, total_items)) if total_items >= 5 else total_items
+    elif compression_mode in {"strict", "itemized"}:
+        target_count = total_items
+    else:
+        if target_point_count == "auto":
+            target_count = min(7, max(5, total_items)) if total_items >= 5 else total_items
+        elif target_point_count == "all":
+            target_count = total_items
+        else:
+            target_count = int(target_point_count)
+
+    selected_items: list[dict[str, Any]] = []
+    dropped_items: list[dict[str, Any]] = []
+    for i, item in enumerate(raw_items):
+        item = item.copy()
+        if i < target_count:
+            item["selected"] = True
+            selected_items.append(item)
+        else:
+            item["selected"] = False
+            dropped_items.append(item)
+    return selected_items, dropped_items
+
+
+def _generate_report_overview_items_structure(
+    content: str,
+    *,
+    compression_mode: str,
+    target_point_count: str,
+    include_overview: bool,
+    include_conclusion: bool,
+    evidence_policy: str,
+    target_duration_mode: str,
+) -> dict[str, Any]:
+    paragraphs = _split_report_paragraphs(content)
+    if not paragraphs:
+        return {
+            "mode": "information_summary",
+            "inputProfile": _INPUT_PROFILE_REPORT_OVERVIEW_ITEMS,
+            "compressionMode": compression_mode,
+            "targetPointCount": target_point_count,
+            "includeOverview": include_overview,
+            "includeConclusion": include_conclusion,
+            "evidencePolicy": evidence_policy,
+            "targetDurationMode": target_duration_mode,
+            "overview": {"title": "内容概览", "subtitle": "", "summary": "（未识别到内容）"},
+            "items": [],
+            "conclusion": {"title": "总结", "text": ""},
+            "stats": {"detectedItemCount": 0, "selectedItemCount": 0, "droppedItemCount": 0, "estimatedDurationSec": 0},
+        }
+
+    overview_summary = paragraphs[0]
+    overview = {
+        "title": _derive_report_overview_title(overview_summary),
+        "subtitle": "",
+        "summary": overview_summary,
+    }
+
+    item_paragraphs = paragraphs[1:]
+    explicit_conclusion = ""
+    if item_paragraphs and _is_conclusion_text(item_paragraphs[-1]):
+        explicit_conclusion = item_paragraphs[-1]
+        item_paragraphs = item_paragraphs[:-1]
+
+    raw_items: list[dict[str, Any]] = []
+    for paragraph in item_paragraphs:
+        item = _parse_report_item_paragraph(paragraph, len(raw_items) + 1)
+        if item:
+            raw_items.append(item)
+
+    selected_items, dropped_items = _select_items(raw_items, compression_mode, target_point_count)
+    conclusion_text = explicit_conclusion or _extract_report_conclusion_from_overview(overview_summary)
+    conclusion = {"title": "总结", "text": conclusion_text}
+    output_items = selected_items.copy()
+
+    if target_duration_mode == "auto":
+        estimated_duration = _estimate_duration(len(output_items), include_overview, include_conclusion)
+    else:
+        estimated_duration = int(target_duration_mode)
+
+    return {
+        "mode": "information_summary",
+        "inputProfile": _INPUT_PROFILE_REPORT_OVERVIEW_ITEMS,
+        "compressionMode": compression_mode,
+        "targetPointCount": target_point_count,
+        "includeOverview": include_overview,
+        "includeConclusion": include_conclusion,
+        "evidencePolicy": evidence_policy,
+        "targetDurationMode": target_duration_mode,
+        "overview": overview if include_overview else {"title": "", "subtitle": "", "summary": ""},
+        "items": output_items,
+        "conclusion": conclusion if include_conclusion else {"title": "", "text": ""},
+        "stats": {
+            "detectedItemCount": len(raw_items),
+            "selectedItemCount": len(output_items),
+            "droppedItemCount": len(dropped_items),
+            "estimatedDurationSec": estimated_duration,
+        },
+    }
+
+
 # ─── Main public function ─────────────────────────────────────────────────────
 
 def generate_information_structure(
@@ -281,18 +467,34 @@ def generate_information_structure(
     include_conclusion: bool = True,
     evidence_policy: str = "ending_sources",
     target_duration_mode: str = "auto",
+    input_profile: str = "auto",
 ) -> dict[str, Any]:
     """
     Parse content and generate an InformationSummaryPlan structure.
 
     V1.1: improved intra-paragraph splitting for multi-point detection.
     """
+    if input_profile not in _VALID_INPUT_PROFILES:
+        input_profile = _INPUT_PROFILE_AUTO
+
+    if input_profile == _INPUT_PROFILE_REPORT_OVERVIEW_ITEMS:
+        return _generate_report_overview_items_structure(
+            content,
+            compression_mode=compression_mode,
+            target_point_count=target_point_count,
+            include_overview=include_overview,
+            include_conclusion=include_conclusion,
+            evidence_policy=evidence_policy,
+            target_duration_mode=target_duration_mode,
+        )
+
     # Split into paragraphs by blank lines
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", content) if p.strip()]
 
     if not paragraphs:
         return {
             "mode": "information_summary",
+            "inputProfile": _INPUT_PROFILE_AUTO,
             "compressionMode": compression_mode,
             "targetPointCount": target_point_count,
             "includeOverview": include_overview,
@@ -395,6 +597,7 @@ def generate_information_structure(
 
     return {
         "mode": "information_summary",
+        "inputProfile": _INPUT_PROFILE_AUTO,
         "compressionMode": compression_mode,
         "targetPointCount": target_point_count,
         "includeOverview": include_overview,
