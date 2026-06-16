@@ -661,6 +661,16 @@ def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
+@router.get("/route-recommendation")
+def route_recommendation() -> dict[str, Any]:
+    """数据驱动的"最佳路线"推荐：读取真实累计评分（quality_log）算出，而非写死。
+
+    无数据时返回 dataDriven=false + 引导文案，不编造结论。
+    """
+    from app.video_lab.route_recommendation import recommend_route
+    return recommend_route()
+
+
 @router.post("/technique-probe")
 def technique_probe(request: TechniqueProbeRequest) -> dict[str, Any]:
     """最佳技术探测：一份内容 → 多路线各出整片 → 统一质量分排名 → 推荐路线。
