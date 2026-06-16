@@ -576,7 +576,7 @@ export default function VideoGenerationWorkbenchPage() {
   const buildSourceBoundShot = (): { headline: string; display: string; emphasisTerms: string[] } => {
     const headline = (infoSummaryPlan?.overview?.title || title).trim();
     const firstItem = infoSummaryPlan?.items?.find((it) => it.selected);
-    const display = (firstItem?.description || infoSummaryPlan?.overview?.summary || body).trim();
+    const display = (firstItem?.description || infoSummaryPlan?.overview?.summary || headline).trim();
     const emphasisTerms = (infoSummaryPlan?.items || [])
       .filter((it) => it.selected)
       .slice(0, 5)
@@ -588,10 +588,14 @@ export default function VideoGenerationWorkbenchPage() {
   const buildVisualRouteParams = (): Record<string, unknown> => {
     let targetDuration = 45;
     let keyPointCount = 3;
+    const selectedItems =
+      generationMode === "information_summary" && infoSummaryPlan
+        ? infoSummaryPlan.items.filter((it) => it.selected)
+        : [];
 
     if (generationMode === "information_summary" && infoSummaryPlan) {
       targetDuration = infoSummaryPlan.stats.estimatedDurationSec || 60;
-      keyPointCount = infoSummaryPlan.items.length || 5;
+      keyPointCount = selectedItems.length;
     }
 
     const isInfoSummaryMode = generationMode === "information_summary" && infoSummaryPlan;
@@ -611,7 +615,11 @@ export default function VideoGenerationWorkbenchPage() {
             strictSourceMode: true,
             generationMode: "information_summary",
             inputFingerprint: infoSummaryInputFingerprint,
-            planItemCount: infoSummaryPlan!.items.filter((it) => it.selected).length,
+            planItemCount: selectedItems.length,
+            informationSummaryPlan: {
+              ...infoSummaryPlan!,
+              items: selectedItems,
+            },
             planOverviewTitle: infoSummaryPlan!.overview?.title || "",
             planConclusionTitle: infoSummaryPlan!.conclusion?.title || "",
           }

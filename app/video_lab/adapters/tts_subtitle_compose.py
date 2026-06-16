@@ -29,6 +29,10 @@ from app.video_lab.planners.content_structurer import structure_content
 from app.video_lab.planners.key_point_extractor import extract_key_points
 from app.video_lab.planners.voiceover_planner import generate_voiceover
 from app.video_lab.planners.subtitle_planner import generate_srt_from_segments, generate_ass_from_segments, DEFAULT_ASS_STYLE
+from app.video_lab.planners.source_bound_plan import (
+    build_source_bound_plan_from_information_summary,
+    build_structured_from_information_summary_plan,
+)
 from app.video_lab.providers.minimax import MiniMaxTTSClient, MiniMaxTTSError
 from app.video_lab.renderers.file_store import (
     get_experiment_dir,
@@ -73,6 +77,17 @@ def make_step(
     )
 
 
+def _is_source_bound_information_summary(params: dict) -> bool:
+    return (
+        isinstance(params, dict)
+        and params.get("generationMode") == "information_summary"
+        and params.get("sourceBound") is True
+        and params.get("allowNewFacts") is False
+        and params.get("strictSourceMode") is True
+        and isinstance(params.get("informationSummaryPlan"), dict)
+    )
+
+
 def run_tts_subtitle_compose(
     experiment_id: str,
     test_case_id: str,
@@ -107,6 +122,8 @@ def run_tts_subtitle_compose(
     steps = []
     all_logs = []
     all_warnings: list[str] = []
+    is_source_bound_information_summary = _is_source_bound_information_summary(params)
+    source_bound_provenance: dict = {}
     tts_client = MiniMaxTTSClient()
 
     ensure_runtime_exists()
@@ -127,7 +144,7 @@ def run_tts_subtitle_compose(
     all_logs.extend(step1.logs)
 
     # Step 2: structure content
-    if not raw_content:
+    if not raw_content and not is_source_bound_information_summary:
         step2 = make_step(
             step_id=f"{experiment_id}_step_02_structure",
             name="Structure Content",
@@ -141,7 +158,12 @@ def run_tts_subtitle_compose(
         all_logs.extend(step2.logs)
         return _build_failed_result(experiment_id, method_category, steps, "content is required")
 
-    structured = structure_content(raw_content, test_case_id)
+    if is_source_bound_information_summary:
+        info_plan = params["informationSummaryPlan"]
+        structured = build_structured_from_information_summary_plan(info_plan)
+    else:
+        info_plan = None
+        structured = structure_content(raw_content, test_case_id)
     artifact_normalized = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_normalized",
         type=ArtifactType.NORMALIZED_CONTENT,
@@ -152,28 +174,48 @@ def run_tts_subtitle_compose(
     step2 = make_step(
         step_id=f"{experiment_id}_step_02_structure",
         name="Structure Content",
-        description="Split raw text into structured format",
+        description="Build structured format",
         status=ProductionStepStatus.SUCCEEDED,
-        input_summary="Raw text",
+        input_summary="informationSummaryPlan" if is_source_bound_information_summary else "Raw text",
         output_summary=f"Lead + {structured.get('totalItems', 0)} items",
         key_data={"leadLength": len(structured.get("lead", "")), "itemCount": structured.get("totalItems", 0)},
-        logs=["[2/9] Structure content", f"  Items: {structured.get('totalItems', 0)}"],
+        logs=(
+            ["[2/9] Structure content", f"  Items: {structured.get('totalItems', 0)}", "  Source: informationSummaryPlan"]
+            if is_source_bound_information_summary
+            else ["[2/9] Structure content", f"  Items: {structured.get('totalItems', 0)}"]
+        ),
         artifacts=[artifact_normalized],
     )
     steps.append(step2)
     all_logs.extend(step2.logs)
 
     # Step 3: plan shots (LLM 规划展示方式，失败回退确定性)；构建 key_points
-    from app.video_lab.planners.llm_content_planner import plan_shots
-    use_llm_plan = params.get("useLlmPlan", True) if isinstance(params, dict) else True
-    plan = plan_shots(
-        raw_content,
-        max_items=render_params.key_point_count,
-        test_case_id=test_case_id,
-        use_llm=use_llm_plan,
-        target_duration_sec=float(target_duration),  # V0.8.3: 旁白时长预算
-    )
+    if is_source_bound_information_summary:
+        plan = build_source_bound_plan_from_information_summary(
+            info_plan or {},
+            target_duration_sec=float(target_duration),
+        )
+    else:
+        from app.video_lab.planners.llm_content_planner import plan_shots
+        use_llm_plan = params.get("useLlmPlan", True) if isinstance(params, dict) else True
+        plan = plan_shots(
+            raw_content,
+            max_items=render_params.key_point_count,
+            test_case_id=test_case_id,
+            use_llm=use_llm_plan,
+            target_duration_sec=float(target_duration),  # V0.8.3: 旁白时长预算
+        )
     plan_shots_list = plan.get("shots", [])
+    if is_source_bound_information_summary:
+        source_bound_provenance = {
+            "generationMode": "information_summary",
+            "sourceBound": True,
+            "allowNewFacts": False,
+            "strictSourceMode": True,
+            "planSource": "informationSummaryPlan",
+            "planItemCount": len(plan_shots_list),
+            "inputFingerprint": params.get("inputFingerprint", ""),
+        }
     # 用规划好的封面标题作为 lead（封面更干净）
     if plan.get("coverTitle"):
         structured["lead"] = plan["coverTitle"]
@@ -659,6 +701,8 @@ def run_tts_subtitle_compose(
             "volume": av_result.get("bgm_volume", 0.0),
         },
     }
+    if source_bound_provenance:
+        manifest.update(source_bound_provenance)
     write_manifest(experiment_id, manifest)
 
     # V0.8.2: Add planDebug to manifest for cheap post-hoc diagnosis
@@ -716,6 +760,8 @@ def run_tts_subtitle_compose(
             "voiceoverSegments": _plan_debug_segments,
             "budgetDebug": _budget_debug,
         }
+        if source_bound_provenance:
+            manifest["planDebug"]["sourceBoundProvenance"] = source_bound_provenance
         # Persist updated manifest (with planDebug) back to disk
         write_manifest(experiment_id, manifest)
     except Exception as _e:  # pragma: no cover - diagnostic-only, must never break flow
@@ -801,6 +847,7 @@ def run_tts_subtitle_compose(
             "format": "mp4",
             "qualityScore": quality_dict["overallScore"],
             "qualityDimensions": quality_dict["dimensionScores"],
+            **source_bound_provenance,
         },
         logs=all_logs,
         provider="MiniMax TTS",
@@ -816,6 +863,7 @@ def run_tts_subtitle_compose(
             "ttsSuccess": True,
             "warnings": all_warnings,
             "quality": quality_dict,
+            **source_bound_provenance,
             "riskAssessment": {
                 "accuracy": "high - text precise and controllable",
                 "stability": "medium - depends on TTS API stability",
