@@ -3,6 +3,7 @@ Clip Preview Service — extracted from router.py V1.0.2.
 
 Provides run_clip_preview_contract() which implements the /clip-preview business logic.
 V1 contract: always returns success/status/contractStatus/artifacts/error/rawOutput.
+V1.0.4: also returns jobRun (JobRun v1 status contract).
 """
 
 import logging
@@ -11,6 +12,13 @@ from typing import Any
 
 from app.video_lab.errors import make_error
 from app.video_lab.experiment_manifest import build_experiment_manifest, write_experiment_manifest
+from app.video_lab.job_run import (
+    JobRun,
+    JOB_STAGE_FAILED,
+    JOB_STAGE_MANIFEST,
+    JOB_STAGE_VISUAL_RENDER,
+    new_job_id,
+)
 from app.video_lab.renderers.frame_preview import render_clip_preview
 from app.video_lab.renderers.visual_profiles import merge_visual_profile
 from app.video_lab.run_context import RunContext
@@ -26,18 +34,30 @@ def run_clip_preview_contract(request) -> dict[str, Any]:
     - Pillow / AI素材: Ken Burns (slow zoom + fade-in)
 
     V1 contract: always returns success/status/contractStatus/artifacts/error/rawOutput.
+    V1.0.4: also returns jobRun (sync task status tracking).
 
     Args:
         request: ClipPreviewRequest object
 
     Returns:
-        dict with V1 contract fields: success, status, contractStatus, artifacts,
-        logs, warnings, error, rawOutput.
+        dict with V1 contract fields, plus jobRun.
     """
     run_ctx = RunContext(
         mode="preview",
         route_id=request.visualRoute,
     )
+
+    # V1.0.4: Create JobRun for sync task status tracking.
+    job_run = JobRun(
+        job_id=new_job_id(),
+        run_id=run_ctx.run_id,
+        experiment_id=run_ctx.experiment_id,
+        mode=run_ctx.mode,
+        route_id=request.visualRoute,
+    )
+    job_run.mark_running(stage=JOB_STAGE_VISUAL_RENDER, progress=30)
+    job_run.log(f"[job {job_run.job_id}] starting clip-preview route={request.visualRoute}")
+
     params = dict(request.params or {})
 
     # V1 VisualProfile: merge profile defaults
@@ -63,6 +83,9 @@ def run_clip_preview_contract(request) -> dict[str, Any]:
         run_ctx.status = "success" if success else "failed"
 
         clip_url = raw.get("clipUrl", "") or ""
+
+        # Advance JobRun to manifest stage
+        job_run.advance(JOB_STAGE_MANIFEST, 85)
 
         # Write experiment manifest (success or failure)
         manifest = build_experiment_manifest(
@@ -100,6 +123,9 @@ def run_clip_preview_contract(request) -> dict[str, Any]:
             manifest_url = ""
 
         if success:
+            job_run.mark_succeeded()
+            job_run.set_artifact("videoUrl", clip_url)
+            job_run.set_artifact("manifestUrl", manifest_url)
             return {
                 "success": True,
                 "status": "success",
@@ -114,8 +140,17 @@ def run_clip_preview_contract(request) -> dict[str, Any]:
                 "warnings": raw.get("warnings", []) or run_ctx.warnings,
                 "error": None,
                 "rawOutput": raw,
+                "jobRun": job_run.to_dict(),
             }
         else:
+            err = make_error(
+                raw.get("message", "Clip preview failed"),
+                type="RenderError",
+                code="VIDEO_LAB_CLIP_PREVIEW_FAILED",
+                stage="visual_render",
+                route=request.visualRoute,
+            )
+            job_run.mark_failed(error=err, stage=JOB_STAGE_FAILED, progress=100)
             return {
                 "success": False,
                 "status": "failed",
@@ -128,14 +163,9 @@ def run_clip_preview_contract(request) -> dict[str, Any]:
                 },
                 "logs": run_ctx.logs,
                 "warnings": raw.get("warnings", []) or run_ctx.warnings,
-                "error": make_error(
-                    raw.get("message", "Clip preview failed"),
-                    type="RenderError",
-                    code="VIDEO_LAB_CLIP_PREVIEW_FAILED",
-                    stage="visual_render",
-                    route=request.visualRoute,
-                ),
+                "error": err,
                 "rawOutput": raw,
+                "jobRun": job_run.to_dict(),
             }
 
     except Exception as e:
@@ -143,6 +173,16 @@ def run_clip_preview_contract(request) -> dict[str, Any]:
         logger.error("[clip-preview] render failed", exc_info=True)
         run_ctx.log(f"[clip-preview] exception: {type(e).__name__}: {e}\n{tb}")
         run_ctx.mark_failed()
+
+        err = make_error(
+            str(e),
+            type=type(e).__name__,
+            code="VIDEO_LAB_INTERNAL_ERROR",
+            stage="clip_preview",
+            route=request.visualRoute,
+        )
+        job_run.mark_failed(error=err, stage=JOB_STAGE_FAILED, progress=100)
+        job_run.log(f"[clip-preview] outer exception: {type(e).__name__}: {e}")
 
         # Try to write a failed manifest even on early exception
         manifest_url = ""
@@ -157,13 +197,7 @@ def run_clip_preview_contract(request) -> dict[str, Any]:
                 artifacts={},
                 logs=run_ctx.logs,
                 warnings=run_ctx.warnings,
-                error=make_error(
-                    str(e),
-                    type=type(e).__name__,
-                    code="VIDEO_LAB_INTERNAL_ERROR",
-                    stage="clip_preview",
-                    route=request.visualRoute,
-                ),
+                error=err,
             )
             mw = write_experiment_manifest(run_ctx.experiment_id, mfail)
             manifest_url = mw["url"]
@@ -182,12 +216,7 @@ def run_clip_preview_contract(request) -> dict[str, Any]:
             },
             "logs": run_ctx.logs,
             "warnings": run_ctx.warnings,
-            "error": make_error(
-                str(e),
-                type=type(e).__name__,
-                code="VIDEO_LAB_INTERNAL_ERROR",
-                stage="clip_preview",
-                route=request.visualRoute,
-            ),
+            "error": err,
             "rawOutput": {},
+            "jobRun": job_run.to_dict(),
         }

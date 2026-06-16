@@ -1,5 +1,6 @@
 // Video Generation Workbench Page - V0.7.2
 // 视频生成实验台 V0.7.2：approved 后保存样片 / 加入对比真实功能
+// V1.0.4: 增加 JobRun 阶段状态展示（同步任务状态契约）
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -10,6 +11,24 @@ import { resolveUrl, stripRuntimeUrlPrefix, API_BASE } from "../utils/url";
 type RouteId = "pillow" | "remotion_data_news" | "remotion_card_stack" | "ai_asset";
 type HumanReviewStatus = "pending" | "approved" | "problem" | "discarded";
 
+// V1.0.4: JobRun v1 status contract (sync task tracking)
+interface JobRun {
+  jobId: string;
+  runId: string;
+  experimentId: string;
+  mode: string;
+  routeId: string;
+  status: "pending" | "running" | "succeeded" | "failed" | "canceled";
+  stage: string;
+  progress: number;
+  stageLabel: string;
+  logs?: string[];
+  artifacts?: Record<string, unknown>;
+  error?: { code?: string; message?: string; type?: string } | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface PreviewResult {
   experimentId: string;
   success: boolean;
@@ -19,6 +38,7 @@ interface PreviewResult {
   route: string;
   message: string;
   failedReason: string | null;
+  jobRun?: JobRun;
 }
 
 interface FullVideoResult {
@@ -41,6 +61,7 @@ interface FullVideoResult {
   };
   params?: Record<string, unknown>;
   steps?: Array<{ name: string; status: string; output: string }>;
+  jobRun?: JobRun;
 }
 
 interface VisualRouteAvailability {
@@ -251,6 +272,118 @@ function ReviewBadge({ status }: { status: HumanReviewStatus }) {
   );
 }
 
+// ─── JobRun Panel (V1.0.4) ────────────────────────────────────────────────────
+
+function JobRunPanel({ jobRun }: { jobRun?: JobRun | null }) {
+  if (!jobRun) return null;
+
+  const statusColor =
+    jobRun.status === "succeeded"
+      ? { color: "#0f766e", bg: "#f0fdfa", border: "#5eead4" }
+      : jobRun.status === "failed"
+      ? { color: "#dc2626", bg: "#fef2f2", border: "#fca5a5" }
+      : jobRun.status === "running"
+      ? { color: "#2563eb", bg: "#eff6ff", border: "#93c5fd" }
+      : { color: "#64748b", bg: "#f1f5f9", border: "#cbd5e1" };
+
+  const statusLabel =
+    {
+      pending: "等待中",
+      running: "进行中",
+      succeeded: "成功",
+      failed: "失败",
+      canceled: "已取消",
+    }[jobRun.status] || jobRun.status;
+
+  return (
+    <div
+      style={{
+        marginTop: "0.75rem",
+        padding: "0.65rem 0.85rem",
+        background: statusColor.bg,
+        border: `1px solid ${statusColor.border}`,
+        borderRadius: 8,
+        fontSize: "0.72rem",
+        color: "#475569",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 6,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span
+            style={{
+              fontSize: "0.7rem",
+              fontWeight: 700,
+              color: statusColor.color,
+              background: "white",
+              border: `1px solid ${statusColor.border}`,
+              borderRadius: 999,
+              padding: "2px 9px",
+            }}
+          >
+            JobRun · {statusLabel}
+          </span>
+          <span style={{ color: "#1e293b", fontWeight: 600 }}>{jobRun.stageLabel}</span>
+          <span style={{ color: "#94a3b8" }}>· {jobRun.progress}%</span>
+        </div>
+        <span style={{ fontFamily: "monospace", color: "#64748b" }}>
+          {jobRun.jobId}
+        </span>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, color: "#64748b" }}>
+        <span>
+          runId: <span style={{ fontFamily: "monospace", color: "#1e293b" }}>{jobRun.runId}</span>
+        </span>
+        <span>
+          experimentId:{" "}
+          <span style={{ fontFamily: "monospace", color: "#1e293b" }}>{jobRun.experimentId}</span>
+        </span>
+        <span>route: {jobRun.routeId}</span>
+        <span>stage: {jobRun.stage}</span>
+      </div>
+      {/* Progress bar (visual only, no real-time updates — sync task) */}
+      <div
+        style={{
+          marginTop: 6,
+          height: 4,
+          background: "white",
+          border: `1px solid ${statusColor.border}`,
+          borderRadius: 999,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${Math.max(0, Math.min(100, jobRun.progress))}%`,
+            background: statusColor.color,
+            transition: "width 0.3s",
+          }}
+        />
+      </div>
+      {jobRun.error && (
+        <div
+          style={{
+            marginTop: 6,
+            color: "#dc2626",
+            fontSize: "0.7rem",
+          }}
+        >
+          ⚠ {jobRun.error.code || "Error"}：{jobRun.error.message || "未知错误"}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function VideoGenerationWorkbenchPage() {
@@ -442,6 +575,7 @@ export default function VideoGenerationWorkbenchPage() {
         route: data.route || selectedRoute,
         message: data.message || "",
         failedReason: null,
+        jobRun: (data.jobRun as JobRun | undefined) || undefined,
       });
     } catch (e) {
       setPreviewError(String(e));
@@ -785,6 +919,8 @@ export default function VideoGenerationWorkbenchPage() {
               {previewResult.videoUrl && (
                 <video controls src={resolveUrl(previewResult.videoUrl)} style={{ width: "100%", maxWidth: 400, borderRadius: 8, background: "#0f172a" }} />
               )}
+
+              <JobRunPanel jobRun={previewResult.jobRun} />
             </div>
           )}
 
@@ -863,12 +999,15 @@ export default function VideoGenerationWorkbenchPage() {
               )}
 
               <video controls src={resolveUrl(fullResult.finalVideoUrl)} style={{ width: "100%", maxWidth: 480, borderRadius: 8, background: "#0f172a" }} />
+
+              <JobRunPanel jobRun={fullResult.jobRun} />
             </div>
           )}
 
           {fullResult && fullResult.status !== "succeeded" && (
             <div style={{ padding: "0.75rem 1rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, fontSize: "0.82rem", color: "#dc2626" }}>
               生成失败：{fullResult.failedReason || "未知错误"}
+              <JobRunPanel jobRun={fullResult.jobRun} />
             </div>
           )}
         </div>

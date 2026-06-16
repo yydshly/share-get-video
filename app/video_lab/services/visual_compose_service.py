@@ -6,6 +6,7 @@ Provides:
   - run_visual_compose_endpoint(): /visual-compose endpoint wrapper
 
 V1 contract: returns runId / success / status / contractStatus / artifacts / error / rawOutput.
+V1.0.4: also returns jobRun (JobRun v1 status contract).
 """
 
 import logging
@@ -14,6 +15,17 @@ from typing import Any
 from app.video_lab.adapters.tts_subtitle_compose import run_tts_subtitle_compose
 from app.video_lab.errors import make_error
 from app.video_lab.experiment_manifest import build_experiment_manifest, write_experiment_manifest
+from app.video_lab.job_run import (
+    JobRun,
+    JOB_STAGE_COMPOSE,
+    JOB_STAGE_FAILED,
+    JOB_STAGE_MANIFEST,
+    JOB_STAGE_PLANNING,
+    JOB_STAGE_SUBTITLE,
+    JOB_STAGE_TTS,
+    JOB_STAGE_VISUAL_RENDER,
+    new_job_id,
+)
 from app.video_lab.renderers.visual_profiles import merge_visual_profile
 from app.video_lab.run_context import RunContext
 
@@ -33,6 +45,7 @@ def run_visual_compose_contract(
     Business failures do not raise exceptions; they return status='failed' + failedReason.
 
     V1 contract: returns runId / success / status / contractStatus / artifacts / error / rawOutput.
+    V1.0.4: also returns jobRun (sync task status tracking).
 
     Args:
         content: article/text content to render
@@ -40,9 +53,22 @@ def run_visual_compose_contract(
         params_in: optional dict of render parameters
 
     Returns:
-        V1 contract dict with all required fields.
+        V1 contract dict with all required fields, including jobRun.
     """
     run_ctx = RunContext(mode="compose", route_id=visual_route)
+
+    # V1.0.4: Create JobRun for sync task status tracking.
+    # Reuses run_id / experiment_id from RunContext to keep IDs aligned.
+    job_run = JobRun(
+        job_id=new_job_id(),
+        run_id=run_ctx.run_id,
+        experiment_id=run_ctx.experiment_id,
+        mode=run_ctx.mode,
+        route_id=visual_route,
+    )
+    job_run.mark_running(stage=JOB_STAGE_PLANNING, progress=10)
+    job_run.log(f"[job {job_run.job_id}] starting visual-compose route={visual_route}")
+
     params = dict(params_in or {})
     params["visualRoute"] = visual_route
 
@@ -59,6 +85,8 @@ def run_visual_compose_contract(
     run_ctx.input_snapshot = {"content": content}
     run_ctx.warnings.extend(profile_warnings)
 
+    job_run.advance(JOB_STAGE_TTS, 25)
+    job_run.log("[job] entering TTS + subtitle stage")
     result = run_tts_subtitle_compose(
         experiment_id=run_ctx.experiment_id,
         test_case_id="case_ai_frontier_daily_001",
@@ -85,6 +113,9 @@ def run_visual_compose_contract(
         if line not in seen:
             run_ctx.log(line)
             seen.add(line)
+    # Also surface factory logs into JobRun for stage observability
+    for line in result_logs:
+        job_run.log(f"[factory] {line}")
 
     audio_url = srt_url = manifest_url = ""
     steps_summary = []
@@ -103,6 +134,19 @@ def run_visual_compose_contract(
 
     final_video_url = getattr(result, "videoUrl", "") or ""
     cover_url = getattr(result, "coverUrl", "") or ""
+
+    # Derive JobRun stage from productionSteps (best-effort)
+    step_names = {s["name"] for s in steps_summary if s.get("name")}
+    if any("plan" in n.lower() or "llm" in n.lower() for n in step_names):
+        job_run.advance(JOB_STAGE_PLANNING, 30)
+    if any("tts" in n.lower() for n in step_names):
+        job_run.advance(JOB_STAGE_TTS, 50)
+    if any("subtitle" in n.lower() or "srt" in n.lower() for n in step_names):
+        job_run.advance(JOB_STAGE_SUBTITLE, 60)
+    if any("render" in n.lower() or "frame" in n.lower() or "visual" in n.lower() for n in step_names):
+        job_run.advance(JOB_STAGE_VISUAL_RENDER, 75)
+    if any("compose" in n.lower() or "mux" in n.lower() for n in step_names):
+        job_run.advance(JOB_STAGE_COMPOSE, 85)
 
     # Write experiment manifest (success or failure)
     manifest = build_experiment_manifest(
@@ -127,6 +171,7 @@ def run_visual_compose_contract(
         error=make_error(failed_reason, type="ComposeError", code="VIDEO_LAB_COMPOSE_FAILED",
                          stage="compose", route=visual_route) if status != "succeeded" else None,
     )
+    job_run.advance(JOB_STAGE_MANIFEST, 90)
     try:
         mw = write_experiment_manifest(run_ctx.experiment_id, manifest)
         run_ctx.artifacts["manifestUrl"] = mw["url"]
@@ -170,6 +215,10 @@ def run_visual_compose_contract(
     }
 
     if v1_success:
+        job_run.mark_succeeded()
+        job_run.set_artifact("finalVideoUrl", final_video_url)
+        job_run.set_artifact("coverUrl", cover_url)
+        job_run.set_artifact("manifestUrl", run_ctx.artifacts.get("manifestUrl", ""))
         return {
             **v1_base,
             "artifacts": v1_artifacts,
@@ -190,8 +239,18 @@ def run_visual_compose_contract(
             "logs": run_ctx.logs,
             "error": None,
             "rawOutput": raw,
+            "jobRun": job_run.to_dict(),
         }
     else:
+        job_run.mark_failed(
+            error=make_error(
+                failed_reason,
+                type="ComposeError",
+                code="VIDEO_LAB_COMPOSE_FAILED",
+                stage="compose",
+                route=visual_route,
+            )
+        )
         return {
             **v1_base,
             "artifacts": v1_artifacts,
@@ -218,6 +277,7 @@ def run_visual_compose_contract(
                 route=visual_route,
             ),
             "rawOutput": raw,
+            "jobRun": job_run.to_dict(),
         }
 
 
@@ -231,18 +291,33 @@ def run_visual_compose_endpoint(request) -> dict[str, Any]:
     Synchronous: returns after the video is produced (TTS/render may take minutes).
     Business failures return HTTP 200 with status='failed' + failedReason.
     V1 contract: always returns success/status/contractStatus/artifacts/error/rawOutput.
+    V1.0.4: also returns jobRun even on outer exception (status=failed, stage=failed).
 
     Args:
         request: VisualComposeRequest object
 
     Returns:
-        V1 contract dict (same shape as run_visual_compose_contract).
+        V1 contract dict (same shape as run_visual_compose_contract), plus jobRun.
     """
     import traceback
+    from app.video_lab.job_run import (
+        JobRun as _JobRun,
+        JOB_STAGE_FAILED,
+        new_job_id as _new_job_id,
+    )
     from app.video_lab.run_context import RunContext
 
     run_ctx = RunContext(mode="compose", route_id=request.visualRoute)
     run_ctx.input_snapshot = {"content": request.content}
+
+    # Pre-create JobRun so we can return it even if the contract raises.
+    job_run = _JobRun(
+        job_id=_new_job_id(),
+        run_id=run_ctx.run_id,
+        experiment_id=run_ctx.experiment_id,
+        mode=run_ctx.mode,
+        route_id=request.visualRoute,
+    )
 
     try:
         return run_visual_compose_contract(request.content, request.visualRoute, request.params)
@@ -251,6 +326,17 @@ def run_visual_compose_endpoint(request) -> dict[str, Any]:
         logger.error("[visual-compose] exception", exc_info=True)
         run_ctx.log(f"[visual-compose] exception: {type(e).__name__}: {e}\n{tb}")
         run_ctx.mark_failed()
+
+        err = make_error(
+            str(e),
+            type=type(e).__name__,
+            code="VIDEO_LAB_INTERNAL_ERROR",
+            stage="compose",
+            route=request.visualRoute,
+        )
+        job_run.mark_failed(error=err, stage=JOB_STAGE_FAILED, progress=100)
+        job_run.log(f"[visual-compose] outer exception: {type(e).__name__}: {e}")
+
         return {
             "success": False,
             "status": "failed",
@@ -259,12 +345,7 @@ def run_visual_compose_endpoint(request) -> dict[str, Any]:
             "artifacts": {},
             "logs": run_ctx.logs,
             "warnings": run_ctx.warnings,
-            "error": make_error(
-                str(e),
-                type=type(e).__name__,
-                code="VIDEO_LAB_INTERNAL_ERROR",
-                stage="compose",
-                route=request.visualRoute,
-            ),
+            "error": err,
             "rawOutput": {},
+            "jobRun": job_run.to_dict(),
         }
