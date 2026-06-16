@@ -421,7 +421,7 @@ function SampleCard({
   isHighlighted = false,
   onOpenCompare,
   copyingRerunId,
-  rerunCopiedId,
+  rerunCopyFeedback,
   onCopyRerun,
 }: {
   sample: StyleSample;
@@ -435,7 +435,11 @@ function SampleCard({
   isHighlighted?: boolean;
   onOpenCompare?: () => void;
   copyingRerunId: string | null;
-  rerunCopiedId: string | null;
+  rerunCopyFeedback: {
+    id: string;
+    type: "success" | "error";
+    message: string;
+  } | null;
   onCopyRerun: (id: string) => void;
 }) {
   const color = ROUTE_COLORS[sample.route_id] ?? "#64748b";
@@ -875,9 +879,17 @@ function SampleCard({
           >
             {copyingRerunId === sample.id ? "复制中..." : "📋 复制复现参数"}
           </button>
-          {rerunCopiedId === sample.id && (
-            <div style={{ fontSize: "0.65rem", color: "#0f766e", marginTop: "0.2rem" }}>
-              ✓ 已复制复现参数
+          {rerunCopyFeedback?.id === sample.id && (
+            <div
+              style={{
+                fontSize: "0.65rem",
+                color: rerunCopyFeedback.type === "success" ? "#0f766e" : "#dc2626",
+                marginTop: "0.2rem",
+                wordBreak: "break-all",
+              }}
+            >
+              {rerunCopyFeedback.type === "success" ? "✓ " : "⚠ "}
+              {rerunCopyFeedback.message}
             </div>
           )}
         </div>
@@ -1271,7 +1283,11 @@ export default function StyleGalleryPage() {
   const [judgingSet, setJudgingSet] = useState<Set<string>>(new Set());
   // V1.0.6: rerun payload copy state
   const [copyingRerunId, setCopyingRerunId] = useState<string | null>(null);
-  const [rerunCopiedId, setRerunCopiedId] = useState<string | null>(null);
+  const [rerunCopyFeedback, setRerunCopyFeedback] = useState<{
+    id: string;
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare" | "templates">(() => {
@@ -1529,21 +1545,22 @@ export default function StyleGalleryPage() {
   // V1.0.6: 复制 rerun payload
   const handleCopyRerun = async (id: string) => {
     setCopyingRerunId(id);
+    setRerunCopyFeedback(null);
     try {
       const resp = await fetch(`${API_BASE}/style-samples/${id}/rerun-payload`);
       if (!resp.ok) {
-        const data = await resp.json();
+        const data = await resp.json().catch(() => ({}));
         throw new Error(data.detail || `HTTP ${resp.status}`);
       }
       const payload = await resp.json();
       await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-      setRerunCopiedId(id);
-      setTimeout(() => setRerunCopiedId(null), 3000);
+      setRerunCopyFeedback({ id, type: "success", message: "已复制复现参数" });
     } catch (e) {
-      setRerunCopiedId(id); // show error on this card
-      setTimeout(() => setRerunCopiedId(null), 3000);
+      const msg = String(e).replace(/^Error:\s*/, "");
+      setRerunCopyFeedback({ id, type: "error", message: `复制失败：${msg}` });
     } finally {
       setCopyingRerunId(null);
+      setTimeout(() => setRerunCopyFeedback(null), 3000);
     }
   };
 
@@ -2021,7 +2038,7 @@ export default function StyleGalleryPage() {
                   isHighlighted={highlightSampleId === s.id}
                   onOpenCompare={() => setActiveTab("compare")}
                   copyingRerunId={copyingRerunId}
-                  rerunCopiedId={rerunCopiedId}
+                  rerunCopyFeedback={rerunCopyFeedback}
                   onCopyRerun={handleCopyRerun}
                 />
               ))}
