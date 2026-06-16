@@ -2,6 +2,7 @@
 Video Capability Lab - FastAPI Router
 """
 
+import logging
 from app.video_lab.config import ffmpeg_bin, ffprobe_bin
 from typing import Any
 from fastapi import APIRouter, HTTPException
@@ -16,6 +17,7 @@ from app.video_lab.path_contract import runtime_url_to_path
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────
@@ -454,7 +456,7 @@ def visual_judge(request: VisualJudgeRequest) -> dict[str, Any]:
                 "imageUrl": request.imageUrl,
             })
         except Exception:
-            pass
+            logger.warning("visual-judge score logging failed (non-fatal)", exc_info=True)
 
     return result
 
@@ -492,9 +494,7 @@ def clip_preview(request: ClipPreviewRequest) -> dict[str, Any]:
             cover_title=request.coverTitle,
         )
     except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        print(f"[clip-preview] {tb}")
+        logger.error("[clip-preview] render failed", exc_info=True)
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
@@ -624,7 +624,7 @@ def _run_visual_compose(content: str, visual_route: str, params_in: dict | None)
             "params": params,
         })
     except Exception:
-        pass
+        logger.warning("structural quality logging failed (non-fatal)", exc_info=True)
 
     return {
         "experimentId": exp_id,
@@ -657,9 +657,7 @@ def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
     try:
         return _run_visual_compose(request.content, request.visualRoute, request.params)
     except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        print(f"[visual-compose] {tb}")
+        logger.error("[visual-compose] failed", exc_info=True)
         raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
 
 
@@ -1164,7 +1162,7 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
             "dimensions": {k: float(v) for k, v in scores.items()},
         })
     except Exception:
-        pass
+        logger.warning("style score-history logging failed (non-fatal)", exc_info=True)
 
     d = sample.to_dict()
     d["urls"] = sg_store.resolve_sample_urls(sample)

@@ -8,7 +8,10 @@ technique_probe —— 最佳技术探测编排
 - 测试用桩函数返回预设结果，不触发任何真实渲染
 """
 
+import logging
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 # 探测默认覆盖的三条已落地视觉路线
 DEFAULT_PROBE_ROUTES = [
@@ -123,7 +126,7 @@ def run_technique_probe(
                     result["visualScore"] = judged.get("visualScore")
                     result["visualDimensions"] = judged.get("visualDimensions", {})
             except Exception:
-                pass
+                logger.warning("visual judge failed for route %s (ranking falls back to structural only)", route, exc_info=True)
         results.append(result)
 
     ranking = rank_probe_results(results)

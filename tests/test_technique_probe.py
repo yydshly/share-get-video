@@ -126,6 +126,23 @@ def test_judge_fn_attaches_visual_score_and_affects_recommendation():
     assert out["ranking"][0]["visualScore"] == 4.9
 
 
+def test_judge_failure_is_logged_and_non_fatal(caplog):
+    """视觉评分失败应记 warning（不再静默吞），且该路线仍按结构分排名。"""
+    def fake_compose(content, route, params):
+        return {"visualRoute": route, "status": "succeeded", "quality": {"overallScore": 4.0}}
+
+    def boom_judge(result):
+        raise RuntimeError("vision api down")
+
+    import logging
+    with caplog.at_level(logging.WARNING):
+        out = run_technique_probe("内容", ["local_frame_compose"], {}, fake_compose, judge_fn=boom_judge)
+    assert out["succeededCount"] == 1
+    assert out["ranking"][0]["visualScore"] is None       # 评分失败 → 退化为结构分
+    assert out["ranking"][0]["combinedScore"] == 80.0
+    assert any("visual judge failed" in r.message for r in caplog.records)
+
+
 def test_run_probe_respects_explicit_routes():
     def fake_compose(content, route, params):
         return _r(route, score=10)
