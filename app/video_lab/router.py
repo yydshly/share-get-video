@@ -14,6 +14,9 @@ from app.video_lab.experiment_runner import get_runner
 from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest, StyleSampleGenerateRequest, StyleSampleSaveRequest, StyleFamilyCompareRequest, TechniqueProbeRequest, StyleSweepRequest
 from app.video_lab.config import PUBLIC_RUNTIME_URL_PREFIX
 from app.video_lab.path_contract import runtime_url_to_path
+from app.video_lab.errors import error_response, make_error
+from app.video_lab.run_context import RunContext, new_run_id, new_experiment_id
+from app.video_lab.experiment_manifest import build_experiment_manifest, write_experiment_manifest
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -481,10 +484,19 @@ def clip_preview(request: ClipPreviewRequest) -> dict[str, Any]:
 
     - Remotion：渲染前几秒真实动画
     - Pillow / AI 素材：Ken Burns（缓慢缩放 + 淡入）
+
+    V1 contract: always returns success/status/artifacts/error/rawOutput.
     """
     from app.video_lab.renderers.frame_preview import render_clip_preview
+    import traceback
+
+    run_ctx = RunContext(
+        mode="preview",
+        route_id=request.visualRoute,
+    )
+
     try:
-        return render_clip_preview(
+        raw = render_clip_preview(
             content=request.content,
             visual_route=request.visualRoute,
             params=request.params,
@@ -493,9 +505,62 @@ def clip_preview(request: ClipPreviewRequest) -> dict[str, Any]:
             frame_type=request.frameType,
             cover_title=request.coverTitle,
         )
+
+        success = raw.get("success", False)
+        run_ctx.status = "success" if success else "failed"
+
+        if success:
+            artifacts = {"videoUrl": raw.get("clipUrl", ""), "coverUrl": ""}
+            return {
+                "success": True,
+                "status": "success",
+                **run_ctx.to_response_base(),
+                "artifacts": artifacts,
+                "logs": run_ctx.logs,
+                "warnings": raw.get("warnings", []) or run_ctx.warnings,
+                "error": None,
+                "rawOutput": raw,
+            }
+        else:
+            err = make_error(
+                raw.get("message", "Clip preview failed"),
+                type="RenderError",
+                code="VIDEO_LAB_CLIP_PREVIEW_FAILED",
+                stage="visual_render",
+                route=request.visualRoute,
+            )
+            return {
+                "success": False,
+                "status": "failed",
+                **run_ctx.to_response_base(),
+                "artifacts": {},
+                "logs": run_ctx.logs,
+                "warnings": raw.get("warnings", []) or run_ctx.warnings,
+                "error": err,
+                "rawOutput": raw,
+            }
+
     except Exception as e:
+        tb = traceback.format_exc()
         logger.error("[clip-preview] render failed", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
+        run_ctx.log(f"[clip-preview] exception: {type(e).__name__}: {e}\n{tb}")
+        run_ctx.mark_failed()
+        return {
+            "success": False,
+            "status": "failed",
+            **run_ctx.to_response_base(),
+            "artifacts": {},
+            "logs": run_ctx.logs,
+            "warnings": run_ctx.warnings,
+            "error": make_error(
+                str(e),
+                type=type(e).__name__,
+                code="VIDEO_LAB_INTERNAL_ERROR",
+                stage="clip_preview",
+                route=request.visualRoute,
+            ),
+            "rawOutput": {},
+        }
 
 
 @router.post("/style-family/compare")
@@ -565,16 +630,20 @@ def _run_visual_compose(content: str, visual_route: str, params_in: dict | None)
 
     复用方：POST /visual-compose（单路线）与 POST /technique-probe（多路线探测）。
     Business failures 不抛异常，以 status='failed' + failedReason 返回。
+
+    V1 contract: returns runId / success / status / artifacts / error / rawOutput.
     """
-    import uuid
     from app.video_lab.adapters.tts_subtitle_compose import run_tts_subtitle_compose
 
-    exp_id = f"web_{visual_route}_{uuid.uuid4().hex[:8]}"
+    run_ctx = RunContext(mode="compose", route_id=visual_route)
     params = dict(params_in or {})
     params["visualRoute"] = visual_route
 
+    run_ctx.render_params = params
+    run_ctx.input_snapshot = {"content": content}
+
     result = run_tts_subtitle_compose(
-        experiment_id=exp_id,
+        experiment_id=run_ctx.experiment_id,
         test_case_id="case_ai_frontier_daily_001",
         input_payload={"content": content},
         params=params,
@@ -583,6 +652,7 @@ def _run_visual_compose(content: str, visual_route: str, params_in: dict | None)
     raw = getattr(result, "rawOutput", {}) or {}
     assets = getattr(result, "assets", {}) or {}
     status = raw.get("status", "unknown")
+    run_ctx.status = status
     failed_reason = ""
     if status != "succeeded":
         for step in getattr(result, "productionSteps", []):
@@ -606,13 +676,42 @@ def _run_visual_compose(content: str, visual_route: str, params_in: dict | None)
                 srt_url = srt_url or payload.get("srtUrl", "")
                 manifest_url = manifest_url or payload.get("manifestUrl", "")
 
+    # Write experiment manifest (success or failure)
+    manifest = build_experiment_manifest(
+        experiment_id=run_ctx.experiment_id,
+        run_id=run_ctx.run_id,
+        mode=run_ctx.mode,
+        route_id=visual_route,
+        status=status,
+        input_data=run_ctx.input_snapshot,
+        artifacts={
+            "cover": getattr(result, "coverUrl", "") or "",
+            "frames": [],
+            "silentVideo": None,
+            "audio": audio_url,
+            "subtitles": srt_url,
+            "finalVideo": getattr(result, "videoUrl", "") or "",
+            "manifest": manifest_url,
+        },
+        logs=run_ctx.logs,
+        warnings=run_ctx.warnings,
+        raw_output=raw,
+        error=make_error(failed_reason, type="ComposeError", code="VIDEO_LAB_COMPOSE_FAILED",
+                         stage="compose", route=visual_route) if status != "succeeded" else None,
+    )
+    try:
+        mw = write_experiment_manifest(run_ctx.experiment_id, manifest)
+        run_ctx.artifacts["manifestUrl"] = mw["url"]
+    except Exception:
+        logger.warning("manifest write failed (non-fatal)", exc_info=True)
+
     try:
         from app.video_lab.quality.quality_log import append_record
         _q = raw.get("quality", {}) or {}
         append_record({
             "kind": "structural",
             "route": visual_route,
-            "experimentId": exp_id,
+            "experimentId": run_ctx.experiment_id,
             "status": status,
             "overall": _q.get("overallScore"),
             "dimensions": _q.get("dimensionScores", {}),
@@ -624,24 +723,61 @@ def _run_visual_compose(content: str, visual_route: str, params_in: dict | None)
     except Exception:
         logger.warning("structural quality logging failed (non-fatal)", exc_info=True)
 
-    return {
-        "experimentId": exp_id,
-        "visualRoute": visual_route,
+    # Build V1 base
+    v1_base = {
+        **run_ctx.to_response_base(),
+        "success": status == "succeeded",
         "status": status,
-        "params": params,
-        "finalVideoUrl": getattr(result, "videoUrl", "") or "",
-        "coverUrl": getattr(result, "coverUrl", "") or "",
-        "audioUrl": audio_url,
-        "srtUrl": srt_url,
-        "manifestUrl": manifest_url,
-        "audioDurationSec": assets.get("audioDurationSec", 0),
-        "subtitleCount": assets.get("subtitleCount", 0),
-        "quality": raw.get("quality", {}),
-        "failedReason": failed_reason,
-        "warnings": raw.get("warnings", []),
-        "steps": steps_summary,
-        "logs": getattr(result, "logs", []) or [],
     }
+
+    if status == "succeeded":
+        return {
+            **v1_base,
+            "experimentId": run_ctx.experiment_id,
+            "visualRoute": visual_route,
+            "params": params,
+            "finalVideoUrl": getattr(result, "videoUrl", "") or "",
+            "coverUrl": getattr(result, "coverUrl", "") or "",
+            "audioUrl": audio_url,
+            "srtUrl": srt_url,
+            "manifestUrl": manifest_url,
+            "audioDurationSec": assets.get("audioDurationSec", 0),
+            "subtitleCount": assets.get("subtitleCount", 0),
+            "quality": raw.get("quality", {}),
+            "failedReason": "",
+            "warnings": raw.get("warnings", []),
+            "steps": steps_summary,
+            "logs": run_ctx.logs,
+            "error": None,
+            "rawOutput": raw,
+        }
+    else:
+        return {
+            **v1_base,
+            "experimentId": run_ctx.experiment_id,
+            "visualRoute": visual_route,
+            "params": params,
+            "finalVideoUrl": "",
+            "coverUrl": "",
+            "audioUrl": audio_url,
+            "srtUrl": srt_url,
+            "manifestUrl": manifest_url,
+            "audioDurationSec": 0,
+            "subtitleCount": 0,
+            "quality": {},
+            "failedReason": failed_reason,
+            "warnings": raw.get("warnings", []),
+            "steps": steps_summary,
+            "logs": run_ctx.logs,
+            "error": make_error(
+                failed_reason,
+                type="ComposeError",
+                code="VIDEO_LAB_COMPOSE_FAILED",
+                stage="compose",
+                route=visual_route,
+            ),
+            "rawOutput": raw,
+        }
 
 
 @router.post("/visual-compose")

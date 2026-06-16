@@ -21,3 +21,4 @@ runtime/
 remotion/node_modules/
 remotion/out/
 remotion/src/props.json
+remotion/src/props_*.json
