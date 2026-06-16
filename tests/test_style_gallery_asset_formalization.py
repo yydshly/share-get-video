@@ -438,6 +438,192 @@ class TestSaveStyleSampleRouter:
         assert req.generation["aspect_ratio"] == "9:16"
         assert req.quality_meta["structural_score"] == 80.0
 
+    def test_router_save_style_sample_persists_asset_fields(self, temp_records_dir):
+        """Router save_style_sample must persist all V1.0.5 asset fields and retrievable via store."""
+        from app.video_lab.router import save_style_sample
+        from app.video_lab.schemas import StyleSampleSaveRequest
+        from app.video_lab.style_gallery import store as sg_store
+
+        req = StyleSampleSaveRequest(
+            id="s_router_asset_001",
+            route_id="local_frame_compose",
+            route_name="Pillow 信息卡路线",
+            style_name="Workbench / Pillow 信息卡片",
+            description="router save persistence test",
+            status="approved",
+            params={
+                "source": "workbench",
+                "workbenchRoute": "pillow",
+                "experimentId": "exp_router_001",
+                "visualProfile": "ai_frontier_dark",
+                "targetDuration": 45,
+                "aspectRatio": "9:16",
+                "keyPointCount": 3,
+            },
+            output_type="mp4",
+            output_path="video_lab/experiments/exp_router_001/final.mp4",
+            poster_path="video_lab/experiments/exp_router_001/poster.jpg",
+            audio_url="video_lab/experiments/exp_router_001/audio.mp3",
+            srt_url="video_lab/experiments/exp_router_001/subtitles.srt",
+            manifest_url="video_lab/experiments/exp_router_001/manifest.json",
+            content_preview="AI 新闻测试内容",
+            duration_sec=45.0,
+            audio_duration_sec=42.5,
+            tags=["workbench", "pillow", "approved"],
+            evaluation_notes="quality=0.86",
+            source={
+                "source_type": "workbench",
+                "source_page": "/video-lab/workbench",
+                "source_run_id": "run_router_001",
+                "experiment_id": "exp_router_001",
+                "job_id": "job_router_001",
+                "run_id": "run_router_001",
+                "workbench_route": "pillow",
+                "saved_from": "full_video_result",
+            },
+            generation={
+                "visual_route": "local_frame_compose",
+                "visual_profile": "ai_frontier_dark",
+                "remotion_family": "",
+                "route_preset": "pillow",
+                "aspect_ratio": "9:16",
+                "target_duration": 45,
+                "key_point_count": 3,
+                "content_hash": "hash_router_001",
+            },
+            asset_meta={
+                "final_video_url": "/runtime/video_lab/experiments/exp_router_001/final.mp4",
+                "cover_url": "/runtime/video_lab/experiments/exp_router_001/poster.jpg",
+                "audio_url": "/runtime/video_lab/experiments/exp_router_001/audio.mp3",
+                "srt_url": "/runtime/video_lab/experiments/exp_router_001/subtitles.srt",
+                "manifest_url": "/runtime/video_lab/experiments/exp_router_001/manifest.json",
+                "runtime_prefix": "/runtime",
+                "artifact_count": 5,
+            },
+            quality_meta={
+                "structural_score": 0.86,
+                "visual_score": None,
+                "warnings": ["test_warning"],
+                "steps": [{"name": "compose", "status": "succeeded"}],
+            },
+            review_meta={
+                "review_status": "approved",
+                "review_notes": "looks good",
+                "problem_tags": [],
+            },
+            job_run={
+                "jobId": "job_router_001",
+                "runId": "run_router_001",
+                "experimentId": "exp_router_001",
+                "routeId": "local_frame_compose",
+                "status": "succeeded",
+                "stage": "completed",
+                "progress": 100,
+                "stageLabel": "已完成",
+            },
+            schema_version="1.0.5",
+        )
+
+        resp = save_style_sample(req)
+
+        # Verify response includes asset fields
+        assert resp["id"] == "s_router_asset_001"
+        assert resp["source"]["source_type"] == "workbench"
+        assert resp["source"]["experiment_id"] == "exp_router_001"
+        assert resp["generation"]["visual_route"] == "local_frame_compose"
+        assert resp["generation"]["visual_profile"] == "ai_frontier_dark"
+        assert resp["asset_meta"]["manifest_url"].endswith("manifest.json")
+        assert resp["quality_meta"]["structural_score"] == 0.86
+        assert resp["review_meta"]["review_status"] == "approved"
+        assert resp["job_run"]["jobId"] == "job_router_001"
+        assert resp["schema_version"] == "1.0.5"
+
+        # Verify persistence via store
+        saved = sg_store.get_sample("s_router_asset_001")
+        assert saved is not None
+        assert saved.source.source_type == "workbench"
+        assert saved.source.experiment_id == "exp_router_001"
+        assert saved.source.run_id == "run_router_001"
+        assert saved.generation.visual_route == "local_frame_compose"
+        assert saved.generation.visual_profile == "ai_frontier_dark"
+        assert saved.asset_meta.final_video_url.endswith("final.mp4")
+        assert saved.asset_meta.artifact_count == 5
+        assert saved.quality_meta.warnings == ["test_warning"]
+        assert saved.review_meta.review_notes == "looks good"
+        assert saved.job_run["status"] == "succeeded"
+        assert saved.schema_version == "1.0.5"
+
+    def test_router_list_style_samples_filters_source_type_and_tag(self, temp_records_dir):
+        """Router list_style_samples filters by source_type and tag correctly."""
+        from app.video_lab.router import save_style_sample, list_style_samples
+        from app.video_lab.schemas import StyleSampleSaveRequest
+
+        req1 = StyleSampleSaveRequest(
+            id="s_list_f1",
+            route_id="pillow",
+            route_name="Pillow",
+            style_name="Test1",
+            description="",
+            status="approved",
+            params={},
+            output_type="mp4",
+            output_path="out1.mp4",
+            poster_path="",
+            audio_url="",
+            srt_url="",
+            manifest_url="",
+            content_preview="",
+            duration_sec=30.0,
+            audio_duration_sec=28.0,
+            tags=["approved", "gold"],
+            source={"source_type": "workbench"},
+            generation={"visual_route": "pillow"},
+            schema_version="1.0.5",
+        )
+        req2 = StyleSampleSaveRequest(
+            id="s_list_f2",
+            route_id="remotion_card_stack",
+            route_name="Remotion",
+            style_name="Test2",
+            description="",
+            status="approved",
+            params={},
+            output_type="mp4",
+            output_path="out2.mp4",
+            poster_path="",
+            audio_url="",
+            srt_url="",
+            manifest_url="",
+            content_preview="",
+            duration_sec=30.0,
+            audio_duration_sec=28.0,
+            tags=["approved", "silver"],
+            source={"source_type": "style_gallery"},
+            generation={"visual_route": "remotion_card_stack"},
+            schema_version="1.0.5",
+        )
+        save_style_sample(req1)
+        save_style_sample(req2)
+
+        # Filter by workbench source_type → only s_list_f1
+        results_wb = list_style_samples(source_type="workbench")
+        assert len(results_wb) == 1
+        assert results_wb[0]["id"] == "s_list_f1"
+
+        # Filter by tag=approved → both
+        results_approved = list_style_samples(tag="approved")
+        assert len(results_approved) == 2
+
+        # Filter by source_type=workbench AND tag=gold → only s_list_f1
+        results_combo = list_style_samples(source_type="workbench", tag="gold")
+        assert len(results_combo) == 1
+        assert results_combo[0]["id"] == "s_list_f1"
+
+        # Filter by source_type=style_gallery AND tag=silver → only s_list_f2
+        results_combo2 = list_style_samples(source_type="style_gallery", tag="silver")
+        assert len(results_combo2) == 1
+        assert results_combo2[0]["id"] == "s_list_f2"
+
 
 # ─── Resolve URLs Unchanged ─────────────────────────────────────────────────
 
