@@ -449,12 +449,26 @@ export default function VideoGenerationWorkbenchPage() {
   const [infoSummaryLoading, setInfoSummaryLoading] = useState(false);
   const [infoSummaryError, setInfoSummaryError] = useState("");
   const [infoSummaryPlan, setInfoSummaryPlan] = useState<InformationSummaryPlan | null>(null);
+  const [infoSummaryInputFingerprint, setInfoSummaryInputFingerprint] = useState("");
   const [compressionMode, setCompressionMode] = useState<CompressionMode>("balanced");
   const [targetPointCount, setTargetPointCount] = useState<TargetPointCount>("auto");
   const [includeOverview, setIncludeOverview] = useState(true);
   const [includeConclusion, setIncludeConclusion] = useState(true);
   const [evidencePolicy, setEvidencePolicy] = useState<EvidencePolicy>("ending_sources");
   const [targetDurationMode, setTargetDurationMode] = useState<DurationMode>("auto");
+
+  // V1.2.1.1: Helper - compute input fingerprint
+  const getCurrentInputFingerprint = () => {
+    const text = [title.trim(), body.trim()].filter(Boolean).join("\n\n");
+    return `${text.length}:${text.slice(0, 80)}:${text.slice(-80)}`;
+  };
+
+  // V1.2.1.1: Helper - clear info summary plan (call on any input/param change)
+  const clearInfoSummaryPlan = () => {
+    setInfoSummaryPlan(null);
+    setInfoSummaryInputFingerprint("");
+    setInfoSummaryError("");
+  };
 
   // ── Save / Compare State ───────────────────────────────────────────────
   const [savedSampleId, setSavedSampleId] = useState<string | null>(null);
@@ -481,6 +495,8 @@ export default function VideoGenerationWorkbenchPage() {
     setSaveSuccess("");
     setCompareError("");
     setCompareSuccess(false);
+    // V1.2.1.1: Reset info summary plan
+    clearInfoSummaryPlan();
   };
 
   const routeToVisualRoute: Record<RouteId, string> = {
@@ -570,9 +586,9 @@ export default function VideoGenerationWorkbenchPage() {
 
   // V1.2.1: Generate information structure
   const callGenerateInformationStructure = async () => {
+    const fingerprint = getCurrentInputFingerprint();
     setInfoSummaryLoading(true);
     setInfoSummaryError("");
-    setInfoSummaryPlan(null);
 
     try {
       const resp = await fetch(`${API_BASE}/information-structure`, {
@@ -591,6 +607,7 @@ export default function VideoGenerationWorkbenchPage() {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
       setInfoSummaryPlan(data.plan as InformationSummaryPlan);
+      setInfoSummaryInputFingerprint(fingerprint);
     } catch (e) {
       setInfoSummaryError(String(e));
     } finally {
@@ -603,6 +620,14 @@ export default function VideoGenerationWorkbenchPage() {
     if (selectedRouteUnavailable) {
       setPreviewError(selectedAvailability?.availabilityMessage || "Selected route is not available");
       return;
+    }
+    // V1.2.1.1: Validate plan freshness in information_summary mode
+    if (generationMode === "information_summary") {
+      const currentFingerprint = getCurrentInputFingerprint();
+      if (!infoSummaryPlan || infoSummaryInputFingerprint !== currentFingerprint) {
+        setPreviewError("输入已变化，请先重新生成信息结构。");
+        return;
+      }
     }
     setPreviewLoading(true);
     setPreviewError("");
@@ -714,6 +739,15 @@ export default function VideoGenerationWorkbenchPage() {
     if (selectedRouteUnavailable) {
       setFullError(selectedAvailability?.availabilityMessage || "Selected route is not available");
       return;
+    }
+    // V1.2.1.1: Validate plan freshness in information_summary mode
+    if (generationMode === "information_summary") {
+      const currentFingerprint = getCurrentInputFingerprint();
+      if (!infoSummaryPlan || infoSummaryInputFingerprint !== currentFingerprint) {
+        setFullError("输入已变化，请先重新生成信息结构。");
+        setFullLoading(false);
+        return;
+      }
     }
     setFullLoading(true);
     setFullError("");
@@ -942,7 +976,7 @@ export default function VideoGenerationWorkbenchPage() {
             <input
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => { setTitle(e.target.value); clearInfoSummaryPlan(); }}
               placeholder="例如：今日 AI 前沿速递"
               style={{ width: "100%", padding: "0.55rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.9rem", boxSizing: "border-box" }}
             />
@@ -953,7 +987,7 @@ export default function VideoGenerationWorkbenchPage() {
             </label>
             <textarea
               value={body}
-              onChange={(e) => setBody(e.target.value)}
+              onChange={(e) => { setBody(e.target.value); clearInfoSummaryPlan(); }}
               rows={8}
               style={{ width: "100%", padding: "0.55rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.85rem", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
             />
@@ -1006,7 +1040,7 @@ export default function VideoGenerationWorkbenchPage() {
           <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.5rem" }}>生成模式</div>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             <button
-              onClick={() => { setGenerationMode("normal"); setInfoSummaryPlan(null); }}
+              onClick={() => { setGenerationMode("normal"); clearInfoSummaryPlan(); }}
               style={{
                 padding: "0.35rem 0.85rem",
                 borderRadius: 6,
@@ -1021,7 +1055,7 @@ export default function VideoGenerationWorkbenchPage() {
               普通视频
             </button>
             <button
-              onClick={() => setGenerationMode("information_summary")}
+              onClick={() => { setGenerationMode("information_summary"); clearInfoSummaryPlan(); }}
               style={{
                 padding: "0.35rem 0.85rem",
                 borderRadius: 6,
@@ -1046,7 +1080,7 @@ export default function VideoGenerationWorkbenchPage() {
                   <label style={{ fontSize: "0.72rem", color: "#64748b", display: "block", marginBottom: 2 }}>内容处理模式</label>
                   <select
                     value={compressionMode}
-                    onChange={(e) => setCompressionMode(e.target.value as CompressionMode)}
+                    onChange={(e) => { setCompressionMode(e.target.value as CompressionMode); clearInfoSummaryPlan(); }}
                     style={{ width: "100%", padding: "0.3rem 0.5rem", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.78rem" }}
                   >
                     <option value="brief">精简摘要（保留 3 条）</option>
@@ -1062,7 +1096,7 @@ export default function VideoGenerationWorkbenchPage() {
                   <label style={{ fontSize: "0.72rem", color: "#64748b", display: "block", marginBottom: 2 }}>目标信息点数量</label>
                   <select
                     value={targetPointCount}
-                    onChange={(e) => setTargetPointCount(e.target.value as TargetPointCount)}
+                    onChange={(e) => { setTargetPointCount(e.target.value as TargetPointCount); clearInfoSummaryPlan(); }}
                     style={{ width: "100%", padding: "0.3rem 0.5rem", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.78rem" }}
                   >
                     <option value="auto">自动</option>
@@ -1078,7 +1112,7 @@ export default function VideoGenerationWorkbenchPage() {
                   <label style={{ fontSize: "0.72rem", color: "#64748b", display: "block", marginBottom: 2 }}>目标视频时长</label>
                   <select
                     value={targetDurationMode}
-                    onChange={(e) => setTargetDurationMode(e.target.value as DurationMode)}
+                    onChange={(e) => { setTargetDurationMode(e.target.value as DurationMode); clearInfoSummaryPlan(); }}
                     style={{ width: "100%", padding: "0.3rem 0.5rem", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.78rem" }}
                   >
                     <option value="auto">自动匹配信息量</option>
@@ -1093,7 +1127,7 @@ export default function VideoGenerationWorkbenchPage() {
                   <label style={{ fontSize: "0.72rem", color: "#64748b", display: "block", marginBottom: 2 }}>依据处理</label>
                   <select
                     value={evidencePolicy}
-                    onChange={(e) => setEvidencePolicy(e.target.value as EvidencePolicy)}
+                    onChange={(e) => { setEvidencePolicy(e.target.value as EvidencePolicy); clearInfoSummaryPlan(); }}
                     style={{ width: "100%", padding: "0.3rem 0.5rem", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.78rem" }}
                   >
                     <option value="hide">隐藏</option>
@@ -1107,11 +1141,11 @@ export default function VideoGenerationWorkbenchPage() {
               {/* Structure Options Toggles */}
               <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.78rem", color: "#475569", cursor: "pointer" }}>
-                  <input type="checkbox" checked={includeOverview} onChange={(e) => setIncludeOverview(e.target.checked)} />
+                  <input type="checkbox" checked={includeOverview} onChange={(e) => { setIncludeOverview(e.target.checked); clearInfoSummaryPlan(); }} />
                   生成首页总览
                 </label>
                 <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.78rem", color: "#475569", cursor: "pointer" }}>
-                  <input type="checkbox" checked={includeConclusion} onChange={(e) => setIncludeConclusion(e.target.checked)} />
+                  <input type="checkbox" checked={includeConclusion} onChange={(e) => { setIncludeConclusion(e.target.checked); clearInfoSummaryPlan(); }} />
                   生成尾部总结
                 </label>
               </div>
@@ -1134,11 +1168,18 @@ export default function VideoGenerationWorkbenchPage() {
                 >
                   {infoSummaryLoading ? "分析中..." : "📋 生成信息结构"}
                 </button>
-                {infoSummaryPlan && (
-                  <span style={{ fontSize: "0.75rem", color: "#16a34a" }}>
-                    ✅ 识别 {infoSummaryPlan.stats.detectedItemCount} 条，保留 {infoSummaryPlan.stats.selectedItemCount} 条（预计 {infoSummaryPlan.stats.estimatedDurationSec}s）
-                  </span>
-                )}
+                {/* V1.2.1.1: Show stale warning or current status */}
+                {(() => {
+                  const currentFp = getCurrentInputFingerprint();
+                  const isStale = !infoSummaryPlan || infoSummaryInputFingerprint !== currentFp;
+                  if (isStale && (title.trim() || body.trim())) {
+                    return <span style={{ fontSize: "0.75rem", color: "#d97706" }}>⚠️ 输入已变化，请重新生成信息结构</span>;
+                  }
+                  if (infoSummaryPlan) {
+                    return <span style={{ fontSize: "0.75rem", color: "#16a34a" }}>✅ 已基于当前输入生成：识别 {infoSummaryPlan.stats.detectedItemCount} 条，保留 {infoSummaryPlan.stats.selectedItemCount} 条（预计 {infoSummaryPlan.stats.estimatedDurationSec}s）</span>;
+                  }
+                  return <span style={{ fontSize: "0.75rem", color: "#64748b" }}>当前输入：标题 {title.trim().length} 字，正文 {body.trim().length} 字</span>;
+                })()}
               </div>
 
               {infoSummaryError && (
@@ -1149,6 +1190,14 @@ export default function VideoGenerationWorkbenchPage() {
               {infoSummaryPlan && (
                 <div style={{ marginTop: "0.5rem", padding: "0.75rem", background: "white", borderRadius: 8, border: "1px solid #ddd", maxHeight: 320, overflowY: "auto" }}>
                   <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.5rem" }}>📋 信息结构预览</div>
+
+                  {/* V1.2.1.1: Show structure source / fingerprint */}
+                  <div style={{ fontSize: "0.68rem", color: "#94a3b8", marginBottom: "0.4rem", padding: "0.25rem 0.5rem", background: "#f8fafc", borderRadius: 4 }}>
+                    📌 结构来源：标题「{title.trim().slice(0, 20) || "（无）"}」，正文 {body.trim().length} 字
+                    {infoSummaryInputFingerprint && (
+                      <span> · 指纹 {infoSummaryInputFingerprint.slice(0, 30)}...</span>
+                    )}
+                  </div>
 
                   {infoSummaryPlan.includeOverview && infoSummaryPlan.overview && (
                     <div style={{ marginBottom: "0.6rem", padding: "0.5rem", background: "#f0fdfa", borderRadius: 6, borderLeft: "3px solid #0f766e" }}>
