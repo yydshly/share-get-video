@@ -25,6 +25,75 @@ from app.video_lab.providers.minimax import MiniMaxImageClient
 _BG_STYLE = "深蓝科技风格抽象背景，未来感，极简，无文字，电影质感，柔和景深"
 
 
+def _is_report_source_bound_params(params: dict[str, Any]) -> bool:
+    return (
+        isinstance(params, dict)
+        and params.get("sourceBound") is True
+        and params.get("generationMode") == "information_summary"
+        and params.get("inputProfile") == "report_overview_items"
+        and isinstance(params.get("informationSummaryPlan"), dict)
+    )
+
+
+def _build_report_preview_artifacts(params: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    from app.video_lab.planners.source_bound_plan import (
+        build_source_bound_plan_from_information_summary,
+        build_structured_from_information_summary_plan,
+    )
+
+    info_plan = params.get("informationSummaryPlan") or {}
+    source_plan = build_source_bound_plan_from_information_summary(
+        info_plan,
+        target_duration_sec=float(params.get("targetDuration") or 0) or None,
+    )
+    structured = build_structured_from_information_summary_plan(info_plan)
+    if source_plan.get("coverTitle"):
+        structured["lead"] = source_plan["coverTitle"]
+
+    kps = []
+    for i, shot in enumerate(source_plan.get("shots", []), 1):
+        kps.append({
+            "index": i,
+            "headline": shot.get("headline", ""),
+            "display": shot.get("display", ""),
+            "narration": shot.get("narration", ""),
+            "title": shot.get("headline", ""),
+            "body": shot.get("display", ""),
+            "source": "",
+            "category": "",
+            "emphasisTerms": shot.get("emphasisTerms", []),
+            "metrics": shot.get("metrics", []),
+            "tone": shot.get("tone", ""),
+        })
+
+    key_points = {
+        "keyPoints": kps,
+        "key_points": kps,
+        "totalPoints": len(kps),
+        "selectedFrom": len(kps),
+        "planSource": source_plan.get("source", "informationSummaryPlan"),
+        "structureType": source_plan.get("structureType", ""),
+        "overview": source_plan.get("overview", {}),
+        "sourceRefs": source_plan.get("sourceRefs", []),
+        "reportTitle": source_plan.get("reportTitle", ""),
+        "includeOverview": source_plan.get("includeOverview", True),
+        "includeConclusion": source_plan.get("includeConclusion", True),
+    }
+    return structured, key_points, source_plan
+
+
+def _report_segment_durations(source_plan: dict[str, Any]) -> list[dict[str, float]]:
+    shots = source_plan.get("shots", []) if isinstance(source_plan.get("shots"), list) else []
+    opening = str(source_plan.get("opening") or "")
+    closing = str(source_plan.get("closing") or "")
+    segments: list[dict[str, float]] = [{"durationSec": round(max(3.0, len(opening) * 0.24), 2)}]
+    for shot in shots:
+        text = str(shot.get("narration") or shot.get("display") or shot.get("headline") or "")
+        segments.append({"durationSec": round(max(2.8, len(text) * 0.24), 2)})
+    segments.append({"durationSec": round(max(1.5, len(closing) * 0.24) if closing else 1.5, 2)})
+    return segments
+
+
 def _parse_color(v) -> tuple | None:
     """把 '#RRGGBB' 或 [r,g,b] 解析为 RGB 元组；无效返回 None。"""
     if not v:
@@ -215,6 +284,104 @@ def render_clip_preview(
     """
     t0 = time.time()
     params = params or {}
+
+    if _is_report_source_bound_params(params):
+        structured, key_points, source_plan = _build_report_preview_artifacts(params)
+        segment_durations = _report_segment_durations(source_plan)
+
+        if visual_route in ("local_frame_compose", "ai_asset_then_compose"):
+            exp_id = f"preview_{uuid.uuid4().hex[:8]}"
+            from app.video_lab.renderers.local_frame_renderer import generate_frames
+            from app.video_lab.renderers.render_params import resolve_resolution
+
+            resolution = resolve_resolution(params.get("aspectRatio", "9:16"))
+            backgrounds: dict[str | int, str] = {}
+            warnings: list[str] = []
+            if visual_route == "ai_asset_then_compose":
+                client = MiniMaxImageClient()
+                if client.is_configured():
+                    overview = source_plan.get("overview") or {}
+                    topic = (
+                        source_plan.get("reportTitle")
+                        or overview.get("title")
+                        or overview.get("summary")
+                        or cover_title
+                        or "AI report"
+                    )
+                    bg_path = get_frames_dir(exp_id) / "preview_report_bg.png"
+                    style = (params.get("imageStyle") or _BG_STYLE).strip()
+                    bg = client.generate(f"{topic} {style}", bg_path, aspect_ratio=params.get("aspectRatio", "9:16"))
+                    if bg.get("success"):
+                        backgrounds["cover"] = str(bg_path)
+                    else:
+                        warnings.append(f"AI background failed: {bg.get('providerMessage', '')}")
+                else:
+                    warnings.append("MINIMAX_API_KEY not configured; using gradient report opening")
+
+            frame_result = generate_frames(
+                experiment_id=exp_id,
+                structured=structured,
+                key_points=key_points,
+                target_duration_sec=int(params.get("targetDuration") or 30),
+                resolution=resolution,
+                enable_transitions=False,
+                include_overview=True,
+                include_summary=bool((params.get("informationSummaryPlan") or {}).get("includeConclusion", True)),
+                segment_durations=segment_durations,
+                backgrounds=backgrounds or None,
+                style_params=params,
+            )
+            frames = frame_result.get("frames", [])
+            opening = next((f for f in frames if f.get("type") == "opening"), frames[0] if frames else {})
+            img_path = str(opening.get("path") or "")
+            if not img_path:
+                return {"success": False, "route": visual_route, "message": "Report opening preview frame missing", "elapsedMs": int((time.time() - t0) * 1000)}
+            out_path = Path(img_path).parent / "clip.mp4"
+            kb = _ken_burns_clip(img_path, out_path, clip_seconds, resolution, params)
+            if not kb.get("success"):
+                return {"success": False, "route": visual_route, "message": kb.get("message", "Ken Burns failed"), "elapsedMs": int((time.time() - t0) * 1000)}
+            return {
+                "success": True,
+                "route": visual_route,
+                "clipUrl": path_to_url(out_path),
+                "clipSeconds": clip_seconds,
+                "effect": "report_opening_ken_burns",
+                "warnings": warnings + frame_result.get("warnings", []),
+                "elapsedMs": int((time.time() - t0) * 1000),
+                "structureType": "report_source_bound",
+                "frameType": "opening",
+            }
+
+        if visual_route == "template_programmatic_render":
+            from app.video_lab.renderers.remotion.props_builder import build_remotion_props
+            from app.video_lab.renderers.remotion.remotion_renderer import render_remotion_video
+
+            exp_id = f"clip_{uuid.uuid4().hex[:8]}"
+            props = build_remotion_props(exp_id, structured, key_points, params, segment_durations=segment_durations)
+            fps = 30
+            frames = max(30, int(clip_seconds * fps))
+            res = render_remotion_video(
+                exp_id, props, timeout=240,
+                frame_range=f"0-{frames}", output_name="clip.mp4",
+            )
+            elapsed = int((time.time() - t0) * 1000)
+            if res.get("success"):
+                return {
+                    "success": True,
+                    "route": visual_route,
+                    "clipUrl": res.get("videoUrl", ""),
+                    "clipSeconds": clip_seconds,
+                    "elapsedMs": elapsed,
+                    "structureType": "report_source_bound",
+                    "frameType": "opening",
+                }
+            return {
+                "success": False,
+                "route": visual_route,
+                "message": res.get("message", "Remotion report clip render failed"),
+                "warnings": res.get("warnings", []),
+                "elapsedMs": elapsed,
+            }
 
     # Pillow / AI 素材：单帧 → Ken Burns 动效片段
     if visual_route in ("local_frame_compose", "ai_asset_then_compose"):

@@ -11,6 +11,7 @@ Covers:
 
 import sys
 import os
+import subprocess
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -28,6 +29,67 @@ class MockCompletedProcess:
 
 class TestRemotionRendererDiagnostics:
     """Tests for render_remotion_video diagnostics robustness."""
+
+    def test_default_timeout_scales_with_duration(self):
+        """Long videos should not inherit the fixed 300s render budget."""
+        from app.video_lab.renderers.remotion import remotion_renderer
+
+        assert remotion_renderer.default_remotion_timeout({"durationSec": 15}) == 300
+        assert remotion_renderer.default_remotion_timeout({"durationSec": 160.74}) > 300
+        assert remotion_renderer.default_remotion_timeout({"durationSec": 9999}) == 900
+
+    def test_render_command_uses_fast_server_render_flags(self, tmp_path):
+        """Remotion command should use bounded quality and concurrency flags."""
+        from app.video_lab.renderers.remotion import remotion_renderer
+
+        captured = {}
+
+        def fake_run(cmd, cwd, timeout):
+            captured["cmd"] = cmd
+            captured["timeout"] = timeout
+            return MockCompletedProcess(returncode=1, stdout="", stderr="boom")
+
+        with patch.object(remotion_renderer, "_run_command", side_effect=fake_run):
+            with patch.object(remotion_renderer, "check_remotion_available", return_value=(True, "ok")):
+                with patch.object(remotion_renderer, "get_experiment_dir", return_value=tmp_path):
+                    result = remotion_renderer.render_remotion_video(
+                        "test_exp",
+                        {"title": "Test", "durationSec": 160.74},
+                    )
+
+        assert result["success"] is False
+        cmd = captured["cmd"]
+        assert "--x264-preset" in cmd
+        assert "veryfast" in cmd
+        assert "--crf" in cmd
+        assert "26" in cmd
+        assert "--concurrency" in cmd
+        assert "75%" in cmd
+        assert captured["timeout"] > 300
+
+    def test_timeout_recovers_valid_completed_mp4(self, tmp_path):
+        """If Remotion finishes an MP4 at the timeout boundary, return success."""
+        from app.video_lab.renderers.remotion import remotion_renderer
+
+        output = tmp_path / "output.mp4"
+        output.write_bytes(b"fake but probed")
+
+        with patch.object(remotion_renderer, "_run_command", side_effect=subprocess.TimeoutExpired("remotion", 5)):
+            with patch.object(remotion_renderer, "check_remotion_available", return_value=(True, "ok")):
+                with patch.object(remotion_renderer, "get_experiment_dir", return_value=tmp_path):
+                    with patch.object(remotion_renderer, "_probe_mp4_duration", return_value=12.0):
+                        with patch.object(remotion_renderer, "write_manifest") as mock_write:
+                            result = remotion_renderer.render_remotion_video(
+                                "test_exp",
+                                {"title": "Test", "durationSec": 12.0},
+                                timeout=5,
+                            )
+
+        assert result["success"] is True
+        assert "timed out" in " ".join(result["warnings"]).lower()
+        manifest = mock_write.call_args[0][1]
+        assert manifest["recoveredAfterTimeout"] is True
+        assert manifest["recoveredDurationSec"] == 12.0
 
     def test_stdout_stderr_none_no_type_error(self):
         """render_remotion_video must not raise TypeError when stdout/stderr are None."""

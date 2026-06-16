@@ -28,6 +28,11 @@ export type SegmentDurations = {
   summarySec: number;
 };
 
+export type ReportOverview = {
+  title?: string;
+  summary?: string;
+};
+
 // V0.3.9: Extended style types for motion/visual customization
 export type MotionIntensity = "low" | "medium" | "high";
 export type CoverStyle = "editorial" | "cinematic" | "minimal";
@@ -79,6 +84,9 @@ export type AiNewsVideoProps = {
   // V0.6.2: Remotion family — data_news (default) | card_stack
   // V0.8.9: Added timeline_news — vertical event-evolution timeline layout.
   remotionFamily?: RemotionFamily;
+  structureType?: "report_source_bound" | string;
+  reportOverview?: ReportOverview;
+  sourceRefs?: Array<{ itemIndex: number; itemTitle: string; evidence: string[] }>;
 };
 
 export const defaultProps: AiNewsVideoProps = {

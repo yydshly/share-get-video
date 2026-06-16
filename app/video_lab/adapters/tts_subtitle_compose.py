@@ -17,7 +17,10 @@ Flow:
 
 from datetime import datetime
 from pathlib import Path
+import shlex
+import subprocess
 
+from app.video_lab.config import ffmpeg_bin
 from app.video_lab.models import (
     VideoExperimentResult,
     VideoProductionStep,
@@ -86,6 +89,149 @@ def _is_source_bound_information_summary(params: dict) -> bool:
         and params.get("strictSourceMode") is True
         and isinstance(params.get("informationSummaryPlan"), dict)
     )
+
+
+def _is_report_source_bound_plan(plan: dict) -> bool:
+    return isinstance(plan, dict) and plan.get("structureType") == "report_source_bound"
+
+
+def _estimate_segments_from_parts(parts: list[str]) -> dict:
+    segments = []
+    cursor = 0.0
+    for idx, text in enumerate(parts, 1):
+        est = max(2.5, len(text) * 0.28)
+        segments.append({"index": idx, "text": text, "startSec": round(cursor, 2), "durationSec": round(est, 2)})
+        cursor += est
+    return {
+        "voiceoverText": " ".join(p for p in parts if p),
+        "segments": segments,
+        "estimatedDurationSec": round(cursor, 2),
+    }
+
+
+def _probe_audio_duration(path: Path, timeout: int = 20) -> float:
+    """Return the real media duration from the written audio file."""
+    if not path.exists() or path.stat().st_size <= 0:
+        return 0.0
+    cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=nw=1:nk=1",
+        path.resolve().as_posix(),
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+    except Exception:
+        return 0.0
+    if result.returncode != 0:
+        return 0.0
+    try:
+        return float((result.stdout or "").strip() or 0)
+    except ValueError:
+        return 0.0
+
+
+def _concat_audio_segments(segment_paths: list[Path], output_path: Path, timeout: int = 300) -> dict:
+    concat_file = output_path.parent / "voiceover_segments.txt"
+    with open(concat_file, "w", encoding="utf-8") as f:
+        for path in segment_paths:
+            escaped = path.resolve().as_posix().replace("'", "'\\''")
+            f.write(f"file '{escaped}'\n")
+
+    cmd = [
+        ffmpeg_bin(),
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        concat_file.resolve().as_posix(),
+        "-c:a",
+        "libmp3lame",
+        "-q:a",
+        "3",
+        output_path.resolve().as_posix(),
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return {"success": False, "message": f"FFmpeg audio concat timed out after {timeout}s", "ffmpeg_command": " ".join(shlex.quote(c) for c in cmd)}
+    except Exception as exc:
+        return {"success": False, "message": f"FFmpeg audio concat error: {exc}", "ffmpeg_command": " ".join(shlex.quote(c) for c in cmd)}
+
+    if result.returncode != 0 or not output_path.exists():
+        err = (result.stderr or b"").decode("utf-8", errors="replace")
+        return {
+            "success": False,
+            "message": f"FFmpeg audio concat failed: {err[:500]}",
+            "ffmpeg_command": " ".join(shlex.quote(c) for c in cmd),
+        }
+    return {"success": True, "message": "Segment audio concatenated", "ffmpeg_command": " ".join(shlex.quote(c) for c in cmd)}
+
+
+def _generate_segmented_voiceover_audio(tts_client, vo_parts: list[str], audio_dir: Path, audio_path: Path) -> dict:
+    segment_paths: list[Path] = []
+    segments = []
+    cursor = 0.0
+    for idx, text in enumerate(vo_parts, 1):
+        segment_path = audio_dir / f"voiceover_segment_{idx:02d}.mp3"
+        tts_result = tts_client.generate(text=text, output_path=segment_path)
+        if not tts_result.get("success"):
+            return {
+                "success": False,
+                "providerMessage": tts_result.get("providerMessage", f"segment {idx} TTS failed"),
+                "segmentIndex": idx,
+            }
+        provider_duration = float(tts_result.get("durationSec", 0) or 0)
+        file_duration = _probe_audio_duration(segment_path)
+        duration = file_duration if file_duration > 0 else provider_duration
+        segments.append({
+            "index": idx,
+            "text": text,
+            "startSec": round(cursor, 2),
+            "durationSec": round(max(0.01, duration), 2),
+            "providerDurationSec": round(provider_duration, 2),
+            "audioDurationSource": "ffprobe" if file_duration > 0 else "provider",
+        })
+        cursor += max(0.01, duration)
+        segment_paths.append(segment_path)
+
+    concat_result = _concat_audio_segments(segment_paths, audio_path)
+    if not concat_result.get("success"):
+        return {
+            "success": False,
+            "providerMessage": concat_result.get("message", "audio concat failed"),
+            "concat": concat_result,
+        }
+    final_duration = _probe_audio_duration(audio_path)
+    if final_duration > 0 and cursor > 0 and abs(final_duration - cursor) > 0.05:
+        scale = final_duration / cursor
+        for seg in segments:
+            seg["startSec"] = round(float(seg.get("startSec", 0)) * scale, 2)
+            seg["durationSec"] = round(float(seg.get("durationSec", 0)) * scale, 2)
+            seg["audioTimelineScale"] = round(scale, 6)
+        cursor = final_duration
+    return {
+        "success": True,
+        "audioPath": str(audio_path),
+        "durationSec": round(cursor, 2),
+        "providerMessage": "segmented TTS",
+        "segments": segments,
+        "segmentAudioPaths": [str(path) for path in segment_paths],
+        "concat": concat_result,
+    }
 
 
 def run_tts_subtitle_compose(
@@ -287,19 +433,12 @@ def run_tts_subtitle_compose(
     if closing:
         vo_parts.append(closing)
 
-    vo_segments = []
-    cursor = 0.0
-    for idx, text in enumerate(vo_parts, 1):
-        est = max(2.5, len(text) * 0.28)  # 估算，TTS 后会按真实音频重缩放
-        vo_segments.append({"index": idx, "text": text, "startSec": round(cursor, 2), "durationSec": round(est, 2)})
-        cursor += est
-    voiceover_result = {
-        "voiceoverText": " ".join(p for p in vo_parts if p),
-        "segments": vo_segments,
-        "estimatedDurationSec": round(cursor, 2),
+    voiceover_result = _estimate_segments_from_parts(vo_parts)
+    voiceover_result.update({
         "hasOpening": bool(opening),
         "hasClosing": bool(closing),
-    }
+        "timelineSource": "estimated",
+    })
     artifact_vo = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_voiceover",
         type=ArtifactType.VOICEOVER_PLAN,
@@ -345,10 +484,14 @@ def run_tts_subtitle_compose(
         all_logs.extend(step5.logs)
         return _build_failed_result(experiment_id, method_category, steps, "MINIMAX_API_KEY not configured")
 
-    tts_result = tts_client.generate(
-        text=voiceover_text,
-        output_path=audio_path,
-    )
+    use_segmented_tts = is_source_bound_information_summary and _is_report_source_bound_plan(plan)
+    if use_segmented_tts:
+        tts_result = _generate_segmented_voiceover_audio(tts_client, vo_parts, audio_dir, audio_path)
+    else:
+        tts_result = tts_client.generate(
+            text=voiceover_text,
+            output_path=audio_path,
+        )
 
     if not tts_result.get("success"):
         step5 = make_step(
@@ -406,11 +549,17 @@ def run_tts_subtitle_compose(
     steps.append(step5)
     all_logs.extend(step5.logs)
 
+    if use_segmented_tts and tts_result.get("segments"):
+        voiceover_result["segments"] = tts_result["segments"]
+        voiceover_result["estimatedDurationSec"] = round(float(tts_result.get("durationSec", 0) or 0), 2)
+        voiceover_result["timelineSource"] = "segmented_tts"
+        all_logs.append(f"  Segmented TTS timeline: {len(tts_result['segments'])} real segments")
+
     # Rescale subtitle timeline to the REAL TTS audio duration to avoid drift.
     # 旁白段时长是估算的，与真实 TTS 时长脱节会导致字幕比音频早/晚结束。
     real_audio_dur = float(tts_result.get("durationSec", 0) or 0)
     segments = voiceover_result.get("segments", [])
-    if real_audio_dur > 0 and segments:
+    if real_audio_dur > 0 and segments and voiceover_result.get("timelineSource") != "segmented_tts":
         last = segments[-1]
         estimated_total = float(last.get("startSec", 0)) + float(last.get("durationSec", 0))
         if estimated_total > 0:

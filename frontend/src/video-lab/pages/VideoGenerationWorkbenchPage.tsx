@@ -561,7 +561,8 @@ export default function VideoGenerationWorkbenchPage() {
         if (infoSummaryPlan.overview.summary) lines.push(`摘要：${infoSummaryPlan.overview.summary}`);
         lines.push("");
       }
-      infoSummaryPlan.items.forEach((item, i) => {
+      const itemsForGeneration = infoSummaryPlan.items.filter((item) => item.selected);
+      itemsForGeneration.forEach((item, i) => {
         lines.push(`【信息点 ${i + 1}】`);
         if (item.title) lines.push(`标题：${item.title}`);
         if (item.description) lines.push(`描述：${item.description}`);
@@ -580,9 +581,14 @@ export default function VideoGenerationWorkbenchPage() {
 
   // V1.2.1.3: Source-bound shot builder — all content must come from plan
   const buildSourceBoundShot = (): { headline: string; display: string; emphasisTerms: string[] } => {
+    const isReportProfile = (infoSummaryPlan?.inputProfile || inputProfile) === "report_overview_items";
     const headline = (infoSummaryPlan?.overview?.title || title).trim();
     const firstItem = infoSummaryPlan?.items?.find((it) => it.selected);
-    const display = (firstItem?.description || infoSummaryPlan?.overview?.summary || headline).trim();
+    const display = (
+      isReportProfile
+        ? infoSummaryPlan?.overview?.summary || firstItem?.description || headline
+        : firstItem?.description || infoSummaryPlan?.overview?.summary || headline
+    ).trim();
     const emphasisTerms = (infoSummaryPlan?.items || [])
       .filter((it) => it.selected)
       .slice(0, 5)
@@ -621,6 +627,7 @@ export default function VideoGenerationWorkbenchPage() {
             strictSourceMode: true,
             generationMode: "information_summary",
             inputProfile: infoSummaryPlan!.inputProfile || inputProfile,
+            evidencePolicy: infoSummaryPlan!.evidencePolicy || evidencePolicy,
             inputFingerprint: infoSummaryInputFingerprint,
             planItemCount: selectedItems.length,
             informationSummaryPlan: {
@@ -715,6 +722,8 @@ export default function VideoGenerationWorkbenchPage() {
         : { headline: title.trim(), display: body.trim(), emphasisTerms: [] };
     // V1.2.1.3: provenance for source-bound tracking in results display
     const isSourceBound = generationMode === "information_summary" && !!infoSummaryPlan;
+    const isReportSourceBound =
+      isSourceBound && (infoSummaryPlan?.inputProfile || inputProfile) === "report_overview_items";
     // V1.2.1.3: track source-bound state for results display
     setLastGenerationSourceBound(isSourceBound);
     setLastGenerationInfoPointCount(
@@ -728,7 +737,7 @@ export default function VideoGenerationWorkbenchPage() {
         visualRoute,
         content,
         shot,
-        frameType: "keypoint",
+        frameType: isReportSourceBound ? "opening" : "keypoint",
         coverTitle: title.trim(),
         params,
       };
@@ -737,7 +746,8 @@ export default function VideoGenerationWorkbenchPage() {
         visualRoute,
         content,
         shot: {},
-        frameType: "keypoint",
+        frameType: isReportSourceBound ? "opening" : "keypoint",
+        coverTitle: title.trim(),
         params,
       };
     } else if (selectedRoute === "remotion_card_stack") {
@@ -745,7 +755,8 @@ export default function VideoGenerationWorkbenchPage() {
         visualRoute,
         content,
         shot: {},
-        frameType: "keypoint",
+        frameType: isReportSourceBound ? "opening" : "keypoint",
+        coverTitle: title.trim(),
         params,
       };
     } else if (selectedRoute === "ai_asset") {
@@ -754,7 +765,7 @@ export default function VideoGenerationWorkbenchPage() {
         visualRoute,
         content,
         shot,
-        frameType: "keypoint",
+        frameType: isReportSourceBound ? "opening" : "keypoint",
         coverTitle: title.trim(),
         params,
       };

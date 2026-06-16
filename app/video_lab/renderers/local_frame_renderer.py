@@ -411,8 +411,15 @@ def _generate_report_source_bound_frames(
 
     seg_durs = [float(s.get("durationSec", 0)) for s in (segment_durations or [])]
     opening_dur = seg_durs[0] if seg_durs else 6.0
-    item_durs = seg_durs[1:-1] if len(seg_durs) >= len(kps) + 2 else []
-    closing_dur = seg_durs[-1] if len(seg_durs) >= 2 else 4.0
+    if len(seg_durs) == len(kps) + 1:
+        item_durs = seg_durs[1:]
+        closing_dur = 0.0
+    elif len(seg_durs) >= len(kps) + 2:
+        item_durs = seg_durs[1:-1]
+        closing_dur = seg_durs[-1]
+    else:
+        item_durs = []
+        closing_dur = 4.0
 
     item_titles = [
         (kp.get("headline") or kp.get("title") or "").strip()

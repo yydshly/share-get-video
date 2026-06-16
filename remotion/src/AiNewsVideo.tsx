@@ -12,7 +12,7 @@ import {
   spring,
   Sequence,
 } from "remotion";
-import type { AiNewsVideoProps, KeyPoint, Metric, RemotionStyle, MotionIntensity, CoverStyle, OverviewStyle, MetricAnimation, TransitionStyle, RemotionFamily } from "./data";
+import type { AiNewsVideoProps, KeyPoint, Metric, RemotionStyle, MotionIntensity, CoverStyle, OverviewStyle, MetricAnimation, TransitionStyle, RemotionFamily, ReportOverview } from "./data";
 
 // ─── Highlight Helper (V0.3.6-b1) ────────────────────────────────────────────
 /** Auto-extract numbers, percentages, and key terms from text (fallback). */
@@ -1086,12 +1086,12 @@ const CardStackLayout: React.FC<{
   const frame = useCurrentFrame();
 
   return (
-    <AbsoluteFill style={{ background: C.bg, justifyContent: "center", alignItems: "center", padding: "60px 40px" }}>
+    <AbsoluteFill style={{ background: "transparent", justifyContent: "center", alignItems: "center", padding: "60px 40px" }}>
       {keyPoints.map((kp, i) => {
         const totalFrames = cardFramesArr[i] + transitionOverlap;
-        const entryWindow = Math.min(20, totalFrames); // previous card visible for ~0.67s
-        const prevVisible = i > 0;
-        const nextVisible = i < keyPoints.length - 1;
+        const entryWindow = transitionOverlap > 0 ? Math.min(20, totalFrames) : 0; // previous card visible for ~0.67s
+        const prevVisible = entryWindow > 0 && i > 0;
+        const nextVisible = entryWindow > 0 && i < keyPoints.length - 1;
 
         // Previous card layer: appears at start of current card
         // Current card layer: main
@@ -1954,6 +1954,67 @@ const SummaryPage: React.FC<{
   );
 };
 
+const ReportOpeningPage: React.FC<{
+  title: string;
+  overview?: ReportOverview;
+  keyPoints: KeyPoint[];
+  duration: number;
+  vstyle?: RemotionStyle;
+}> = ({ title, overview, keyPoints, duration, vstyle }) => {
+  const frame = useCurrentFrame();
+  const fs = vstyle?.fontScale || 1;
+  const accent = vstyle?.accentColor ?? C.accent;
+  const hl = vstyle?.highlightColor ?? C.highlight;
+  const opacity = interpolate(frame, [0, Math.min(12, duration * 0.18)], [0.92, 1], { extrapolateRight: "clamp" });
+  const y = interpolate(frame, [0, Math.min(14, duration * 0.2)], [10, 0], { extrapolateRight: "clamp" });
+  const summary = overview?.summary || "";
+  const openingTitle = overview?.title || title || "内容概览";
+
+  return (
+    <AbsoluteFill style={{ background: C.bg, padding: 72, color: C.textPrimary, fontFamily: "sans-serif" }}>
+      <div style={{
+        position: "absolute",
+        inset: 0,
+        background: `radial-gradient(circle at 18% 12%, ${accent}33, transparent 34%), radial-gradient(circle at 88% 18%, ${hl}20, transparent 30%)`,
+      }} />
+      <div style={{
+        position: "relative",
+        height: "100%",
+        border: `2px solid ${accent}66`,
+        borderRadius: 28,
+        padding: 54,
+        background: "rgba(15, 23, 42, 0.72)",
+        boxShadow: `0 0 120px ${accent}22`,
+        opacity,
+        transform: `translateY(${y}px)`,
+        overflow: "hidden",
+      }}>
+        <div style={{ color: accent, fontSize: Math.round(26 * fs), fontWeight: 800, marginBottom: 22 }}>
+          首页总览
+        </div>
+        <h1 style={{ fontSize: Math.round(58 * fs), lineHeight: 1.12, margin: 0, fontWeight: 900 }}>
+          {openingTitle}
+        </h1>
+        <div style={{ width: 150, height: 6, borderRadius: 999, background: `linear-gradient(90deg, ${accent}, ${hl})`, margin: "30px 0" }} />
+        <p style={{ fontSize: Math.round(29 * fs), lineHeight: 1.62, color: C.textSecondary, margin: 0 }}>
+          {summary}
+        </p>
+        <div style={{ marginTop: 38, color: hl, fontSize: Math.round(24 * fs), fontWeight: 800 }}>
+          本期信息点
+        </div>
+        <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
+          {keyPoints.slice(0, 8).map((kp, i) => (
+            <div key={i} style={{ display: "flex", gap: 16, alignItems: "baseline", color: C.textPrimary }}>
+              <span style={{ color: accent, fontSize: Math.round(22 * fs), fontWeight: 900 }}>{String(i + 1).padStart(2, "0")}</span>
+              <span style={{ fontSize: Math.round(24 * fs), lineHeight: 1.25, fontWeight: 700 }}>{kp.title}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 // V0.3.9: Main Video Component with transitionStyle and style variant support
 // V0.6.2: Card Stack support via remotionFamily prop
 export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
@@ -1965,6 +2026,8 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   style,
   showDataViz = true,
   remotionFamily = "data_news",
+  structureType,
+  reportOverview,
 }) => {
   const { fps } = useVideoConfig();
 
@@ -1973,6 +2036,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   const transitionStyle = style?.transitionStyle ?? "slide_fade";
   const coverStyle = style?.coverStyle ?? "editorial";
   const overviewStyle = style?.overviewStyle ?? "timeline";
+  const isReportSourceBound = structureType === "report_source_bound";
 
   // Calculate transition overlap based on transitionStyle
   // V0.3.9: Different transition modes - fade has more overlap, slide has less
@@ -2012,13 +2076,13 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
     ? segmentDurations!.cardSecs.map((s) => Math.max(45, Math.round(s * fps)))
     : keyPoints.map(() => scaleDuration(FIXED_CARD));
   const summaryFrames = useAligned
-    ? Math.max(30, Math.round(segmentDurations!.summarySec * fps))
+    ? (segmentDurations!.summarySec > 0 ? Math.max(30, Math.round(segmentDurations!.summarySec * fps)) : 0)
     : scaleDuration(FIXED_SUMMARY);
 
   // Safe overlap: in useAligned mode, clamp to <= 6 to avoid creating timeline
   // gaps that no longer match audio. Last Summary never relies on overlap to fill tail.
   const safeOverlap = useAligned
-    ? Math.min(transitionOverlap, 6)
+    ? (isReportSourceBound ? 0 : Math.min(transitionOverlap, 6))
     : transitionOverlap;
 
   // V0.8.1: scene semantic start must strictly follow segmentDurations order.
@@ -2051,16 +2115,26 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
 
   return (
     <AbsoluteFill style={{ background: C.bg }}>
-      {/* Cover */}
+      {/* Cover / report opening */}
       <Sequence from={0} durationInFrames={coverFrames + safeOverlap}>
-        <CoverPage
-          title={title}
-          subtitle={subtitle}
-          keyPoints={keyPoints}
-          duration={coverFrames}
-          coverStyle={coverStyle}
-          vstyle={style}
-        />
+        {isReportSourceBound ? (
+          <ReportOpeningPage
+            title={title}
+            overview={reportOverview || { title, summary: subtitle }}
+            keyPoints={keyPoints}
+            duration={coverFrames}
+            vstyle={style}
+          />
+        ) : (
+          <CoverPage
+            title={title}
+            subtitle={subtitle}
+            keyPoints={keyPoints}
+            duration={coverFrames}
+            coverStyle={coverStyle}
+            vstyle={style}
+          />
+        )}
       </Sequence>
 
       {/* Key Point Cards with transition-aware timing */}
@@ -2148,14 +2222,16 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
       {/* Summary with transition-aware timing.
           V0.8.1: no transitionOverlap on Summary — Summary is the last scene and
           must exactly match the audio tail; padding it would push it past total duration. */}
-      <Sequence from={summaryStart} durationInFrames={summaryFrames}>
-        <SummaryPage
-          title={title}
-          keyPoints={keyPoints}
-          overviewStyle={overviewStyle}
-          vstyle={style}
-        />
-      </Sequence>
+      {summaryFrames > 0 && (
+        <Sequence from={summaryStart} durationInFrames={summaryFrames}>
+          <SummaryPage
+            title={title}
+            keyPoints={keyPoints}
+            overviewStyle={overviewStyle}
+            vstyle={style}
+          />
+        </Sequence>
+      )}
     </AbsoluteFill>
   );
 };

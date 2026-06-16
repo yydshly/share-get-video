@@ -48,10 +48,13 @@ class RemotionVisualRenderer(VisualRenderer):
             segment_durations=request.voiceover_segments or None,
         )
 
+        explicit_timeout = None
+        if request.params and request.params.get("remotionTimeout") is not None:
+            explicit_timeout = int(request.params.get("remotionTimeout"))
         render_result = render_remotion_video(
             experiment_id=request.experiment_id,
             props=props,
-            timeout=int(request.params.get("remotionTimeout", 300)) if request.params else 300,
+            timeout=explicit_timeout,
         )
         logs.extend(render_result.get("logs", []))
         warnings.extend(render_result.get("warnings", []))

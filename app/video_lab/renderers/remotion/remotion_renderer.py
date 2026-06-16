@@ -22,6 +22,53 @@ REMOTION_ENTRY = "AiNewsVideo"
 USE_SHELL = os.name == "nt"
 
 
+def default_remotion_timeout(props: dict[str, Any], *, minimum: int = 300, maximum: int = 900) -> int:
+    """Return a render timeout scaled to the actual composition length."""
+    try:
+        duration_sec = float(props.get("durationSec", 0) or 0)
+    except (TypeError, ValueError):
+        duration_sec = 0.0
+    if duration_sec <= 0:
+        return minimum
+    # 1080x1920 Remotion renders often take several multiples of the video
+    # duration on local Windows machines. Keep a bounded ceiling so a broken
+    # render still fails in finite time.
+    return max(minimum, min(maximum, int(60 + duration_sec * 3)))
+
+
+def _probe_mp4_duration(path: Path, timeout: int = 20) -> float:
+    """Return video duration if ffprobe can read the MP4, otherwise 0."""
+    if not path.exists() or path.stat().st_size <= 0:
+        return 0.0
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        return 0.0
+    try:
+        result = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=nw=1:nk=1",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            shell=False,
+        )
+        if result.returncode != 0:
+            return 0.0
+        return float((result.stdout or "").strip() or 0)
+    except Exception:
+        return 0.0
+
+
 def _run_command(cmd: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess:
     """
     Run a command cross-platform.
@@ -38,6 +85,8 @@ def _run_command(cmd: list[str], cwd: Path, timeout: int) -> subprocess.Complete
             cwd=str(cwd),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             shell=True,
         )
@@ -46,6 +95,8 @@ def _run_command(cmd: list[str], cwd: Path, timeout: int) -> subprocess.Complete
         cwd=str(cwd),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
         shell=False,
     )
@@ -119,7 +170,7 @@ def _find_mp4_in_dir(directory: Path, preferred_name: str | None = None) -> Path
 def render_remotion_video(
     experiment_id: str,
     props: dict[str, Any],
-    timeout: int = 300,
+    timeout: int | None = None,
     frame_range: str | None = None,
     output_name: str = "output.mp4",
 ) -> dict[str, Any]:
@@ -140,6 +191,8 @@ def render_remotion_video(
     warnings: list[str] = []
     logs: list[str] = []
     exp_dir = get_experiment_dir(experiment_id)
+    if timeout is None:
+        timeout = default_remotion_timeout(props)
 
     # Check environment
     available, avail_msg = check_remotion_available()
@@ -181,6 +234,12 @@ def render_remotion_video(
         "./" + str(REMOTION_PROPS_PATH),  # ./src/props.json
         "--codec",
         "h264",
+        "--x264-preset",
+        str(props.get("x264Preset") or "veryfast"),
+        "--crf",
+        str(props.get("crf") or 26),
+        "--concurrency",
+        str(props.get("concurrency") or "75%"),
     ]
     if frame_range:
         cmd += ["--frames", frame_range]
@@ -275,6 +334,46 @@ def render_remotion_video(
 
     except subprocess.TimeoutExpired:
         msg = f"Remotion render timed out after {timeout}s"
+        found_mp4 = output_mp4 if output_mp4.exists() else _find_mp4_in_dir(exp_dir, output_name)
+        if found_mp4:
+            actual_duration = _probe_mp4_duration(found_mp4)
+            expected_duration = float(props.get("durationSec", 0) or 0)
+            if actual_duration > 0 and (expected_duration <= 0 or actual_duration >= expected_duration * 0.9):
+                video_url = path_to_url(found_mp4)
+                manifest_path = get_experiment_dir(experiment_id) / "manifest.json"
+                manifest_url = path_to_url(manifest_path)
+                warning = (
+                    f"{msg}, but a valid MP4 was recovered "
+                    f"({actual_duration:.1f}s / expected {expected_duration:.1f}s)"
+                )
+                warnings.append(warning)
+                logs.append(f"[Remotion] {warning}")
+                manifest = {
+                    "experimentId": experiment_id,
+                    "method": "template_programmatic_render",
+                    "engine": "remotion",
+                    "resolution": "1080x1920",
+                    "fps": 30,
+                    "durationSec": props.get("durationSec", actual_duration),
+                    "stylePreset": props.get("stylePreset", "ai_frontier_dark"),
+                    "outputVideo": str(found_mp4),
+                    "outputVideoUrl": video_url,
+                    "manifestUrl": manifest_url,
+                    "props": props,
+                    "recoveredAfterTimeout": True,
+                    "recoveredDurationSec": actual_duration,
+                    "createdAt": datetime.utcnow().isoformat(),
+                }
+                write_manifest(experiment_id, manifest)
+                return {
+                    "success": True,
+                    "videoUrl": video_url,
+                    "manifestUrl": manifest_url,
+                    "message": "Remotion render completed at timeout boundary",
+                    "logs": logs,
+                    "warnings": warnings,
+                    "manifestPath": str(manifest_path),
+                }
         logs.append(f"[Remotion] {msg}")
         warnings.append(msg)
         return {

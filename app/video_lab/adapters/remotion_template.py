@@ -250,7 +250,7 @@ def run_remotion_template(
     all_logs.extend(step5.logs)
 
     # Step 6: run Remotion render
-    render_result = render_remotion_video(experiment_id, remotion_props, timeout=300)
+    render_result = render_remotion_video(experiment_id, remotion_props)
 
     if render_result.get("success"):
         step6 = make_step(

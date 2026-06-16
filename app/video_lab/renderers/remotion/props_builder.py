@@ -33,6 +33,11 @@ def build_remotion_props(
     lead = structured.get("lead", "")
     title = _extract_title(lead)
     subtitle = structured.get("subtitle", "今日 AI 前沿速览")
+    structure_type = key_points.get("structureType", "")
+    report_overview = key_points.get("overview") if isinstance(key_points.get("overview"), dict) else {}
+    if structure_type == "report_source_bound":
+        title = key_points.get("reportTitle") or title
+        subtitle = report_overview.get("summary") or subtitle
 
     # Build keyPoints array (prefer LLM-planned headline/display)
     # V0.3.6-b1: also carry emphasisTerms for Remotion highlighting
@@ -69,14 +74,15 @@ def build_remotion_props(
     # 段时长与旁白对齐：segment_durations 顺序 [opening, item1..N, closing]
     segment_durations_prop = None
     duration_sec = None
-    if segment_durations and len(segment_durations) == num_kps + 2 and num_kps > 0:
+    if segment_durations and num_kps > 0 and len(segment_durations) in (num_kps + 1, num_kps + 2):
         seg = [float(s.get("durationSec", 0)) for s in segment_durations]
+        has_summary_segment = len(seg) == num_kps + 2
         segment_durations_prop = {
             "coverSec": round(seg[0], 2),
-            "cardSecs": [round(x, 2) for x in seg[1:-1]],
-            "summarySec": round(seg[-1], 2),
+            "cardSecs": [round(x, 2) for x in (seg[1:-1] if has_summary_segment else seg[1:])],
+            "summarySec": round(seg[-1], 2) if has_summary_segment else 0.0,
         }
-        duration_sec = round(sum(seg), 2)
+        duration_sec = round(segment_durations_prop["coverSec"] + sum(segment_durations_prop["cardSecs"]) + segment_durations_prop["summarySec"], 2)
 
     if duration_sec is None:
         target_duration = params.get("targetDuration", 45)
@@ -92,6 +98,14 @@ def build_remotion_props(
         # V0.3.6-quality-p0-fix: showDataViz flag for metric visualization
         "showDataViz": params.get("showDataViz", True) is not False,
     }
+    if structure_type:
+        props["structureType"] = structure_type
+    if structure_type == "report_source_bound":
+        props["reportOverview"] = {
+            "title": report_overview.get("title", ""),
+            "summary": report_overview.get("summary", ""),
+        }
+        props["sourceRefs"] = key_points.get("sourceRefs", [])
     if segment_durations_prop:
         props["segmentDurations"] = segment_durations_prop
         # V0.8.1: timelineDebug snapshot for post-hoc inspection of
@@ -183,6 +197,8 @@ def build_remotion_props(
         "hasMetrics": has_metrics,
         "style": style,
         "remotionFamily": props.get("remotionFamily", "data_news"),
+        "structureType": props.get("structureType", ""),
+        "reportOverview": props.get("reportOverview", {}),
     }
 
     # Write props to runtime directory

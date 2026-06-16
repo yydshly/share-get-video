@@ -90,12 +90,18 @@ def build_clip_preview_payload(sample: StyleSample) -> dict[str, Any]:
         str(sample.params.get("coverTitle", "")).strip()
         if sample.params else ""
     ) or sample.style_name
+    is_report_source_bound = (
+        clip_params.get("sourceBound") is True
+        and clip_params.get("generationMode") == "information_summary"
+        and clip_params.get("inputProfile") == "report_overview_items"
+        and isinstance(clip_params.get("informationSummaryPlan"), dict)
+    )
 
     return {
         "visualRoute": visual_route,
         "content": content,
         "shot": {},
-        "frameType": "keypoint",
+        "frameType": "opening" if is_report_source_bound else "keypoint",
         "coverTitle": cover_title,
         "params": clip_params,
     }
