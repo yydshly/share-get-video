@@ -992,6 +992,70 @@ def list_preset_styles() -> list[dict[str, Any]]:
 
 
 # ─────────────────────────────────────────────
+# V1.0.7: Compare Bundle
+# ─────────────────────────────────────────────
+@router.post("/style-compare-bundles")
+def create_style_compare_bundle(request: dict[str, Any]) -> dict[str, Any]:
+    """Create a new Compare Bundle from a list of sample IDs."""
+    from app.video_lab.style_gallery import compare_bundle as sg_bundle
+
+    sample_ids = request.get("sampleIds", [])
+    if not sample_ids:
+        raise HTTPException(status_code=400, detail="sampleIds cannot be empty")
+
+    if not isinstance(sample_ids, list):
+        raise HTTPException(status_code=400, detail="sampleIds must be a list")
+
+    title = request.get("title", "")
+    goal = request.get("goal", "")
+    tags = request.get("tags", None)
+
+    bundle = sg_bundle.build_compare_bundle(
+        sample_ids=sample_ids,
+        title=title,
+        goal=goal,
+        tags=tags if isinstance(tags, list) else None,
+    )
+
+    if not bundle.sample_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid samples found for the given sampleIds",
+        )
+
+    saved = sg_bundle.save_compare_bundle(bundle)
+    return saved.to_dict()
+
+
+@router.get("/style-compare-bundles")
+def list_style_compare_bundles(limit: int = 50) -> list[dict[str, Any]]:
+    """List all Compare Bundles, sorted by updated_at descending."""
+    from app.video_lab.style_gallery import compare_bundle as sg_bundle
+    bundles = sg_bundle.list_compare_bundles(limit=limit)
+    return [b.to_dict() for b in bundles]
+
+
+@router.get("/style-compare-bundles/{bundle_id}")
+def get_style_compare_bundle(bundle_id: str) -> dict[str, Any]:
+    """Get a specific Compare Bundle by ID."""
+    from app.video_lab.style_gallery import compare_bundle as sg_bundle
+    bundle = sg_bundle.get_compare_bundle(bundle_id)
+    if not bundle:
+        raise HTTPException(status_code=404, detail=f"Compare Bundle not found: {bundle_id}")
+    return bundle.to_dict()
+
+
+@router.delete("/style-compare-bundles/{bundle_id}")
+def delete_style_compare_bundle(bundle_id: str) -> dict[str, Any]:
+    """Delete a Compare Bundle by ID."""
+    from app.video_lab.style_gallery import compare_bundle as sg_bundle
+    deleted = sg_bundle.delete_compare_bundle(bundle_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Compare Bundle not found: {bundle_id}")
+    return {"deleted": bundle_id}
+
+
+# ─────────────────────────────────────────────
 # Helper utilities
 # ─────────────────────────────────────────────
 def _infer_strengths_from_scores(scores: dict[str, float]) -> list[str]:

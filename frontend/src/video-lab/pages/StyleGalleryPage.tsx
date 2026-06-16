@@ -204,6 +204,43 @@ interface StyleTemplate {
   warnings?: string[];
 }
 
+// V1.0.7: Compare Bundle
+interface CompareBundleItem {
+  sample_id: string;
+  route_id: string;
+  route_name: string;
+  style_name: string;
+  status: string;
+  score: number | null;
+  grade: string;
+  video_url: string;
+  poster_url: string;
+  manifest_url: string;
+  rerun_payload_available: boolean;
+  notes: string;
+}
+
+interface CompareBundleDecision {
+  winner_sample_id: string;
+  winner_reason: string;
+  rejected_sample_ids: string[];
+  rejected_reasons: Record<string, string>;
+  productization_notes: string;
+}
+
+interface CompareBundle {
+  id: string;
+  title: string;
+  goal: string;
+  sample_ids: string[];
+  items: CompareBundleItem[];
+  decision: CompareBundleDecision;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+  schema_version: string;
+}
+
 // ─── 工具 ────────────────────────────────────────────────────────────────────
 
 interface BgmInfo {
@@ -1298,6 +1335,12 @@ export default function StyleGalleryPage() {
   const [judgeAvailable, setJudgeAvailable] = useState<boolean>(true);
   const [judgeUnavailableMsg, setJudgeUnavailableMsg] = useState<string>("");
   const [routeFit, setRouteFit] = useState<Record<string, RouteFit>>({});
+  // V1.0.7: Compare Bundle state
+  const [bundles, setBundles] = useState<CompareBundle[]>([]);
+  const [bundleTitle, setBundleTitle] = useState<string>("");
+  const [bundleGoal, setBundleGoal] = useState<string>("");
+  const [bundleTags, setBundleTags] = useState<string>("");
+  const [savingBundle, setSavingBundle] = useState(false);
 
   const loadPresets = useCallback(async () => {
     try {
@@ -1351,6 +1394,72 @@ export default function StyleGalleryPage() {
     } catch { /* ignore */ }
   }, []);
 
+  // V1.0.7: Compare Bundle
+  const loadBundles = useCallback(async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/style-compare-bundles`);
+      if (!resp.ok) throw new Error(`${resp.status}`);
+      const data: CompareBundle[] = await resp.json();
+      setBundles(data);
+    } catch { /* ignore */ }
+  }, []);
+
+  // V1.0.7: Save current comparing samples as a bundle
+  const handleSaveBundle = async () => {
+    const comparingSamples = samples.filter((s) => s.status === "comparing");
+    if (comparingSamples.length === 0) return;
+    setSavingBundle(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const defaultTitle = `样片对比包 ${new Date().toLocaleString("zh-CN", { hour12: false })}`;
+      const resp = await fetch(`${API_BASE}/style-compare-bundles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: bundleTitle || defaultTitle,
+          goal: bundleGoal,
+          sampleIds: comparingSamples.map((s) => s.id),
+          tags: bundleTags
+            ? bundleTags.split(",").map((t) => t.trim()).filter(Boolean)
+            : [],
+        }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.detail || `HTTP ${resp.status}`);
+      }
+      const saved: CompareBundle = await resp.json();
+      setSuccessMsg(`已保存对比包：${saved.id}`);
+      setBundleTitle("");
+      setBundleGoal("");
+      setBundleTags("");
+      loadBundles();
+    } catch (e) {
+      setError("保存对比包失败: " + String(e));
+    } finally {
+      setSavingBundle(false);
+    }
+  };
+
+  // V1.0.7: Copy bundle JSON
+  const handleCopyBundleJson = (bundle: CompareBundle) => {
+    navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
+    setSuccessMsg(`已复制对比包 JSON：${bundle.id}`);
+    setTimeout(() => setSuccessMsg(""), 3000);
+  };
+
+  // V1.0.7: Delete bundle
+  const handleDeleteBundle = async (bundleId: string) => {
+    if (!confirm("确认删除该对比包？")) return;
+    try {
+      await fetch(`${API_BASE}/style-compare-bundles/${bundleId}`, { method: "DELETE" });
+      loadBundles();
+    } catch (e) {
+      setError("删除对比包失败: " + String(e));
+    }
+  };
+
   const loadTemplates = useCallback(async () => {
     try {
       const resp = await fetch(`${API_BASE}/style-templates`);
@@ -1368,6 +1477,7 @@ export default function StyleGalleryPage() {
   useEffect(() => { loadScoreHistory(); }, [loadScoreHistory]);
   useEffect(() => { loadJudgeAvailability(); }, [loadJudgeAvailability]);
   useEffect(() => { loadRouteFit(); }, [loadRouteFit]);
+  useEffect(() => { loadBundles(); }, [loadBundles]);
 
   // 通用：生成一条样片并自动保存到样片库（预置风格 / 模板复用共用，避免复制粘贴）
   const generateAndSaveSample = async (opts: {
@@ -2099,6 +2209,100 @@ export default function StyleGalleryPage() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* V1.0.7: 保存当前对比包 */}
+          {compareSet.size > 0 && (
+            <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "0.75rem 1rem", marginBottom: "1rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.5rem" }}>💾 保存当前对比包</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <input
+                  type="text"
+                  placeholder={`标题（默认：样片对比包 ${new Date().toLocaleString("zh-CN", { hour12: false })}）`}
+                  value={bundleTitle}
+                  onChange={(e) => setBundleTitle(e.target.value)}
+                  style={{ padding: "0.4rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", width: "100%" }}
+                />
+                <textarea
+                  placeholder="对比目标（可选）"
+                  value={bundleGoal}
+                  onChange={(e) => setBundleGoal(e.target.value)}
+                  rows={2}
+                  style={{ padding: "0.4rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", width: "100%", resize: "vertical" }}
+                />
+                <input
+                  type="text"
+                  placeholder="标签，逗号分隔（可选）"
+                  value={bundleTags}
+                  onChange={(e) => setBundleTags(e.target.value)}
+                  style={{ padding: "0.4rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", width: "100%" }}
+                />
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button
+                    onClick={handleSaveBundle}
+                    disabled={savingBundle}
+                    style={{
+                      background: savingBundle ? "#93c5fd" : "#3b82f6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "0.45rem 1rem",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      cursor: savingBundle ? "wait" : "pointer",
+                    }}
+                  >
+                    {savingBundle ? "保存中..." : "💾 保存当前对比包"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* V1.0.7: 历史对比包列表 */}
+          {bundles.length > 0 && (
+            <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "0.75rem 1rem", marginBottom: "1rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.5rem" }}>📁 历史对比包</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxHeight: 300, overflowY: "auto" }}>
+                {bundles.map((b) => (
+                  <div key={b.id} style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.6rem 0.75rem" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#1e293b" }}>{b.title}</div>
+                        {b.goal && <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: 2 }}>目标：{b.goal}</div>}
+                        <div style={{ fontSize: "0.65rem", color: "#94a3b8", marginTop: 2 }}>
+                          {b.items.length} 个样片 · {b.decision.winner_sample_id ? `胜出：${b.decision.winner_sample_id}` : "暂无评分"}
+                          {b.decision.winner_reason ? `（${b.decision.winner_reason}）` : ""}
+                        </div>
+                        {b.tags.length > 0 && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem", marginTop: "0.25rem" }}>
+                            {b.tags.map((t) => (
+                              <span key={t} style={{ fontSize: "0.6rem", background: "#f1f5f9", color: "#475569", borderRadius: 4, padding: "1px 5px" }}>#{t}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: "0.3rem", flexShrink: 0 }}>
+                        <button
+                          onClick={() => handleCopyBundleJson(b)}
+                          style={{ background: "#f1f5f9", color: "#475569", border: "none", borderRadius: 6, padding: "0.25rem 0.5rem", fontSize: "0.68rem", cursor: "pointer" }}
+                          title="复制 JSON"
+                        >
+                          📋
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBundle(b.id)}
+                          style={{ background: "#fef2f2", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 6, padding: "0.25rem 0.5rem", fontSize: "0.68rem", cursor: "pointer" }}
+                          title="删除"
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
