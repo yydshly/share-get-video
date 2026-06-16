@@ -2,7 +2,7 @@
 // Path: /video-lab/technique-probe
 // 一份内容 → 三技术各出整片 → 统一质量分排名 → 推荐最佳路线，并排看成片。
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -54,6 +54,14 @@ interface ProbeResponse {
   totalCount: number;
 }
 
+interface RouteRecommendation {
+  dataDriven: boolean;
+  recommendedDisplayName: string | null;
+  confident: boolean;
+  reason: string;
+  ranking: { route: string; displayName: string; score: number; samples: number }[];
+}
+
 // 操作指引步骤
 const GUIDE_STEPS = [
   { n: 1, t: "粘贴内容", d: "把一段 AI 资讯/报告原文放进下面的输入框" },
@@ -72,6 +80,16 @@ export default function TechniqueProbePage() {
   const [running, setRunning] = useState(false);
   const [data, setData] = useState<ProbeResponse | null>(null);
   const [error, setError] = useState("");
+  const [rec, setRec] = useState<RouteRecommendation | null>(null);
+
+  // 页面打开即拉取"基于历史真实评分"的数据驱动推荐（GET，零成本）
+  const loadRecommendation = () => {
+    fetch(`${API_BASE}/route-recommendation`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => j && setRec(j))
+      .catch(() => {});
+  };
+  useEffect(loadRecommendation, []);
 
   const runProbe = async () => {
     setRunning(true);
@@ -95,6 +113,7 @@ export default function TechniqueProbePage() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const json: ProbeResponse = await resp.json();
       setData(json);
+      loadRecommendation(); // 本次评分已入库，刷新历史推荐
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -113,6 +132,31 @@ export default function TechniqueProbePage() {
       <p style={{ color: "#64748b", marginBottom: "1.5rem" }}>
         投一份内容，自动让每种技术各出一支完整短视频，按统一质量分排名，告诉你哪种最适合。
       </p>
+
+      {/* 数据驱动推荐（基于历史真实评分，非写死） */}
+      {rec && (
+        <div style={{ background: rec.dataDriven ? "#ecfdf5" : "#f8fafc", border: `1px solid ${rec.dataDriven ? "#6ee7b7" : "#e2e8f0"}`, borderRadius: 12, padding: "1rem 1.25rem", marginBottom: "1.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.78rem", fontWeight: 600, color: rec.dataDriven ? "#047857" : "#64748b" }}>📊 历史数据推荐</span>
+            {rec.dataDriven && !rec.confident && (
+              <span style={{ fontSize: "0.7rem", background: "#fef3c7", color: "#92400e", borderRadius: 8, padding: "1px 8px" }}>样本偏少·待巩固</span>
+            )}
+          </div>
+          <div style={{ fontSize: "0.9rem", color: "#334155", marginTop: 4 }}>{rec.reason}</div>
+          {rec.ranking.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", marginTop: "0.6rem" }}>
+              {rec.ranking.map((r, i) => (
+                <span key={r.route} style={{ fontSize: "0.78rem", color: "#475569", background: "white", border: "1px solid #e2e8f0", borderRadius: 999, padding: "2px 10px" }}>
+                  {i === 0 ? "🥇" : `${i + 1}.`} {r.displayName} · {r.score} <span style={{ color: "#94a3b8" }}>({r.samples}样本)</span>
+                </span>
+              ))}
+            </div>
+          )}
+          <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.5rem" }}>
+            ↑ 这是按你历史真实评分算出来的，不是写死的；样本越多越可信。下面跑一次探测会更新它。
+          </div>
+        </div>
+      )}
 
       {/* 操作指引 */}
       <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: 12, padding: "1.25rem", marginBottom: "1.5rem" }}>
