@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResult, VideoExperimentEvaluation
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
@@ -405,6 +406,53 @@ def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
     """Run ONE visual route end-to-end (LLM plan + TTS + 字幕 + 合成).
     V1 contract: always returns success/status/contractStatus/artifacts/error/rawOutput."""
     return run_visual_compose_endpoint(request)
+
+
+# ─────────────────────────────────────────────
+# information-structure — V1.2.1: Information Summary Video Mode
+# ─────────────────────────────────────────────
+
+class InformationStructureRequest(BaseModel):
+    """JSON body for POST /video-lab/information-structure"""
+    content: str = Field(..., min_length=1, description="报告原文内容")
+    compression_mode: str = Field(default="balanced", description="精简摘要 | 均衡总结 | 严格保留 | 逐条展开 | 手动分段")
+    target_point_count: str = Field(default="auto", description="自动 | 3 | 5 | 8 | all")
+    include_overview: bool = Field(default=True, description="是否生成首页总览")
+    include_conclusion: bool = Field(default=True, description="是否生成尾部总结")
+    evidence_policy: str = Field(default="ending_sources", description="隐藏 | 角标 | 片尾来源 | 原文保留")
+    target_duration_mode: str = Field(default="auto", description="自动匹配信息量 | 30秒快讯 | 60秒标准总结 | 90秒完整展开")
+
+
+@router.post("/information-structure")
+def generate_information_structure(request: InformationStructureRequest) -> dict[str, Any]:
+    """Parse content and generate an InformationSummaryPlan structure.
+
+    Used by Workbench "Information Summary Video Mode" to show content structure
+    before generating a video, helping users understand what will be included.
+    """
+    from app.video_lab.services.information_structure_service import (
+        generate_information_structure as _gen_structure,
+        serialize_for_visual_compose,
+    )
+
+    plan = _gen_structure(
+        content=request.content,
+        compression_mode=request.compression_mode,
+        target_point_count=request.target_point_count,
+        include_overview=request.include_overview,
+        include_conclusion=request.include_conclusion,
+        evidence_policy=request.evidence_policy,
+        target_duration_mode=request.target_duration_mode,
+    )
+
+    # Also provide serialized version for visual-compose
+    serialized = serialize_for_visual_compose(plan)
+
+    return {
+        "success": True,
+        "plan": plan,
+        "serializedContent": serialized,
+    }
 
 
 # ─────────────────────────────────────────────

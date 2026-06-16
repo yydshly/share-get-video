@@ -83,6 +83,39 @@ interface RouteOption {
   note?: string;
 }
 
+// V1.2.1: Information Summary Video Mode
+type GenerationMode = "normal" | "information_summary";
+type CompressionMode = "brief" | "balanced" | "strict" | "itemized" | "manual";
+type TargetPointCount = "auto" | "3" | "5" | "8" | "all";
+type EvidencePolicy = "hide" | "badge" | "ending_sources" | "keep_inline";
+type DurationMode = "auto" | "30" | "60" | "90";
+
+interface InformationSummaryPlan {
+  mode: GenerationMode;
+  compressionMode: CompressionMode;
+  targetPointCount: TargetPointCount;
+  includeOverview: boolean;
+  includeConclusion: boolean;
+  evidencePolicy: EvidencePolicy;
+  targetDurationMode: DurationMode;
+  overview: { title: string; subtitle: string; summary: string };
+  items: Array<{
+    id: string;
+    title: string;
+    description: string;
+    evidence?: string[];
+    sourceText?: string;
+    selected: boolean;
+  }>;
+  conclusion: { title: string; text: string };
+  stats: {
+    detectedItemCount: number;
+    selectedItemCount: number;
+    droppedItemCount: number;
+    estimatedDurationSec: number;
+  };
+}
+
 // ─── Route Definitions ───────────────────────────────────────────────────────
 
 const ROUTES: RouteOption[] = [
@@ -411,6 +444,18 @@ export default function VideoGenerationWorkbenchPage() {
   const [reviewNotes, setReviewNotes] = useState("");
   const [copied, setCopied] = useState(false);
 
+  // V1.2.1: Information Summary Mode
+  const [generationMode, setGenerationMode] = useState<GenerationMode>("normal");
+  const [infoSummaryLoading, setInfoSummaryLoading] = useState(false);
+  const [infoSummaryError, setInfoSummaryError] = useState("");
+  const [infoSummaryPlan, setInfoSummaryPlan] = useState<InformationSummaryPlan | null>(null);
+  const [compressionMode, setCompressionMode] = useState<CompressionMode>("balanced");
+  const [targetPointCount, setTargetPointCount] = useState<TargetPointCount>("auto");
+  const [includeOverview, setIncludeOverview] = useState(true);
+  const [includeConclusion, setIncludeConclusion] = useState(true);
+  const [evidencePolicy, setEvidencePolicy] = useState<EvidencePolicy>("ending_sources");
+  const [targetDurationMode, setTargetDurationMode] = useState<DurationMode>("auto");
+
   // ── Save / Compare State ───────────────────────────────────────────────
   const [savedSampleId, setSavedSampleId] = useState<string | null>(null);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -474,19 +519,83 @@ export default function VideoGenerationWorkbenchPage() {
   const selectedAvailability = routeAvailability[selectedVisualRoute];
   const selectedRouteUnavailable = selectedAvailability?.available === false;
 
-  const buildGenerationContent = () => [title.trim(), body.trim()].filter(Boolean).join("\n\n");
+  // V1.2.1: Build content - use serialized plan content if in info summary mode
+  const buildGenerationContent = () => {
+    if (generationMode === "information_summary" && infoSummaryPlan) {
+      // Use the serialized content from the plan
+      const lines: string[] = [];
+      if (infoSummaryPlan.includeOverview && infoSummaryPlan.overview) {
+        lines.push("【首页总览】");
+        if (infoSummaryPlan.overview.title) lines.push(`标题：${infoSummaryPlan.overview.title}`);
+        if (infoSummaryPlan.overview.summary) lines.push(`摘要：${infoSummaryPlan.overview.summary}`);
+        lines.push("");
+      }
+      infoSummaryPlan.items.forEach((item, i) => {
+        lines.push(`【信息点 ${i + 1}】`);
+        if (item.title) lines.push(`标题：${item.title}`);
+        if (item.description) lines.push(`描述：${item.description}`);
+        if (item.evidence && evidencePolicy === "badge") lines.push(`依据：${item.evidence.join("、")}`);
+        lines.push("");
+      });
+      if (infoSummaryPlan.includeConclusion && infoSummaryPlan.conclusion) {
+        lines.push("【尾部总结】");
+        if (infoSummaryPlan.conclusion.title) lines.push(`标题：${infoSummaryPlan.conclusion.title}`);
+        if (infoSummaryPlan.conclusion.text) lines.push(`内容：${infoSummaryPlan.conclusion.text}`);
+      }
+      return lines.join("\n");
+    }
+    return [title.trim(), body.trim()].filter(Boolean).join("\n\n");
+  };
 
   const buildVisualRouteParams = (): Record<string, unknown> => {
+    let targetDuration = 45;
+    let keyPointCount = 3;
+
+    if (generationMode === "information_summary" && infoSummaryPlan) {
+      targetDuration = infoSummaryPlan.stats.estimatedDurationSec || 60;
+      keyPointCount = infoSummaryPlan.items.length || 5;
+    }
+
     const base = {
-      targetDuration: 45,
+      targetDuration,
       aspectRatio: "9:16",
-      keyPointCount: 3,
+      keyPointCount,
       useLlmPlan: true,
       coverTitle: title.trim(),
     };
     if (selectedRoute === "remotion_data_news") return { ...base, remotionFamily: "data_news" };
     if (selectedRoute === "remotion_card_stack") return { ...base, remotionFamily: "card_stack" };
     return base;
+  };
+
+  // V1.2.1: Generate information structure
+  const callGenerateInformationStructure = async () => {
+    setInfoSummaryLoading(true);
+    setInfoSummaryError("");
+    setInfoSummaryPlan(null);
+
+    try {
+      const resp = await fetch(`${API_BASE}/information-structure`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: [title.trim(), body.trim()].filter(Boolean).join("\n\n"),
+          compression_mode: compressionMode,
+          target_point_count: targetPointCount,
+          include_overview: includeOverview,
+          include_conclusion: includeConclusion,
+          evidence_policy: evidencePolicy,
+          target_duration_mode: targetDurationMode,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+      setInfoSummaryPlan(data.plan as InformationSummaryPlan);
+    } catch (e) {
+      setInfoSummaryError(String(e));
+    } finally {
+      setInfoSummaryLoading(false);
+    }
   };
 
   // ── Preview ─────────────────────────────────────────────────────────────
@@ -891,6 +1000,201 @@ export default function VideoGenerationWorkbenchPage() {
         <p style={{ fontSize: "0.78rem", color: "#64748b", marginBottom: "1rem" }}>
           预览用于快速看版式；完整视频会调用 TTS、字幕和 FFmpeg 合成，耗时更长（约 30-90 秒）。
         </p>
+
+        {/* V1.2.1: Generation Mode Selector */}
+        <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.5rem" }}>生成模式</div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <button
+              onClick={() => { setGenerationMode("normal"); setInfoSummaryPlan(null); }}
+              style={{
+                padding: "0.35rem 0.85rem",
+                borderRadius: 6,
+                border: generationMode === "normal" ? "2px solid #0f766e" : "1px solid #e2e8f0",
+                background: generationMode === "normal" ? "#f0fdfa" : "white",
+                color: generationMode === "normal" ? "#0f766e" : "#64748b",
+                fontSize: "0.78rem",
+                fontWeight: generationMode === "normal" ? 600 : 400,
+                cursor: "pointer",
+              }}
+            >
+              普通视频
+            </button>
+            <button
+              onClick={() => setGenerationMode("information_summary")}
+              style={{
+                padding: "0.35rem 0.85rem",
+                borderRadius: 6,
+                border: generationMode === "information_summary" ? "2px solid #7c3aed" : "1px solid #e2e8f0",
+                background: generationMode === "information_summary" ? "#f5f3ff" : "white",
+                color: generationMode === "information_summary" ? "#7c3aed" : "#64748b",
+                fontSize: "0.78rem",
+                fontWeight: generationMode === "information_summary" ? 600 : 400,
+                cursor: "pointer",
+              }}
+            >
+              📋 信息总结视频
+            </button>
+          </div>
+
+          {/* V1.2.1: Information Summary Controls */}
+          {generationMode === "information_summary" && (
+            <div style={{ marginTop: "0.85rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.5rem" }}>
+                {/* Compression Mode */}
+                <div>
+                  <label style={{ fontSize: "0.72rem", color: "#64748b", display: "block", marginBottom: 2 }}>内容处理模式</label>
+                  <select
+                    value={compressionMode}
+                    onChange={(e) => setCompressionMode(e.target.value as CompressionMode)}
+                    style={{ width: "100%", padding: "0.3rem 0.5rem", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.78rem" }}
+                  >
+                    <option value="brief">精简摘要（保留 3 条）</option>
+                    <option value="balanced">均衡总结（保留 5-7 条）</option>
+                    <option value="strict">严格保留（尽量全部保留）</option>
+                    <option value="itemized">逐条展开（每条单独成卡）</option>
+                    <option value="manual">手动分段</option>
+                  </select>
+                </div>
+
+                {/* Target Point Count */}
+                <div>
+                  <label style={{ fontSize: "0.72rem", color: "#64748b", display: "block", marginBottom: 2 }}>目标信息点数量</label>
+                  <select
+                    value={targetPointCount}
+                    onChange={(e) => setTargetPointCount(e.target.value as TargetPointCount)}
+                    style={{ width: "100%", padding: "0.3rem 0.5rem", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.78rem" }}
+                  >
+                    <option value="auto">自动</option>
+                    <option value="3">3 条</option>
+                    <option value="5">5 条</option>
+                    <option value="8">8 条</option>
+                    <option value="all">全部主要信息点</option>
+                  </select>
+                </div>
+
+                {/* Target Duration */}
+                <div>
+                  <label style={{ fontSize: "0.72rem", color: "#64748b", display: "block", marginBottom: 2 }}>目标视频时长</label>
+                  <select
+                    value={targetDurationMode}
+                    onChange={(e) => setTargetDurationMode(e.target.value as DurationMode)}
+                    style={{ width: "100%", padding: "0.3rem 0.5rem", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.78rem" }}
+                  >
+                    <option value="auto">自动匹配信息量</option>
+                    <option value="30">30 秒快讯</option>
+                    <option value="60">60 秒标准总结</option>
+                    <option value="90">90 秒完整展开</option>
+                  </select>
+                </div>
+
+                {/* Evidence Policy */}
+                <div>
+                  <label style={{ fontSize: "0.72rem", color: "#64748b", display: "block", marginBottom: 2 }}>依据处理</label>
+                  <select
+                    value={evidencePolicy}
+                    onChange={(e) => setEvidencePolicy(e.target.value as EvidencePolicy)}
+                    style={{ width: "100%", padding: "0.3rem 0.5rem", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.78rem" }}
+                  >
+                    <option value="hide">隐藏</option>
+                    <option value="badge">角标</option>
+                    <option value="ending_sources">片尾来源</option>
+                    <option value="keep_inline">原文保留</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Structure Options Toggles */}
+              <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.78rem", color: "#475569", cursor: "pointer" }}>
+                  <input type="checkbox" checked={includeOverview} onChange={(e) => setIncludeOverview(e.target.checked)} />
+                  生成首页总览
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "0.78rem", color: "#475569", cursor: "pointer" }}>
+                  <input type="checkbox" checked={includeConclusion} onChange={(e) => setIncludeConclusion(e.target.checked)} />
+                  生成尾部总结
+                </label>
+              </div>
+
+              {/* Generate Information Structure Button */}
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.25rem" }}>
+                <button
+                  onClick={callGenerateInformationStructure}
+                  disabled={infoSummaryLoading}
+                  style={{
+                    padding: "0.4rem 1rem",
+                    borderRadius: 6,
+                    border: "none",
+                    background: infoSummaryLoading ? "#94a3b8" : "#7c3aed",
+                    color: "white",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    cursor: infoSummaryLoading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {infoSummaryLoading ? "分析中..." : "📋 生成信息结构"}
+                </button>
+                {infoSummaryPlan && (
+                  <span style={{ fontSize: "0.75rem", color: "#16a34a" }}>
+                    ✅ 识别 {infoSummaryPlan.stats.detectedItemCount} 条，保留 {infoSummaryPlan.stats.selectedItemCount} 条（预计 {infoSummaryPlan.stats.estimatedDurationSec}s）
+                  </span>
+                )}
+              </div>
+
+              {infoSummaryError && (
+                <div style={{ fontSize: "0.75rem", color: "#dc2626" }}>错误：{infoSummaryError}</div>
+              )}
+
+              {/* V1.2.1: Information Structure Preview */}
+              {infoSummaryPlan && (
+                <div style={{ marginTop: "0.5rem", padding: "0.75rem", background: "white", borderRadius: 8, border: "1px solid #ddd", maxHeight: 320, overflowY: "auto" }}>
+                  <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "#1e293b", marginBottom: "0.5rem" }}>📋 信息结构预览</div>
+
+                  {infoSummaryPlan.includeOverview && infoSummaryPlan.overview && (
+                    <div style={{ marginBottom: "0.6rem", padding: "0.5rem", background: "#f0fdfa", borderRadius: 6, borderLeft: "3px solid #0f766e" }}>
+                      <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#0f766e" }}>🏠 首页总览：{infoSummaryPlan.overview.title}</div>
+                      {infoSummaryPlan.overview.summary && (
+                        <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: 2 }}>{infoSummaryPlan.overview.summary.slice(0, 80)}...</div>
+                      )}
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#475569", marginBottom: "0.3rem" }}>
+                    📌 信息点（{infoSummaryPlan.stats.selectedItemCount}/{infoSummaryPlan.stats.detectedItemCount} 已选）
+                  </div>
+                  {infoSummaryPlan.items.map((item, i) => (
+                    <div key={item.id} style={{ marginBottom: "0.4rem", padding: "0.4rem 0.5rem", background: "#f8fafc", borderRadius: 5, borderLeft: `3px solid ${item.selected ? "#16a34a" : "#94a3b8"}` }}>
+                      <div style={{ fontSize: "0.72rem", fontWeight: 600, color: item.selected ? "#16a34a" : "#94a3b8" }}>
+                        {i + 1}. {item.title || "(无标题)"}
+                      </div>
+                      {item.description && (
+                        <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: 1 }}>{item.description.slice(0, 60)}{item.description.length > 60 ? "..." : ""}</div>
+                      )}
+                      {item.evidence && item.evidence.length > 0 && (
+                        <div style={{ fontSize: "0.65rem", color: "#94a3b8", marginTop: 1 }}>依据：{item.evidence.join("、")}</div>
+                      )}
+                    </div>
+                  ))}
+
+                  {infoSummaryPlan.stats.droppedItemCount > 0 && (
+                    <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.3rem", fontStyle: "italic" }}>
+                      ⏭ {infoSummaryPlan.stats.droppedItemCount} 条已省略（篇幅限制）
+                    </div>
+                  )}
+
+                  {infoSummaryPlan.includeConclusion && infoSummaryPlan.conclusion && (
+                    <div style={{ marginTop: "0.6rem", padding: "0.5rem", background: "#f5f3ff", borderRadius: 6, borderLeft: "3px solid #7c3aed" }}>
+                      <div style={{ fontSize: "0.72rem", fontWeight: 600, color: "#7c3aed" }}>🔚 尾部总结：{infoSummaryPlan.conclusion.title}</div>
+                      {infoSummaryPlan.conclusion.text && (
+                        <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: 2 }}>{infoSummaryPlan.conclusion.text.slice(0, 80)}...</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.75rem" }}>
           <button
