@@ -1449,11 +1449,16 @@ export default function StyleGalleryPage() {
     setTimeout(() => setSuccessMsg(""), 3000);
   };
 
-  // V1.0.7: Delete bundle
+  // V1.0.7: Delete bundle (V1.0.8 fix: check resp.ok)
   const handleDeleteBundle = async (bundleId: string) => {
     if (!confirm("确认删除该对比包？")) return;
     try {
-      await fetch(`${API_BASE}/style-compare-bundles/${bundleId}`, { method: "DELETE" });
+      const resp = await fetch(`${API_BASE}/style-compare-bundles/${bundleId}`, { method: "DELETE" });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.detail || `HTTP ${resp.status}`);
+      }
+      setSuccessMsg(`已删除对比包：${bundleId}`);
       loadBundles();
     } catch (e) {
       setError("删除对比包失败: " + String(e));
