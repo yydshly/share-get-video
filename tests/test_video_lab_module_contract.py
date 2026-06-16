@@ -1,11 +1,11 @@
 """
 tests/test_video_lab_module_contract.py
 
-V1.0 contract tests for Video Lab module freeze.
+V1.0 contract tests for Video Lab module freeze (hardened).
 
 Covers:
 - ErrorEnvelope.to_dict structure is stable
-- error_response() returns success=false / status=failed / error / logs / warnings / artifacts / rawOutput
+- error_response() returns success=false / status=failed / contractStatus / error / logs / warnings / artifacts / rawOutput
 - RunContext auto-generates runId / experimentId
 - RunContext defaults include logs / warnings
 - ExperimentManifest success has schemaVersion=video-lab-experiment-v1
@@ -14,8 +14,12 @@ Covers:
 - manifestUrl uses PUBLIC_RUNTIME_URL_PREFIX
 - VisualProfile unknown profile falls back to ai_frontier_dark
 - merge_visual_profile: explicit overrides beat profile defaults
-- /clip-preview response has success/status/artifacts/error/rawOutput
+- /clip-preview response has success/status/contractStatus/artifacts/error/rawOutput
+- /clip-preview writes manifest even on failure
 - /visual-compose on dependency failure returns unified failed/error structure
+- /visual-compose outer exception returns V1 error envelope (not HTTP 500)
+- result.logs merged into response.logs
+- V1 artifacts contains finalVideoUrl / coverUrl / audioUrl / srtUrl / manifestUrl
 """
 
 import sys
@@ -65,7 +69,7 @@ class TestErrorEnvelope:
         assert err["code"] == "VIDEO_LAB_CONFIG_ERROR"
         assert err["message"] == "Something went wrong"
 
-    def test_error_response_success_false_status_failed(self):
+    def test_error_response_has_all_v1_fields(self):
         from app.video_lab.errors import error_response
 
         resp = error_response(
@@ -352,23 +356,28 @@ class TestClipPreviewContract:
         }
 
         with patch("app.video_lab.renderers.frame_preview.render_clip_preview", return_value=mock_result):
-            req = ClipPreviewRequest(
-                visualRoute="template_programmatic_render",
-                content="Test content",
-                params={"clipSeconds": 3},
-            )
-            resp = clip_preview(req)
+            with patch("app.video_lab.router.write_experiment_manifest") as mock_write:
+                mock_write.return_value = {"path": "/p/manifest.json", "url": "/runtime/manifest.json"}
+                req = ClipPreviewRequest(
+                    visualRoute="template_programmatic_render",
+                    content="Test content",
+                    params={"clipSeconds": 3},
+                )
+                resp = clip_preview(req)
 
-            assert resp["success"] is True
-            assert resp["status"] == "success"
-            assert "runId" in resp
-            assert "experimentId" in resp
-            assert "mode" in resp
-            assert "artifacts" in resp
-            assert "videoUrl" in resp["artifacts"]
-            assert "error" in resp
-            assert resp["error"] is None
-            assert "rawOutput" in resp
+        assert resp["success"] is True
+        assert resp["status"] == "success"
+        assert resp["contractStatus"] == "success"
+        assert "runId" in resp
+        assert "experimentId" in resp
+        assert "artifacts" in resp
+        assert resp["artifacts"]["videoUrl"] == "/runtime/video_lab/experiments/abc/clip.mp4"
+        assert "manifestUrl" in resp["artifacts"]
+        assert "error" in resp
+        assert resp["error"] is None
+        assert "rawOutput" in resp
+        # Manifest should have been written
+        mock_write.assert_called_once()
 
     def test_clip_preview_failure_returns_v1_contract(self):
         from app.video_lab.router import clip_preview
@@ -383,23 +392,27 @@ class TestClipPreviewContract:
         }
 
         with patch("app.video_lab.renderers.frame_preview.render_clip_preview", return_value=mock_result):
-            req = ClipPreviewRequest(
-                visualRoute="template_programmatic_render",
-                content="Test content",
-                params={},
-            )
-            resp = clip_preview(req)
+            with patch("app.video_lab.router.write_experiment_manifest") as mock_write:
+                mock_write.return_value = {"path": "/p/manifest.json", "url": "/runtime/manifest.json"}
+                req = ClipPreviewRequest(
+                    visualRoute="template_programmatic_render",
+                    content="Test content",
+                    params={},
+                )
+                resp = clip_preview(req)
 
-            assert resp["success"] is False
-            assert resp["status"] == "failed"
-            assert "runId" in resp
-            assert "experimentId" in resp
-            assert "artifacts" in resp
-            assert resp["artifacts"] == {}
-            assert "error" in resp
-            assert resp["error"] is not None
-            assert resp["error"]["type"] == "RenderError"
-            assert "Chrome failed to launch" in resp["error"]["message"]
+        assert resp["success"] is False
+        assert resp["status"] == "failed"
+        assert resp["contractStatus"] == "failed"
+        assert "runId" in resp
+        assert "experimentId" in resp
+        assert "artifacts" in resp
+        assert resp["artifacts"] == {"videoUrl": "", "coverUrl": "", "manifestUrl": "/runtime/manifest.json"}
+        assert "error" in resp
+        assert resp["error"] is not None
+        assert resp["error"]["type"] == "RenderError"
+        assert "Chrome failed to launch" in resp["error"]["message"]
+        mock_write.assert_called_once()  # manifest written even on failure
 
     def test_clip_preview_exception_returns_v1_contract(self):
         from app.video_lab.router import clip_preview
@@ -409,19 +422,49 @@ class TestClipPreviewContract:
             "app.video_lab.renderers.frame_preview.render_clip_preview",
             side_effect=RuntimeError("Unexpected error"),
         ):
-            req = ClipPreviewRequest(
-                visualRoute="template_programmatic_render",
-                content="Test content",
-                params={},
-            )
-            resp = clip_preview(req)
+            with patch("app.video_lab.router.write_experiment_manifest") as mock_write:
+                mock_write.return_value = {"path": "/p/manifest.json", "url": "/runtime/manifest.json"}
+                req = ClipPreviewRequest(
+                    visualRoute="template_programmatic_render",
+                    content="Test content",
+                    params={},
+                )
+                resp = clip_preview(req)
 
-            assert resp["success"] is False
-            assert resp["status"] == "failed"
-            assert "runId" in resp
-            assert "experimentId" in resp
-            assert "error" in resp
-            assert resp["error"]["code"] == "VIDEO_LAB_INTERNAL_ERROR"
+        assert resp["success"] is False
+        assert resp["status"] == "failed"
+        assert resp["contractStatus"] == "failed"
+        assert "runId" in resp
+        assert "experimentId" in resp
+        assert "error" in resp
+        assert resp["error"]["code"] == "VIDEO_LAB_INTERNAL_ERROR"
+
+    def test_clip_preview_visual_profile_warning_merged(self):
+        """Unknown visualProfile in params adds warning to response."""
+        from app.video_lab.router import clip_preview
+        from app.video_lab.schemas import ClipPreviewRequest
+
+        mock_result = {
+            "success": True,
+            "route": "template_programmatic_render",
+            "clipUrl": "/runtime/video_lab/experiments/abc/clip.mp4",
+            "warnings": [],
+            "elapsedMs": 5000,
+        }
+
+        with patch("app.video_lab.renderers.frame_preview.render_clip_preview", return_value=mock_result):
+            with patch("app.video_lab.router.write_experiment_manifest") as mock_write:
+                mock_write.return_value = {"path": "/p/manifest.json", "url": "/runtime/manifest.json"}
+                req = ClipPreviewRequest(
+                    visualRoute="template_programmatic_render",
+                    content="Test content",
+                    params={"visualProfile": "nonexistent_profile_xyz"},
+                )
+                resp = clip_preview(req)
+
+        # Unknown profile should have produced a warning
+        assert resp["success"] is True
+        assert any("nonexistent_profile_xyz" in w for w in resp["warnings"])
 
 
 # ─────────────────────────────────────────
@@ -430,15 +473,14 @@ class TestClipPreviewContract:
 class TestVisualComposeContract:
     def test_visual_compose_success_returns_v1_fields(self):
         from app.video_lab.router import _run_visual_compose
-        from unittest.mock import MagicMock
 
         mock_result = MagicMock()
         mock_result.rawOutput = {"status": "succeeded", "quality": {"overallScore": 0.85}}
         mock_result.assets = {"audioDurationSec": 45.0, "subtitleCount": 12}
         mock_result.productionSteps = []
+        mock_result.logs = ["step 1 done", "step 2 done"]
         mock_result.videoUrl = "/runtime/video_lab/experiments/abc/final.mp4"
         mock_result.coverUrl = "/runtime/video_lab/experiments/abc/cover.jpg"
-        mock_result.logs = ["step 1 done"]
 
         with patch(
             "app.video_lab.adapters.tts_subtitle_compose.run_tts_subtitle_compose",
@@ -446,25 +488,34 @@ class TestVisualComposeContract:
         ):
             with patch("app.video_lab.quality.quality_log.append_record"):
                 with patch(
-                    "app.video_lab.experiment_manifest.write_experiment_manifest",
+                    "app.video_lab.router.write_experiment_manifest",
                     return_value={"path": "/p/manifest.json", "url": "/runtime/manifest.json"},
-                ):
+                ) as mock_write:
                     resp = _run_visual_compose(
                         "Test content", "template_programmatic_render", {}
                     )
 
         assert resp["success"] is True
         assert resp["status"] == "succeeded"
+        assert resp["contractStatus"] == "success"
         assert "runId" in resp
         assert "experimentId" in resp
         assert "artifacts" in resp
+        assert "finalVideoUrl" in resp["artifacts"]
+        assert "coverUrl" in resp["artifacts"]
+        assert "audioUrl" in resp["artifacts"]
+        assert "srtUrl" in resp["artifacts"]
+        assert "manifestUrl" in resp["artifacts"]
+        assert resp["artifacts"]["finalVideoUrl"] == "/runtime/video_lab/experiments/abc/final.mp4"
         assert "error" in resp
         assert resp["error"] is None
         assert "rawOutput" in resp
+        # result.logs should be merged into response.logs
+        assert any("step 1 done" in l for l in resp["logs"])
+        mock_write.assert_called_once()
 
     def test_visual_compose_failure_returns_error_envelope(self):
         from app.video_lab.router import _run_visual_compose
-        from unittest.mock import MagicMock
 
         mock_result = MagicMock()
         mock_result.rawOutput = {
@@ -480,7 +531,7 @@ class TestVisualComposeContract:
             return_value=mock_result,
         ):
             with patch(
-                "app.video_lab.experiment_manifest.write_experiment_manifest",
+                "app.video_lab.router.write_experiment_manifest",
                 return_value={"path": "/p/manifest.json", "url": "/runtime/manifest.json"},
             ):
                 resp = _run_visual_compose(
@@ -489,9 +540,99 @@ class TestVisualComposeContract:
 
         assert resp["success"] is False
         assert resp["status"] == "failed"
+        assert resp["contractStatus"] == "failed"
         assert "runId" in resp
         assert "experimentId" in resp
         assert "error" in resp
         assert resp["error"] is not None
         assert "artifacts" in resp
+        assert "rawOutput" in resp
+        # V1 artifacts should still have available assets
+        assert "finalVideoUrl" in resp["artifacts"]
+
+    def test_visual_compose_visual_profile_unknown_warns(self):
+        """Unknown visualProfile adds warning to response but does not fail."""
+        from app.video_lab.router import _run_visual_compose
+
+        mock_result = MagicMock()
+        mock_result.rawOutput = {"status": "succeeded", "quality": {}}
+        mock_result.assets = {}
+        mock_result.productionSteps = []
+        mock_result.logs = []
+        mock_result.videoUrl = "/runtime/video_lab/experiments/abc/final.mp4"
+        mock_result.coverUrl = ""
+
+        with patch(
+            "app.video_lab.adapters.tts_subtitle_compose.run_tts_subtitle_compose",
+            return_value=mock_result,
+        ):
+            with patch("app.video_lab.quality.quality_log.append_record"):
+                with patch(
+                    "app.video_lab.router.write_experiment_manifest",
+                    return_value={"path": "/p/manifest.json", "url": "/runtime/manifest.json"},
+                ):
+                    resp = _run_visual_compose(
+                        "Test content",
+                        "template_programmatic_render",
+                        {"visualProfile": "nonexistent_profile_xyz"},
+                    )
+
+        assert resp["success"] is True
+        assert any("nonexistent_profile_xyz" in w for w in resp["warnings"])
+
+    def test_visual_compose_result_logs_merged(self):
+        """result.logs are deduplicated and merged into response.logs."""
+        from app.video_lab.router import _run_visual_compose
+
+        mock_result = MagicMock()
+        mock_result.rawOutput = {"status": "succeeded", "quality": {}}
+        mock_result.assets = {}
+        mock_result.productionSteps = []
+        mock_result.logs = ["factory step alpha", "factory step beta"]
+        mock_result.videoUrl = "/runtime/video_lab/experiments/abc/final.mp4"
+        mock_result.coverUrl = ""
+
+        with patch(
+            "app.video_lab.adapters.tts_subtitle_compose.run_tts_subtitle_compose",
+            return_value=mock_result,
+        ):
+            with patch("app.video_lab.quality.quality_log.append_record"):
+                with patch(
+                    "app.video_lab.router.write_experiment_manifest",
+                    return_value={"path": "/p/manifest.json", "url": "/runtime/manifest.json"},
+                ):
+                    resp = _run_visual_compose("Test content", "template_programmatic_render", {})
+
+        assert "factory step alpha" in resp["logs"]
+        assert "factory step beta" in resp["logs"]
+
+
+class TestVisualComposeOuterException:
+    def test_visual_compose_outer_exception_returns_v1_envelope(self):
+        """visual_compose outer exception returns V1 error envelope, not HTTP 500."""
+        from app.video_lab.router import visual_compose
+        from app.video_lab.schemas import VisualComposeRequest
+
+        with patch(
+            "app.video_lab.router._run_visual_compose",
+            side_effect=RuntimeError("Database connection failed"),
+        ):
+            req = VisualComposeRequest(
+                content="Test content",
+                visualRoute="template_programmatic_render",
+                params={},
+            )
+            resp = visual_compose(req)
+
+        # Must be a V1 response, not an HTTPException
+        assert resp["success"] is False
+        assert resp["status"] == "failed"
+        assert resp["contractStatus"] == "failed"
+        assert "runId" in resp
+        assert "experimentId" in resp
+        assert "error" in resp
+        assert resp["error"]["code"] == "VIDEO_LAB_INTERNAL_ERROR"
+        assert resp["error"]["type"] == "RuntimeError"
+        assert "artifacts" in resp
+        assert resp["artifacts"] == {}
         assert "rawOutput" in resp

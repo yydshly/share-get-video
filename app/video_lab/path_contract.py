@@ -29,7 +29,8 @@ def path_to_runtime_url(file_path: Path | str) -> str:
     Strategy:
     1. Resolve the path and use relative_to(RUNTIME_DIR) so custom RUNTIME_DIR
        paths (e.g. D:/video-lab-runtime) always map cleanly to /runtime/...
-    2. Fallback: strip any existing /runtime/ prefix and rebuild.
+    2. Fallback: only strip a leading /runtime/ prefix (not /runtime/ in the middle
+       of a path like custom-RUNTIME/file.mp4).
 
     Examples:
       path_to_runtime_url("runtime/video_lab/experiments/exp/final.mp4")
@@ -53,14 +54,18 @@ def path_to_runtime_url(file_path: Path | str) -> str:
     except ValueError:
         pass
 
-    # 2. Normalize and strip any existing /runtime/ marker
+    # 2. Normalize and strip only a leading /runtime/ prefix
     normalized = resolved.as_posix().replace("\\", "/")
-    marker = "/runtime/"
-    if marker in normalized:
-        return f"{prefix}/" + normalized.split(marker, 1)[1]
+
+    # Strip only if /runtime/ appears at a path boundary (start or after drive letter)
+    # This avoids incorrectly stripping "custom-RUNTIME" directory names
+    for strip_prefix in ("/runtime/", "runtime/"):
+        if normalized.startswith(strip_prefix):
+            remainder = normalized[len(strip_prefix):]
+            return f"{prefix}/{remainder}"
 
     # 3. Fallback: everything under the prefix
-    return f"{prefix}/" + normalized.lstrip("/")
+    return f"{prefix}/{normalized.lstrip('/')}"
 
 
 def runtime_url_to_path(url_or_path: str) -> Path:
