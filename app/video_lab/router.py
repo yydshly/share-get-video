@@ -1,22 +1,50 @@
 """
-Video Capability Lab - FastAPI Router
+Video Capability Lab - FastAPI Router (V1.0.2)
+
+Thin router: only defines APIRouter, request/response entry points,
+and delegates business logic to services.
 """
 
 import logging
-from app.video_lab.config import ffmpeg_bin, ffprobe_bin
 from typing import Any
+
 from fastapi import APIRouter, HTTPException
 
 from app.video_lab.models import VideoTestCase, VideoMethod, VideoExperimentResult, VideoExperimentEvaluation
 from app.video_lab.seed_data import SEED_TEST_CASES, SEED_VIDEO_METHODS, get_test_case_by_id, get_method_by_id
 from app.video_lab.advisor import getVideoMethodAdvice, get_all_advice
 from app.video_lab.experiment_runner import get_runner
-from app.video_lab.schemas import CreateExperimentRequest, SaveEvaluationRequest, CreateBenchmarkRequest, CreateChainBenchmarkRequest, VisualComposeRequest, FramePreviewRequest, ClipPreviewRequest, VisualJudgeRequest, StyleSampleGenerateRequest, StyleSampleSaveRequest, StyleFamilyCompareRequest, TechniqueProbeRequest, StyleSweepRequest
-from app.video_lab.config import PUBLIC_RUNTIME_URL_PREFIX
+from app.video_lab.schemas import (
+    CreateExperimentRequest,
+    SaveEvaluationRequest,
+    CreateBenchmarkRequest,
+    CreateChainBenchmarkRequest,
+    VisualComposeRequest,
+    FramePreviewRequest,
+    ClipPreviewRequest,
+    VisualJudgeRequest,
+    StyleSampleGenerateRequest,
+    StyleSampleSaveRequest,
+    StyleFamilyCompareRequest,
+    TechniqueProbeRequest,
+    StyleSweepRequest,
+)
+from app.video_lab.config import PUBLIC_RUNTIME_URL_PREFIX, ffmpeg_bin, ffprobe_bin
 from app.video_lab.path_contract import runtime_url_to_path
-from app.video_lab.errors import error_response, make_error
-from app.video_lab.run_context import RunContext, new_run_id, new_experiment_id
-from app.video_lab.experiment_manifest import build_experiment_manifest, write_experiment_manifest
+from app.video_lab.errors import make_error
+from app.video_lab.run_context import RunContext
+
+# Services
+from app.video_lab.services import (
+    run_clip_preview_contract,
+    run_visual_compose_contract,
+    run_visual_compose_endpoint,
+    run_style_family_compare,
+    run_technique_probe_endpoint,
+    run_style_sweep_endpoint,
+    extract_style_sample_assets,
+)
+from app.video_lab.services.assets import _safe_get, _artifact_type_value
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -24,32 +52,10 @@ logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────
-# Shared helpers (also usable in tests)
+# Shared helpers
 # ─────────────────────────────────────────────
-def _safe_get(obj, name: str, default=None):
-    """Access attribute or dict key, handling None gracefully."""
-    if obj is None:
-        return default
-    if isinstance(obj, dict):
-        return obj.get(name, default)
-    return getattr(obj, name, default)
-
-
-def _artifact_type_value(artifact) -> str:
-    """Normalize artifact type: enum.value or string."""
-    raw = _safe_get(artifact, "type", "")
-    return getattr(raw, "value", raw) or ""
-
-
 def _strip_runtime_url_prefix(url: str) -> str:
-    """
-    Strip the PUBLIC_RUNTIME_URL_PREFIX from a URL to get the stored path.
-
-    Examples:
-      "/runtime/video_lab/x.mp4" → "video_lab/x.mp4"
-      "/assets/video_lab/x.mp4"  → "video_lab/x.mp4"
-      ""                        → ""
-    """
+    """Strip PUBLIC_RUNTIME_URL_PREFIX to get stored path."""
     if not url:
         return ""
     prefix = PUBLIC_RUNTIME_URL_PREFIX.rstrip("/")
@@ -58,70 +64,6 @@ def _strip_runtime_url_prefix(url: str) -> str:
     if url.startswith("/runtime/"):
         return url[len("/runtime/"):]
     return url.lstrip("/")
-
-
-def extract_style_sample_assets(result) -> dict[str, str]:
-    """
-    Extract URL assets from a VideoExperimentResult (or any object/dict with
-    the same field layout).
-
-    Returns dict with keys: final_video_url, cover_url, audio_url, srt_url,
-    manifest_url, duration_sec, audio_duration_sec, failed, failed_reason.
-    """
-    raw = _safe_get(result, "rawOutput", {}) or {}
-    assets = _safe_get(result, "assets", {}) or {}
-
-    final_video_url = _safe_get(result, "videoUrl", "") or ""
-    cover_url = _safe_get(result, "coverUrl", "") or ""
-    audio_url = ""
-    srt_url = ""
-    manifest_url = ""
-
-    duration_sec = float(assets.get("durationSec", 0) or 0)
-    audio_duration_sec = float(assets.get("audioDurationSec", 0) or 0)
-
-    steps = _safe_get(result, "productionSteps", []) or []
-
-    for step in steps:
-        artifacts = _safe_get(step, "artifacts", []) or []
-        for art in artifacts:
-            atype = _artifact_type_value(art)
-            payload = _safe_get(art, "payload", {}) or {}
-            url = _safe_get(payload, "url", "") if isinstance(payload, dict) else ""
-            if not url:
-                continue
-
-            if atype == "video_output" and not final_video_url:
-                final_video_url = url
-            elif atype == "cover_image" and not cover_url:
-                cover_url = url
-            elif atype == "audio_output" and not audio_url:
-                audio_url = url
-            elif atype == "subtitle_file" and not srt_url:
-                srt_url = url
-            elif atype == "manifest" and not manifest_url:
-                manifest_url = url
-
-    status_ok = raw.get("status") == "succeeded"
-    failed = not status_ok
-
-    if status_ok and not final_video_url:
-        failed = True
-        failed_reason = raw.get("error") or "生成成功但无法提取 final_video_url，请检查 productionSteps 中 video_output artifact"
-    else:
-        failed_reason = raw.get("error") or ("生成失败" if failed else "")
-
-    return {
-        "final_video_url": final_video_url,
-        "cover_url": cover_url,
-        "audio_url": audio_url,
-        "srt_url": srt_url,
-        "manifest_url": manifest_url,
-        "duration_sec": duration_sec,
-        "audio_duration_sec": audio_duration_sec,
-        "failed": failed,
-        "failed_reason": failed_reason,
-    }
 
 
 # ─────────────────────────────────────────────
@@ -161,22 +103,12 @@ def get_method(method_id: str) -> dict[str, Any]:
 # ─────────────────────────────────────────────
 @router.post("/experiments")
 def create_experiment(request: CreateExperimentRequest) -> dict[str, Any]:
-    """
-    Create and immediately run an experiment.
-
-    Returns HTTP 200 with experiment+result on success (even if experiment.status == "failed").
-    Returns HTTP 400 if testCaseId or methodId is unknown.
-    Returns HTTP 422 if request body is malformed.
-    Returns HTTP 500 on unexpected server errors.
-    """
     runner = get_runner()
 
-    # 验证 testCaseId
     tc = get_test_case_by_id(request.testCaseId)
     if not tc:
         raise HTTPException(status_code=400, detail=f"Unknown test case: {request.testCaseId}")
 
-    # 验证 methodId
     m = get_method_by_id(request.methodId)
     if not m:
         raise HTTPException(status_code=400, detail=f"Unknown method: {request.methodId}")
@@ -223,7 +155,6 @@ def get_experiment(experiment_id: str) -> dict[str, Any]:
 
 @router.get("/experiments-by-test-case/{test_case_id}")
 def get_experiments_by_test_case(test_case_id: str) -> dict[str, Any]:
-    """按测试用例分组展示实验结果"""
     runner = get_runner()
     experiments = runner.get_experiments_by_test_case(test_case_id)
 
@@ -247,10 +178,6 @@ def get_experiments_by_test_case(test_case_id: str) -> dict[str, Any]:
 # ─────────────────────────────────────────────
 @router.post("/experiments/{experiment_id}/evaluation")
 def save_evaluation(experiment_id: str, request: SaveEvaluationRequest) -> dict[str, Any]:
-    """
-    Save a human evaluation for an experiment.
-    Returns HTTP 404 if the experiment does not exist.
-    """
     runner = get_runner()
     exp = runner.get_experiment(experiment_id)
     if not exp:
@@ -273,10 +200,6 @@ def save_evaluation(experiment_id: str, request: SaveEvaluationRequest) -> dict[
 
 @router.get("/experiments/{experiment_id}/evaluation")
 def get_evaluation(experiment_id: str) -> dict[str, Any]:
-    """
-    Get the human evaluation for an experiment.
-    Returns HTTP 404 if no evaluation has been saved.
-    """
     runner = get_runner()
     evaluation = runner.get_evaluation(experiment_id)
     if not evaluation:
@@ -305,36 +228,25 @@ def list_all_advice() -> list[dict[str, Any]]:
 # ─────────────────────────────────────────────
 @router.get("/routes")
 def list_routes() -> list[dict[str, Any]]:
-    """List all available benchmark routes."""
     from app.video_lab.routes_benchmark.registry import list_routes as _list_routes
     return _list_routes()
 
 
 @router.post("/route-benchmarks")
 def create_benchmark(request: CreateBenchmarkRequest) -> dict[str, Any]:
-    """
-    Create and run a multi-route benchmark.
-
-    Returns benchmark results for all specified routes.
-    """
     from app.video_lab.routes_benchmark.registry import get_route_by_id
-    from app.video_lab.routes_benchmark.runner import get_runner
+    from app.video_lab.routes_benchmark.runner import get_runner as _get_runner
 
-    # Validate all route IDs
     invalid_routes = []
     for rid in request.routeIds:
         if get_route_by_id(rid) is None:
             invalid_routes.append(rid)
 
     if invalid_routes:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown route IDs: {invalid_routes}",
-        )
+        raise HTTPException(status_code=400, detail=f"Unknown route IDs: {invalid_routes}")
 
-    runner = get_runner()
+    runner = _get_runner()
 
-    # Create and run benchmark
     benchmark = runner.create_benchmark(
         test_case_id=request.testCaseId,
         title=request.title,
@@ -343,48 +255,33 @@ def create_benchmark(request: CreateBenchmarkRequest) -> dict[str, Any]:
         route_ids=request.routeIds,
     )
 
-    # Execute
     result = runner.run_benchmark(benchmark.benchmark_id)
-
     return result.to_dict()
 
 
 @router.get("/route-benchmarks/{benchmark_id}")
 def get_benchmark(benchmark_id: str) -> dict[str, Any]:
-    """Get a benchmark result by ID."""
-    from app.video_lab.routes_benchmark.runner import get_runner
+    from app.video_lab.routes_benchmark.runner import get_runner as _get_runner
 
-    runner = get_runner()
+    runner = _get_runner()
     benchmark = runner.get_benchmark(benchmark_id)
-
     if not benchmark:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Benchmark not found: {benchmark_id}",
-        )
+        raise HTTPException(status_code=404, detail=f"Benchmark not found: {benchmark_id}")
 
     return benchmark.to_dict()
 
 
 # ─────────────────────────────────────────────
-# Visual Routes (pluggable visual renderers)
+# Visual Routes
 # ─────────────────────────────────────────────
 @router.get("/visual-routes")
 def list_visual_routes() -> list[dict[str, Any]]:
-    """List all pluggable visual rendering routes and their availability.
-
-    A chain can switch its visual layer by passing params.visualRoute = routeId.
-    """
     from app.video_lab.renderers.visual import list_visual_renderers
     return list_visual_renderers()
 
 
 @router.post("/frame-preview")
 def frame_preview(request: FramePreviewRequest) -> dict[str, Any]:
-    """单帧快速预览（调试台）：渲染一张帧，秒级返回，用于调版式/参数/强调词。
-
-    不跑 TTS、不合成视频。Remotion 路线返回提示（动效路线单帧无意义）。
-    """
     from app.video_lab.renderers.frame_preview import render_single_frame
     try:
         return render_single_frame(
@@ -400,10 +297,6 @@ def frame_preview(request: FramePreviewRequest) -> dict[str, Any]:
 
 @router.post("/visual-judge")
 def visual_judge(request: VisualJudgeRequest) -> dict[str, Any]:
-    """视觉模型感知评分：把画面交给多模态大模型，评 排版/可读性/层级/美观 + 改进建议。
-
-    支持图片；若传入视频(.mp4)则自动抽取中间一帧再评。
-    """
     import subprocess
     import uuid
     from pathlib import Path
@@ -414,7 +307,6 @@ def visual_judge(request: VisualJudgeRequest) -> dict[str, Any]:
     if not local.exists():
         raise HTTPException(status_code=404, detail=f"file not found: {local}")
 
-    # 视频：均匀抽多帧，综合评整片（封面/关键点/结尾）
     judge_paths: list[str] = [str(local)]
     if local.suffix.lower() in (".mp4", ".webm", ".mov"):
         try:
@@ -447,7 +339,6 @@ def visual_judge(request: VisualJudgeRequest) -> dict[str, Any]:
 
     result = assess_visual_quality(judge_paths)
 
-    # 感知层评分留痕（仅当提供 route 且评分成功）
     if request.route and result.get("success"):
         try:
             from app.video_lab.quality.quality_log import append_record
@@ -466,559 +357,97 @@ def visual_judge(request: VisualJudgeRequest) -> dict[str, Any]:
 
 @router.get("/quality-history")
 def quality_history(route: str = "", kind: str = "", limit: int = 300) -> list[dict[str, Any]]:
-    """读取质量评分历史（可按 route / kind 过滤）。"""
     from app.video_lab.quality.quality_log import read_records
     return read_records(route=route or None, kind=kind or None, limit=limit)
 
 
 @router.get("/quality-summary")
 def quality_summary() -> dict[str, Any]:
-    """按路线聚合：每条路线各类评分的最新值 + 趋势（delta）。"""
     from app.video_lab.quality.quality_log import summarize_by_route
     return summarize_by_route()
 
 
+# ─────────────────────────────────────────────
+# clip-preview — delegates to clip_preview_service
+# ─────────────────────────────────────────────
 @router.post("/clip-preview")
 def clip_preview(request: ClipPreviewRequest) -> dict[str, Any]:
-    """渲染一小段（~3s）动效片段。
-
-    - Remotion：渲染前几秒真实动画
-    - Pillow / AI 素材：Ken Burns（缓慢缩放 + 淡入）
-
-    V1 contract: always returns success/status/contractStatus/artifacts/error/rawOutput.
-    """
-    from app.video_lab.renderers.frame_preview import render_clip_preview
-    from app.video_lab.renderers.visual_profiles import merge_visual_profile
-    import traceback
-
-    run_ctx = RunContext(
-        mode="preview",
-        route_id=request.visualRoute,
-    )
-    params = dict(request.params or {})
-
-    # V1 VisualProfile: merge profile defaults
-    merged_params, profile_warnings = merge_visual_profile(params.get("visualProfile"), params)
-    for k, v in merged_params.items():
-        if k not in params:
-            params[k] = v
-    run_ctx.render_params = params
-    run_ctx.warnings.extend(profile_warnings)
-
-    try:
-        raw = render_clip_preview(
-            content=request.content,
-            visual_route=request.visualRoute,
-            params=params,
-            clip_seconds=int(params.get("clipSeconds", 3)),
-            shot=request.shot,
-            frame_type=request.frameType,
-            cover_title=request.coverTitle,
-        )
-
-        success = raw.get("success", False)
-        run_ctx.status = "success" if success else "failed"
-
-        clip_url = raw.get("clipUrl", "") or ""
-
-        # Write experiment manifest (success or failure)
-        manifest = build_experiment_manifest(
-            experiment_id=run_ctx.experiment_id,
-            run_id=run_ctx.run_id,
-            mode=run_ctx.mode,
-            route_id=request.visualRoute,
-            status="success" if success else "failed",
-            input_data={"content": request.content},
-            artifacts={
-                "cover": None,
-                "frames": [],
-                "silentVideo": clip_url,
-                "audio": None,
-                "subtitles": None,
-                "finalVideo": clip_url,
-                "manifest": None,
-            },
-            logs=run_ctx.logs,
-            warnings=run_ctx.warnings,
-            raw_output=raw,
-            error=None if success else make_error(
-                raw.get("message", "Clip preview failed"),
-                type="RenderError",
-                code="VIDEO_LAB_CLIP_PREVIEW_FAILED",
-                stage="visual_render",
-                route=request.visualRoute,
-            ),
-        )
-        try:
-            mw = write_experiment_manifest(run_ctx.experiment_id, manifest)
-            manifest_url = mw["url"]
-        except Exception:
-            logger.warning("clip-preview manifest write failed (non-fatal)", exc_info=True)
-            manifest_url = ""
-
-        if success:
-            return {
-                "success": True,
-                "status": "success",
-                "contractStatus": "success",
-                **run_ctx.to_response_base(),
-                "artifacts": {
-                    "videoUrl": clip_url,
-                    "coverUrl": "",
-                    "manifestUrl": manifest_url,
-                },
-                "logs": run_ctx.logs,
-                "warnings": raw.get("warnings", []) or run_ctx.warnings,
-                "error": None,
-                "rawOutput": raw,
-            }
-        else:
-            return {
-                "success": False,
-                "status": "failed",
-                "contractStatus": "failed",
-                **run_ctx.to_response_base(),
-                "artifacts": {
-                    "videoUrl": "",
-                    "coverUrl": "",
-                    "manifestUrl": manifest_url,
-                },
-                "logs": run_ctx.logs,
-                "warnings": raw.get("warnings", []) or run_ctx.warnings,
-                "error": make_error(
-                    raw.get("message", "Clip preview failed"),
-                    type="RenderError",
-                    code="VIDEO_LAB_CLIP_PREVIEW_FAILED",
-                    stage="visual_render",
-                    route=request.visualRoute,
-                ),
-                "rawOutput": raw,
-            }
-
-    except Exception as e:
-        tb = traceback.format_exc()
-        logger.error("[clip-preview] render failed", exc_info=True)
-        run_ctx.log(f"[clip-preview] exception: {type(e).__name__}: {e}\n{tb}")
-        run_ctx.mark_failed()
-
-        # Try to write a failed manifest even on early exception
-        manifest_url = ""
-        try:
-            mfail = build_experiment_manifest(
-                experiment_id=run_ctx.experiment_id,
-                run_id=run_ctx.run_id,
-                mode=run_ctx.mode,
-                route_id=request.visualRoute,
-                status="failed",
-                input_data={"content": request.content},
-                artifacts={},
-                logs=run_ctx.logs,
-                warnings=run_ctx.warnings,
-                error=make_error(
-                    str(e),
-                    type=type(e).__name__,
-                    code="VIDEO_LAB_INTERNAL_ERROR",
-                    stage="clip_preview",
-                    route=request.visualRoute,
-                ),
-            )
-            mw = write_experiment_manifest(run_ctx.experiment_id, mfail)
-            manifest_url = mw["url"]
-        except Exception:
-            logger.warning("clip-preview failed manifest write also failed (non-fatal)", exc_info=True)
-
-        return {
-            "success": False,
-            "status": "failed",
-            "contractStatus": "failed",
-            **run_ctx.to_response_base(),
-            "artifacts": {
-                "videoUrl": "",
-                "coverUrl": "",
-                "manifestUrl": manifest_url,
-            },
-            "logs": run_ctx.logs,
-            "warnings": run_ctx.warnings,
-            "error": make_error(
-                str(e),
-                type=type(e).__name__,
-                code="VIDEO_LAB_INTERNAL_ERROR",
-                stage="clip_preview",
-                route=request.visualRoute,
-            ),
-            "rawOutput": {},
-        }
+    """Render a short (~3s) animated clip. V1 contract: always returns
+    success/status/contractStatus/artifacts/error/rawOutput."""
+    return run_clip_preview_contract(request)
 
 
+# ─────────────────────────────────────────────
+# style-family — delegates to style_family_service
+# ─────────────────────────────────────────────
 @router.post("/style-family/compare")
 def style_family_compare(request: StyleFamilyCompareRequest) -> dict[str, Any]:
-    """对比 Data News vs Card Stack 两种 Remotion 表现范式的实际效果。
-
-    V0.6.4: 让用户在 UI 中直接看到两者的实际 preview 视频或抽帧。
-    不做数据库，不做历史记录，只返回当前渲染结果。
-    """
-    from app.video_lab.renderers.frame_preview import render_clip_preview
-    import time
-    t0 = time.time()
-
-    default_content = (
-        "科学研究评审实现突破：ProReviewer系统将评审建模为马尔可夫决策过程，在五个质量维度超越传统方法39%。\n"
-        "依据：依据 1\n"
-        "购物AI助手落后：主流模型通过率仅57-77%。\n"
-        "依据：依据 1\n"
-        "企业级AI加速落地：Anthropic与TCS合作，DeepMind投资千万美元。\n"
-        "依据：依据 1"
-    )
-    content = request.content.strip() or default_content
-    params = dict(request.params or {})
-    params["visualRoute"] = "template_programmatic_render"
-    clip_seconds = int(params.get("clipSeconds", 3))
-    key_point_count = int(params.get("keyPointCount", 3))
-
-    family_specs = [
-        ("dataNews", "data_news"),
-        ("cardStack", "card_stack"),
-        ("timelineNews", "timeline_news"),
-        ("dashboardBrief", "dashboard_brief"),
-        ("captionStory", "caption_story"),
-    ]
-    family_results: dict[str, dict[str, Any]] = {}
-    for response_key, family_id in family_specs:
-        family_params = {**params, "remotionFamily": family_id, "keyPointCount": key_point_count}
-        family_results[response_key] = render_clip_preview(
-            content=content,
-            visual_route="template_programmatic_render",
-            params=family_params,
-            clip_seconds=clip_seconds,
-        )
-
-    elapsed = int((time.time() - t0) * 1000)
-
-    def parse_result(r: dict) -> dict:
-        return {
-            "experimentId": r.get("experimentId", ""),
-            "success": r.get("success", False),
-            "videoUrl": r.get("clipUrl", ""),
-            "clipSeconds": r.get("clipSeconds", clip_seconds),
-            "elapsedMs": r.get("elapsedMs", 0),
-            "message": r.get("message", ""),
-            "warnings": r.get("warnings", []),
-        }
-
-    return {
-        **{key: parse_result(value) for key, value in family_results.items()},
-        "totalElapsedMs": elapsed,
-    }
+    """Compare Data News vs Card Stack vs Timeline vs Dashboard vs Caption Story
+    Remotion presentation paradigms."""
+    return run_style_family_compare(request)
 
 
+# ─────────────────────────────────────────────
+# visual-compose — delegates to visual_compose_service
+# ─────────────────────────────────────────────
 def _run_visual_compose(content: str, visual_route: str, params_in: dict | None) -> dict[str, Any]:
-    """Run ONE visual route end-to-end (LLM plan + TTS + 字幕 + 合成) and return a
-    UI-ready result dict (finalVideoUrl + coverUrl + quality + steps).
-
-    复用方：POST /visual-compose（单路线）与 POST /technique-probe（多路线探测）。
-    Business failures 不抛异常，以 status='failed' + failedReason 返回。
-
-    V1 contract: returns runId / success / status / contractStatus / artifacts / error / rawOutput.
     """
-    from app.video_lab.adapters.tts_subtitle_compose import run_tts_subtitle_compose
-    from app.video_lab.renderers.visual_profiles import merge_visual_profile
+    Thin compatibility wrapper — delegates to run_visual_compose_contract.
 
-    run_ctx = RunContext(mode="compose", route_id=visual_route)
-    params = dict(params_in or {})
-    params["visualRoute"] = visual_route
-
-    # V1 VisualProfile: merge profile defaults, explicit params take priority
-    merged_profile, profile_warnings = merge_visual_profile(
-        params.get("visualProfile"),
-        params,
-    )
-    # Apply merged params back — explicit params already in params win over profile defaults
-    for k, v in merged_profile.items():
-        if k not in params:
-            params[k] = v
-    run_ctx.render_params = params
-    run_ctx.input_snapshot = {"content": content}
-    run_ctx.warnings.extend(profile_warnings)
-
-    result = run_tts_subtitle_compose(
-        experiment_id=run_ctx.experiment_id,
-        test_case_id="case_ai_frontier_daily_001",
-        input_payload={"content": content},
-        params=params,
-    )
-
-    raw = getattr(result, "rawOutput", {}) or {}
-    assets = getattr(result, "assets", {}) or {}
-    status = raw.get("status", "unknown")
-    run_ctx.status = status
-    failed_reason = ""
-    if status != "succeeded":
-        for step in getattr(result, "productionSteps", []):
-            if getattr(step, "status", None) and step.status.value == "failed":
-                failed_reason = step.outputSummary or step.name
-                break
-        failed_reason = failed_reason or raw.get("error", "")
-
-    # Merge result.logs into run_ctx.logs (deduplicate)
-    result_logs: list[str] = getattr(result, "logs", []) or []
-    seen = set(run_ctx.logs)
-    for line in result_logs:
-        if line not in seen:
-            run_ctx.log(line)
-            seen.add(line)
-
-    audio_url = srt_url = manifest_url = ""
-    steps_summary = []
-    for step in getattr(result, "productionSteps", []):
-        steps_summary.append({
-            "name": step.name,
-            "status": step.status.value if getattr(step, "status", None) else "",
-            "output": step.outputSummary or "",
-        })
-        for art in getattr(step, "artifacts", []):
-            payload = art.payload if hasattr(art, "payload") else {}
-            if art.type.value == "manifest":
-                audio_url = audio_url or payload.get("audioUrl", "")
-                srt_url = srt_url or payload.get("srtUrl", "")
-                manifest_url = manifest_url or payload.get("manifestUrl", "")
-
-    final_video_url = getattr(result, "videoUrl", "") or ""
-    cover_url = getattr(result, "coverUrl", "") or ""
-
-    # Write experiment manifest (success or failure)
-    manifest = build_experiment_manifest(
-        experiment_id=run_ctx.experiment_id,
-        run_id=run_ctx.run_id,
-        mode=run_ctx.mode,
-        route_id=visual_route,
-        status=status,
-        input_data=run_ctx.input_snapshot,
-        artifacts={
-            "cover": cover_url,
-            "frames": [],
-            "silentVideo": None,
-            "audio": audio_url,
-            "subtitles": srt_url,
-            "finalVideo": final_video_url,
-            "manifest": manifest_url,
-        },
-        logs=run_ctx.logs,
-        warnings=run_ctx.warnings,
-        raw_output=raw,
-        error=make_error(failed_reason, type="ComposeError", code="VIDEO_LAB_COMPOSE_FAILED",
-                         stage="compose", route=visual_route) if status != "succeeded" else None,
-    )
-    try:
-        mw = write_experiment_manifest(run_ctx.experiment_id, manifest)
-        run_ctx.artifacts["manifestUrl"] = mw["url"]
-    except Exception:
-        logger.warning("manifest write failed (non-fatal)", exc_info=True)
-
-    try:
-        from app.video_lab.quality.quality_log import append_record
-        _q = raw.get("quality", {}) or {}
-        append_record({
-            "kind": "structural",
-            "route": visual_route,
-            "experimentId": run_ctx.experiment_id,
-            "status": status,
-            "overall": _q.get("overallScore"),
-            "dimensions": _q.get("dimensionScores", {}),
-            "durationSec": assets.get("audioDurationSec", 0),
-            "subtitleCount": assets.get("subtitleCount", 0),
-            "contentChars": len(content),
-            "params": params,
-        })
-    except Exception:
-        logger.warning("structural quality logging failed (non-fatal)", exc_info=True)
-
-    # Build V1 base
-    v1_success = status == "succeeded"
-    v1_base = {
-        **run_ctx.to_response_base(),
-        "success": v1_success,
-        "status": status,
-        "contractStatus": "success" if v1_success else "failed",
-    }
-
-    # V1 artifacts (mirrors top-level asset fields for easy consumption)
-    v1_artifacts = {
-        "finalVideoUrl": final_video_url,
-        "coverUrl": cover_url,
-        "audioUrl": audio_url,
-        "srtUrl": srt_url,
-        "manifestUrl": run_ctx.artifacts.get("manifestUrl", ""),
-    }
-
-    if v1_success:
-        return {
-            **v1_base,
-            "artifacts": v1_artifacts,
-            "experimentId": run_ctx.experiment_id,
-            "visualRoute": visual_route,
-            "params": params,
-            "finalVideoUrl": final_video_url,
-            "coverUrl": cover_url,
-            "audioUrl": audio_url,
-            "srtUrl": srt_url,
-            "manifestUrl": manifest_url,
-            "audioDurationSec": assets.get("audioDurationSec", 0),
-            "subtitleCount": assets.get("subtitleCount", 0),
-            "quality": raw.get("quality", {}),
-            "failedReason": "",
-            "warnings": raw.get("warnings", []) or run_ctx.warnings,
-            "steps": steps_summary,
-            "logs": run_ctx.logs,
-            "error": None,
-            "rawOutput": raw,
-        }
-    else:
-        return {
-            **v1_base,
-            "artifacts": v1_artifacts,
-            "experimentId": run_ctx.experiment_id,
-            "visualRoute": visual_route,
-            "params": params,
-            "finalVideoUrl": "",
-            "coverUrl": "",
-            "audioUrl": audio_url,
-            "srtUrl": srt_url,
-            "manifestUrl": manifest_url,
-            "audioDurationSec": 0,
-            "subtitleCount": 0,
-            "quality": {},
-            "failedReason": failed_reason,
-            "warnings": raw.get("warnings", []) or run_ctx.warnings,
-            "steps": steps_summary,
-            "logs": run_ctx.logs,
-            "error": make_error(
-                failed_reason,
-                type="ComposeError",
-                code="VIDEO_LAB_COMPOSE_FAILED",
-                stage="compose",
-                route=visual_route,
-            ),
-            "rawOutput": raw,
-        }
+    Kept in router so technique_probe.py can continue to import it without
+    needing to know about services/.
+    """
+    return run_visual_compose_contract(content, visual_route, params_in)
 
 
 @router.post("/visual-compose")
 def visual_compose(request: VisualComposeRequest) -> dict[str, Any]:
-    """Run ONE visual route end-to-end (LLM plan + TTS + 字幕 + 合成) and return
-    the final video URL + auto quality report. Frontend calls this per route.
-
-    Synchronous: returns after the video is produced (TTS/render may take minutes).
-    Business failures return HTTP 200 with status='failed' + failedReason.
-    V1 contract: always returns success/status/contractStatus/artifacts/error/rawOutput.
-    """
-    import traceback
-    from app.video_lab.run_context import RunContext
-
-    run_ctx = RunContext(mode="compose", route_id=request.visualRoute)
-    run_ctx.input_snapshot = {"content": request.content}
-
-    try:
-        return _run_visual_compose(request.content, request.visualRoute, request.params)
-    except Exception as e:
-        tb = traceback.format_exc()
-        logger.error("[visual-compose] exception", exc_info=True)
-        run_ctx.log(f"[visual-compose] exception: {type(e).__name__}: {e}\n{tb}")
-        run_ctx.mark_failed()
-        return {
-            "success": False,
-            "status": "failed",
-            "contractStatus": "failed",
-            **run_ctx.to_response_base(),
-            "artifacts": {},
-            "logs": run_ctx.logs,
-            "warnings": run_ctx.warnings,
-            "error": make_error(
-                str(e),
-                type=type(e).__name__,
-                code="VIDEO_LAB_INTERNAL_ERROR",
-                stage="compose",
-                route=request.visualRoute,
-            ),
-            "rawOutput": {},
-        }
+    """Run ONE visual route end-to-end (LLM plan + TTS + 字幕 + 合成).
+    V1 contract: always returns success/status/contractStatus/artifacts/error/rawOutput."""
+    return run_visual_compose_endpoint(request)
 
 
-@router.get("/route-recommendation")
-def route_recommendation() -> dict[str, Any]:
-    """数据驱动的"最佳路线"推荐：读取真实累计评分（quality_log）算出，而非写死。
-
-    无数据时返回 dataDriven=false + 引导文案，不编造结论。
-    """
-    from app.video_lab.route_recommendation import recommend_route
-    return recommend_route()
+# ─────────────────────────────────────────────
+# technique-probe — delegates to probe_service
+# ─────────────────────────────────────────────
+def _judge_probe_result(result: dict[str, Any]) -> dict[str, Any] | None:
+    """Judge a single route's output for technique probe ranking.
+    Kept in router.py for compatibility (passed as judge_fn to technique-probe)."""
+    from app.video_lab.services.probe_service import _judge_probe_result as _judge
+    return _judge(result)
 
 
 @router.post("/technique-probe")
 def technique_probe(request: TechniqueProbeRequest) -> dict[str, Any]:
-    """最佳技术探测：一份内容 → 多路线各出整片 → 统一质量分排名 → 推荐路线。
-
-    同步执行：会依次跑每条路线的完整出片(TTS/渲染/合成)，可能数分钟。
-    单条路线失败不影响其它路线，整体仍返回排名（失败项排末尾）。
-    """
-    from app.video_lab.technique_probe import run_technique_probe
-
-    try:
-        return run_technique_probe(
-            content=request.content,
-            routes=request.routes or None,
-            params=request.params,
-            compose_fn=_run_visual_compose,
-            judge_fn=_judge_probe_result,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Best technique probe: one content → all routes produce full video →
+    unified quality ranking → recommended route. Synchronous."""
+    return run_technique_probe_endpoint(
+        request=request,
+        compose_fn=_run_visual_compose,
+        judge_fn=_judge_probe_result,
+    )
 
 
+# ─────────────────────────────────────────────
+# style-sweep — delegates to style_sweep_service
+# ─────────────────────────────────────────────
 @router.post("/style-sweep")
 def style_sweep(request: StyleSweepRequest) -> dict[str, Any]:
-    """样式对比：选一条技术路线 → 用同一内容把它的每个预置样式各出一片 → 并排返回。
-
-    同步执行：每个样式都跑完整出片(TTS/渲染/合成)，N 个样式约 N 倍耗时。
-    单样式失败不影响其它样式，整批仍返回。
-    """
-    from app.video_lab.style_sweep import run_style_sweep
-
-    try:
-        return run_style_sweep(
-            content=request.content,
-            route_id=request.routeId,
-            params=request.params,
-            render_fn=_run_visual_compose,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    """Style comparison: select one technical route → render each preset style →
+    side-by-side results. Synchronous."""
+    return run_style_sweep_endpoint(
+        request=request,
+        render_fn=_run_visual_compose,
+    )
 
 
-def _judge_probe_result(result: dict[str, Any]) -> dict[str, Any] | None:
-    """对一条路线的成片抽帧做视觉感知评分，供探测综合排名用。
-
-    成片是 mp4 → 先抽一帧再评分（assess_visual_quality 接受图片帧）。
-    任何失败返回 None（该路线退化为纯结构分排名，不中断探测）。
-    """
-    from app.video_lab.quality.visual_judge import assess_visual_quality
-
-    url = result.get("finalVideoUrl") or result.get("coverUrl") or ""
-    if not url:
-        return None
-    # Use runtime_url_to_path for proper URL → local path conversion
-    fs_path = runtime_url_to_path(url)
-
-    if str(fs_path).endswith(".mp4"):
-        # 多帧送评：封面/中段/结尾各抽一帧，给视觉模型更多区分信号（并触发 consistency 维度）
-        frames = [f for f in (_extract_video_frame(str(fs_path), fr) for fr in (0.06, 0.45, 0.85)) if f]
-    else:
-        frames = [str(fs_path)]
-    if not frames:
-        return None
-    j = assess_visual_quality(frames)
-    if not j.get("success"):
-        return None
-    return {"visualScore": j.get("overall"), "visualDimensions": j.get("scores", {})}
+# ─────────────────────────────────────────────
+# Route Recommendation
+# ─────────────────────────────────────────────
+@router.get("/route-recommendation")
+def route_recommendation() -> dict[str, Any]:
+    from app.video_lab.route_recommendation import recommend_route
+    return recommend_route()
 
 
 # ─────────────────────────────────────────────
@@ -1026,37 +455,25 @@ def _judge_probe_result(result: dict[str, Any]) -> dict[str, Any] | None:
 # ─────────────────────────────────────────────
 @router.get("/chains")
 def list_chains() -> list[dict[str, Any]]:
-    """List all available complete video generation chains."""
     from app.video_lab.chains.registry import list_chains as _list_chains
     return [c.to_dict() for c in _list_chains()]
 
 
 @router.post("/chain-benchmarks")
 def create_chain_benchmark(request: CreateChainBenchmarkRequest) -> dict[str, Any]:
-    """
-    Create and run a multi-chain benchmark.
-
-    Returns benchmark results for all specified chains.
-    Each chain produces a finalVideoUrl or manual_required status.
-    """
     from app.video_lab.chains.registry import get_chain
+    from app.video_lab.routes_benchmark.chain_runner import get_chain_runner as _get_chain_runner
 
-    # Validate all chain IDs
     invalid_chains = []
     for cid in request.chainIds:
         if get_chain(cid) is None:
             invalid_chains.append(cid)
 
     if invalid_chains:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown chain IDs: {invalid_chains}",
-        )
+        raise HTTPException(status_code=400, detail=f"Unknown chain IDs: {invalid_chains}")
 
-    from app.video_lab.routes_benchmark.chain_runner import get_chain_runner as _get_chain_runner
     runner = _get_chain_runner()
 
-    # Create and run benchmark
     benchmark = runner.create_benchmark(
         test_case_id=request.testCaseId,
         title=request.title,
@@ -1065,47 +482,29 @@ def create_chain_benchmark(request: CreateChainBenchmarkRequest) -> dict[str, An
         chain_ids=request.chainIds,
     )
 
-    # Execute
     result = runner.run_benchmark(benchmark.benchmark_id)
-
     return result.to_dict()
 
 
 @router.get("/chain-benchmarks/{benchmark_id}")
 def get_chain_benchmark(benchmark_id: str) -> dict[str, Any]:
-    """Get a chain benchmark result by ID."""
     from app.video_lab.routes_benchmark.chain_runner import get_chain_runner as _get_chain_runner
     runner = _get_chain_runner()
     benchmark = runner.get_benchmark(benchmark_id)
-
     if not benchmark:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Chain benchmark not found: {benchmark_id}",
-        )
-
+        raise HTTPException(status_code=404, detail=f"Chain benchmark not found: {benchmark_id}")
     return benchmark.to_dict()
 
 
 # ─────────────────────────────────────────────
 # Style Sample Gallery
-# V0.3.7: 风格样片库 — 无数据库，JSONL 存储
 # ─────────────────────────────────────────────
-
 @router.get("/style-samples")
 def list_style_samples(
     route_id: str | None = None,
     status: str | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """
-    列出风格样片。
-
-    Query params:
-    - route_id: 按路线过滤（如 local_frame_compose）
-    - status: 按状态过滤（candidate / approved / rejected / comparing）
-    - limit: 返回数量上限，默认 50
-    """
     from app.video_lab.style_gallery import store as sg_store
     samples = sg_store.list_samples(route_id=route_id, status=status, limit=limit)
     out = []
@@ -1119,12 +518,6 @@ def list_style_samples(
 
 @router.post("/style-samples/generate")
 def generate_style_sample(request: StyleSampleGenerateRequest) -> dict[str, Any]:
-    """
-    生成一条风格样片。
-
-    调用现有的 visual-compose 链路，用指定的路线和参数生成视频，
-    返回生成的样片信息（不含持久化记录）。
-    """
     import uuid
     from app.video_lab.adapters.tts_subtitle_compose import run_tts_subtitle_compose
     from app.video_lab.renderers.visual.registry import get_visual_renderer
@@ -1158,7 +551,6 @@ def generate_style_sample(request: StyleSampleGenerateRequest) -> dict[str, Any]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    # ── extract URLs and build response ─────────────────────────────────────────
     extracted = extract_style_sample_assets(result)
 
     return {
@@ -1191,7 +583,6 @@ def generate_style_sample(request: StyleSampleGenerateRequest) -> dict[str, Any]
 
 @router.post("/style-samples")
 def save_style_sample(request: StyleSampleSaveRequest) -> dict[str, Any]:
-    """保存一条风格样片记录到 JSONL。"""
     import uuid
     from datetime import datetime
     from app.video_lab.style_gallery.models import (
@@ -1246,7 +637,6 @@ def save_style_sample(request: StyleSampleSaveRequest) -> dict[str, Any]:
 
 @router.get("/style-samples/{sample_id}")
 def get_style_sample(sample_id: str) -> dict[str, Any]:
-    """获取单条样片详情。"""
     from app.video_lab.style_gallery import store as sg_store
     sample = sg_store.get_sample(sample_id)
     if not sample:
@@ -1258,7 +648,6 @@ def get_style_sample(sample_id: str) -> dict[str, Any]:
 
 @router.delete("/style-samples/{sample_id}")
 def delete_style_sample(sample_id: str) -> dict[str, Any]:
-    """删除一条风格样片记录（不删除文件）。"""
     from app.video_lab.style_gallery import store as sg_store
     deleted = sg_store.delete_sample(sample_id)
     if not deleted:
@@ -1268,7 +657,6 @@ def delete_style_sample(sample_id: str) -> dict[str, Any]:
 
 @router.post("/style-samples/{sample_id}/compare")
 def mark_sample_for_compare(sample_id: str) -> dict[str, Any]:
-    """将样片标记为 comparing 状态，加入对比队列。"""
     from app.video_lab.style_gallery import store as sg_store
     sample = sg_store.get_sample(sample_id)
     if not sample:
@@ -1282,10 +670,6 @@ def mark_sample_for_compare(sample_id: str) -> dict[str, Any]:
 
 @router.post("/style-samples/{sample_id}/status")
 def update_sample_status(sample_id: str, request: dict[str, str]) -> dict[str, Any]:
-    """更新样片状态。
-
-    支持的状态：candidate / comparing / approved / rejected
-    """
     from app.video_lab.style_gallery import store as sg_store
     sample = sg_store.get_sample(sample_id)
     if not sample:
@@ -1294,10 +678,7 @@ def update_sample_status(sample_id: str, request: dict[str, str]) -> dict[str, A
     new_status = request.get("status", "")
     valid_statuses = [s.value for s in SampleStatus]
     if new_status not in valid_statuses:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status. Must be one of: {valid_statuses}",
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
 
     sample.status = SampleStatus(new_status)
     sg_store.save_sample(sample)
@@ -1307,10 +688,8 @@ def update_sample_status(sample_id: str, request: dict[str, str]) -> dict[str, A
 
 
 def _extract_video_frame(video_path: str, fraction: float = 0.4) -> str | None:
-    """从视频抽取一帧用于视觉评分（assess_visual_quality 适合图片/帧，不适合 mp4）。
-
-    在视频 fraction 处抽一帧；无法取时长则用 1.5s。失败返回 None。
-    """
+    """Extract one frame from video at fraction position. Kept in router for
+    judge_style_sample compatibility."""
     import subprocess
     import uuid
     from pathlib import Path
@@ -1318,7 +697,6 @@ def _extract_video_frame(video_path: str, fraction: float = 0.4) -> str | None:
     vp = Path(video_path)
     if not vp.exists():
         return None
-    # 取时长
     at_sec = 1.5
     try:
         probe = subprocess.run(
@@ -1345,13 +723,6 @@ def _extract_video_frame(video_path: str, fraction: float = 0.4) -> str | None:
 
 @router.post("/style-samples/{sample_id}/judge")
 def judge_style_sample(sample_id: str) -> dict[str, Any]:
-    """对样片进行视觉评分。
-
-    V0.4.0: 使用 AI 视觉模型对 poster 进行感知质量评分，
-    结果保存到 StyleSample.visual_judgement。
-
-    优先使用 poster_url，没有时使用 video_url。
-    """
     from datetime import datetime
     from app.video_lab.style_gallery import store as sg_store
     from app.video_lab.style_gallery.models import VisualJudgement
@@ -1361,7 +732,6 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
     if not sample:
         raise HTTPException(status_code=404, detail=f"Sample not found: {sample_id}")
 
-    # V0.4.0: 获取图片路径进行评分
     poster_path = sample.output.poster
     video_path = sample.output.path
 
@@ -1371,14 +741,11 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
             detail="No poster or video available for judging. Sample may still be generating.",
         )
 
-    # 优先使用 poster_path
     image_path = poster_path if poster_path else video_path
 
-    # 将 runtime URL 转换为实际文件路径（统一走 path_contract，兼容自定义 RUNTIME_DIR）
     from app.video_lab.path_contract import runtime_url_to_path
     image_path = str(runtime_url_to_path(image_path))
 
-    # V0.4.5: 只有视频没有 poster 时，先抽一帧再评（mp4 不能直接送视觉模型）
     from pathlib import Path as _Path
     if _Path(image_path).suffix.lower() in (".mp4", ".webm", ".mov"):
         frame_path = _extract_video_frame(image_path)
@@ -1389,12 +756,10 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
             )
         image_path = frame_path
 
-    # 调用视觉评分
     judge_result = assess_visual_quality(image_path)
 
     if not judge_result.get("success"):
         msg = judge_result.get("message", "unknown error")
-        # V0.4.8: 缺 API Key 是配置问题，返回 503 + 明确提示（避免误以为是本地能力）
         if "MINIMAX_API_KEY" in msg or "not configured" in msg.lower():
             raise HTTPException(
                 status_code=503,
@@ -1405,10 +770,8 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
     scores = judge_result.get("scores", {})
     overall_1to5 = judge_result.get("overall", 3.0)
 
-    # 将 1-5 分转换为 0-100 分
     raw_score = round(overall_1to5 * 20, 1)
 
-    # 计算等级
     if raw_score >= 85:
         grade = "excellent"
     elif raw_score >= 70:
@@ -1418,15 +781,11 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
     else:
         grade = "poor"
 
-    # 生成 strengths / weaknesses / suggestions
     suggestions = judge_result.get("suggestions", [])
     strengths = _infer_strengths_from_scores(scores)
     weaknesses = _infer_weaknesses_from_scores(scores)
-
-    # 构建 summary
     summary = _build_summary(grade, scores, raw_score)
 
-    # 保存评分结果
     judgement = VisualJudgement(
         score=raw_score,
         grade=grade,
@@ -1441,7 +800,6 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
     sample.visual_judgement = judgement
     sg_store.save_sample(sample)
 
-    # V0.4.4: 评分历史留痕（append-only，使"历史可分析"成立；失败不影响评分）
     try:
         from app.video_lab.style_gallery import score_history
         score_history.append_score({
@@ -1463,10 +821,6 @@ def judge_style_sample(sample_id: str) -> dict[str, Any]:
 
 @router.get("/style-gallery/judge-availability")
 def judge_availability() -> dict[str, Any]:
-    """视觉评分是否可用（依赖 MiniMax 多模态模型 / MINIMAX_API_KEY）。
-
-    供前端在评分前提示用户：评分是云端能力，需配置 Key。
-    """
     from app.video_lab.providers.minimax import MiniMaxChatClient
     available = MiniMaxChatClient().is_configured()
     return {
@@ -1477,11 +831,6 @@ def judge_availability() -> dict[str, Any]:
 
 @router.get("/style-gallery/route-fit")
 def style_gallery_route_fit() -> dict[str, Any]:
-    """每条路线"最适合风格"判定（宏观目标①）。
-
-    基于已评分样片，给出每条路线得分最高的样片/风格 + 平均分 + 数量，
-    用于沉淀"哪条路线适合什么风格"的探索结论。
-    """
     from app.video_lab.style_gallery import store as sg_store
 
     samples = sg_store.list_samples(limit=10000)
@@ -1517,7 +866,6 @@ def style_gallery_route_fit() -> dict[str, Any]:
 
 @router.get("/style-gallery/score-history")
 def style_gallery_score_history(route_id: str = "", sample_id: str = "", limit: int = 200) -> dict[str, Any]:
-    """样片评分历史 + 按路线趋势聚合（历史可分析）。"""
     from app.video_lab.style_gallery import score_history
     return {
         "byRoute": score_history.summarize_by_route(),
@@ -1527,72 +875,11 @@ def style_gallery_score_history(route_id: str = "", sample_id: str = "", limit: 
     }
 
 
-def _infer_strengths_from_scores(scores: dict[str, float]) -> list[str]:
-    """从各维度分数推断优点（分数 >= 4 视为优点）。"""
-    strengths = []
-    labels = {
-        "layout": "排版留白合理",
-        "readability": "文字清晰可读",
-        "hierarchy": "信息层级清晰",
-        "aesthetics": "整体美观专业",
-        "consistency": "风格一致稳定",
-    }
-    for dim, score in scores.items():
-        if score >= 4.0:
-            strengths.append(labels.get(dim, f"{dim}表现良好"))
-    if not strengths:
-        strengths.append("整体无明显缺陷")
-    return strengths
-
-
-def _infer_weaknesses_from_scores(scores: dict[str, float]) -> list[str]:
-    """从各维度分数推断问题（分数 <= 2.5 视为问题）。"""
-    weaknesses = []
-    labels = {
-        "layout": "排版略显拥挤",
-        "readability": "文字清晰度不足",
-        "hierarchy": "信息层级不够突出",
-        "aesthetics": "美观度有提升空间",
-        "consistency": "风格不够统一",
-    }
-    for dim, score in scores.items():
-        if score <= 2.5:
-            weaknesses.append(labels.get(dim, f"{dim}有待改善"))
-    return weaknesses
-
-
-def _build_summary(grade: str, scores: dict[str, float], raw_score: float) -> str:
-    """基于等级和分数生成中文摘要。"""
-    grade_labels = {
-        "excellent": "优秀",
-        "good": "良好",
-        "ok": "一般",
-        "poor": "较差",
-    }
-    label = grade_labels.get(grade, grade)
-    top_dim = max(scores.items(), key=lambda x: x[1])[0] if scores else "整体"
-    dim_labels = {
-        "layout": "排版",
-        "readability": "可读性",
-        "hierarchy": "层级",
-        "aesthetics": "美观度",
-        "consistency": "一致性",
-    }
-    top_name = dim_labels.get(top_dim, top_dim)
-    return f"{label}水准（{raw_score}分），{top_name}表现最佳，适合资讯类内容分享。"
-
-
-# ─── V0.4.2: Style Templates ─────────────────────────────────────────────────
-
+# ─────────────────────────────────────────────
+# Style Templates
+# ─────────────────────────────────────────────
 @router.post("/style-samples/{sample_id}/promote-template")
-def promote_sample_to_template(
-    sample_id: str,
-    request: dict[str, Any],
-) -> dict[str, Any]:
-    """将样片升级为模板。
-
-    V0.4.2: 从已有样片创建可复用模板记录。
-    """
+def promote_sample_to_template(sample_id: str, request: dict[str, Any]) -> dict[str, Any]:
     import uuid
     from datetime import datetime
     from app.video_lab.style_gallery import store as sg_store
@@ -1603,7 +890,6 @@ def promote_sample_to_template(
     if not sample:
         raise HTTPException(status_code=404, detail=f"Sample not found: {sample_id}")
 
-    # V0.4.7: 升级去重 —— 同一样片默认不重复创建模板（force=true 可强制再建）
     force = bool(request.get("force", False))
     existing = sg_templates.find_by_source_sample(sample_id)
     if existing and not force:
@@ -1614,7 +900,6 @@ def promote_sample_to_template(
 
     name = request.get("name") or f"{sample.style_name} 模板"
 
-    # Build visual_judgement dict if present
     vj_dict = None
     if sample.visual_judgement:
         vj_dict = sample.visual_judgement.model_dump(mode="json") if hasattr(sample.visual_judgement, "model_dump") else sample.visual_judgement
@@ -1637,7 +922,6 @@ def promote_sample_to_template(
 
     sg_templates.save_template(template)
 
-    # Build warnings if any
     warnings: list[str] = []
     if not sample.visual_judgement:
         warnings.append("该样片尚未进行视觉评分，建议先评分后再确定是否适合作为模板。")
@@ -1652,7 +936,6 @@ def promote_sample_to_template(
 
 @router.get("/style-templates")
 def list_style_templates(route_id: str | None = None) -> list[dict[str, Any]]:
-    """列出风格模板，支持按路线过滤。"""
     from app.video_lab.style_gallery import templates as sg_templates
     templates = sg_templates.list_templates(route_id=route_id)
     return [t.to_dict() for t in templates]
@@ -1660,7 +943,6 @@ def list_style_templates(route_id: str | None = None) -> list[dict[str, Any]]:
 
 @router.get("/style-templates/{template_id}")
 def get_style_template(template_id: str) -> dict[str, Any]:
-    """获取单个模板详情。"""
     from app.video_lab.style_gallery import templates as sg_templates
     template = sg_templates.get_template(template_id)
     if not template:
@@ -1670,7 +952,6 @@ def get_style_template(template_id: str) -> dict[str, Any]:
 
 @router.delete("/style-templates/{template_id}")
 def delete_style_template(template_id: str) -> dict[str, Any]:
-    """删除一条模板记录（不删除原样片和视频文件）。"""
     from app.video_lab.style_gallery import templates as sg_templates
     deleted = sg_templates.delete_template(template_id)
     if not deleted:
@@ -1680,6 +961,60 @@ def delete_style_template(template_id: str) -> dict[str, Any]:
 
 @router.get("/style-gallery/preset-styles")
 def list_preset_styles() -> list[dict[str, Any]]:
-    """返回每条路线的预置风格入口（数据见 style_gallery/presets.py，每路线多个覆盖参数空间）。"""
     from app.video_lab.style_gallery.presets import list_preset_styles as _presets
     return _presets()
+
+
+# ─────────────────────────────────────────────
+# Helper utilities
+# ─────────────────────────────────────────────
+def _infer_strengths_from_scores(scores: dict[str, float]) -> list[str]:
+    strengths = []
+    labels = {
+        "layout": "排版留白合理",
+        "readability": "文字清晰可读",
+        "hierarchy": "信息层级清晰",
+        "aesthetics": "整体美观专业",
+        "consistency": "风格一致稳定",
+    }
+    for dim, score in scores.items():
+        if score >= 4.0:
+            strengths.append(labels.get(dim, f"{dim}表现良好"))
+    if not strengths:
+        strengths.append("整体无明显缺陷")
+    return strengths
+
+
+def _infer_weaknesses_from_scores(scores: dict[str, float]) -> list[str]:
+    weaknesses = []
+    labels = {
+        "layout": "排版略显拥挤",
+        "readability": "文字清晰度不足",
+        "hierarchy": "信息层级不够突出",
+        "aesthetics": "美观度有提升空间",
+        "consistency": "风格不够统一",
+    }
+    for dim, score in scores.items():
+        if score <= 2.5:
+            weaknesses.append(labels.get(dim, f"{dim}有待改善"))
+    return weaknesses
+
+
+def _build_summary(grade: str, scores: dict[str, float], raw_score: float) -> str:
+    grade_labels = {
+        "excellent": "优秀",
+        "good": "良好",
+        "ok": "一般",
+        "poor": "较差",
+    }
+    label = grade_labels.get(grade, grade)
+    top_dim = max(scores.items(), key=lambda x: x[1])[0] if scores else "整体"
+    dim_labels = {
+        "layout": "排版",
+        "readability": "可读性",
+        "hierarchy": "层级",
+        "aesthetics": "美观度",
+        "consistency": "一致性",
+    }
+    top_name = dim_labels.get(top_dim, top_dim)
+    return f"{label}水准（{raw_score}分），{top_name}表现最佳，适合资讯类内容分享。"

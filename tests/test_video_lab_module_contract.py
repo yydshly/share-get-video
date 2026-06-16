@@ -355,11 +355,11 @@ class TestClipPreviewContract:
             "elapsedMs": 5000,
         }
 
-        with patch("app.video_lab.renderers.frame_preview.render_clip_preview", return_value=mock_result):
-            with patch("app.video_lab.router.write_experiment_manifest") as mock_write:
+        with patch("app.video_lab.services.clip_preview_service.render_clip_preview", return_value=mock_result):
+            with patch("app.video_lab.services.clip_preview_service.write_experiment_manifest") as mock_write:
                 mock_write.return_value = {"path": "/p/manifest.json", "url": "/runtime/manifest.json"}
                 req = ClipPreviewRequest(
-                    visualRoute="template_programmatic_render",
+                    visualRoute="template_programmental_render",
                     content="Test content",
                     params={"clipSeconds": 3},
                 )
@@ -391,8 +391,8 @@ class TestClipPreviewContract:
             "elapsedMs": 3000,
         }
 
-        with patch("app.video_lab.renderers.frame_preview.render_clip_preview", return_value=mock_result):
-            with patch("app.video_lab.router.write_experiment_manifest") as mock_write:
+        with patch("app.video_lab.services.clip_preview_service.render_clip_preview", return_value=mock_result):
+            with patch("app.video_lab.services.clip_preview_service.write_experiment_manifest") as mock_write:
                 mock_write.return_value = {"path": "/p/manifest.json", "url": "/runtime/manifest.json"}
                 req = ClipPreviewRequest(
                     visualRoute="template_programmatic_render",
@@ -419,10 +419,10 @@ class TestClipPreviewContract:
         from app.video_lab.schemas import ClipPreviewRequest
 
         with patch(
-            "app.video_lab.renderers.frame_preview.render_clip_preview",
+            "app.video_lab.services.clip_preview_service.render_clip_preview",
             side_effect=RuntimeError("Unexpected error"),
         ):
-            with patch("app.video_lab.router.write_experiment_manifest") as mock_write:
+            with patch("app.video_lab.services.clip_preview_service.write_experiment_manifest") as mock_write:
                 mock_write.return_value = {"path": "/p/manifest.json", "url": "/runtime/manifest.json"}
                 req = ClipPreviewRequest(
                     visualRoute="template_programmatic_render",
@@ -452,8 +452,8 @@ class TestClipPreviewContract:
             "elapsedMs": 5000,
         }
 
-        with patch("app.video_lab.renderers.frame_preview.render_clip_preview", return_value=mock_result):
-            with patch("app.video_lab.router.write_experiment_manifest") as mock_write:
+        with patch("app.video_lab.services.clip_preview_service.render_clip_preview", return_value=mock_result):
+            with patch("app.video_lab.services.clip_preview_service.write_experiment_manifest") as mock_write:
                 mock_write.return_value = {"path": "/p/manifest.json", "url": "/runtime/manifest.json"}
                 req = ClipPreviewRequest(
                     visualRoute="template_programmatic_render",
@@ -483,12 +483,12 @@ class TestVisualComposeContract:
         mock_result.coverUrl = "/runtime/video_lab/experiments/abc/cover.jpg"
 
         with patch(
-            "app.video_lab.adapters.tts_subtitle_compose.run_tts_subtitle_compose",
+            "app.video_lab.services.visual_compose_service.run_tts_subtitle_compose",
             return_value=mock_result,
         ):
             with patch("app.video_lab.quality.quality_log.append_record"):
                 with patch(
-                    "app.video_lab.router.write_experiment_manifest",
+                    "app.video_lab.services.visual_compose_service.write_experiment_manifest",
                     return_value={"path": "/p/manifest.json", "url": "/runtime/manifest.json"},
                 ) as mock_write:
                     resp = _run_visual_compose(
@@ -527,11 +527,11 @@ class TestVisualComposeContract:
         mock_result.logs = []
 
         with patch(
-            "app.video_lab.adapters.tts_subtitle_compose.run_tts_subtitle_compose",
+            "app.video_lab.services.visual_compose_service.run_tts_subtitle_compose",
             return_value=mock_result,
         ):
             with patch(
-                "app.video_lab.router.write_experiment_manifest",
+                "app.video_lab.experiment_manifest.write_experiment_manifest",
                 return_value={"path": "/p/manifest.json", "url": "/runtime/manifest.json"},
             ):
                 resp = _run_visual_compose(
@@ -563,12 +563,12 @@ class TestVisualComposeContract:
         mock_result.coverUrl = ""
 
         with patch(
-            "app.video_lab.adapters.tts_subtitle_compose.run_tts_subtitle_compose",
+            "app.video_lab.services.visual_compose_service.run_tts_subtitle_compose",
             return_value=mock_result,
         ):
             with patch("app.video_lab.quality.quality_log.append_record"):
                 with patch(
-                    "app.video_lab.router.write_experiment_manifest",
+                    "app.video_lab.services.visual_compose_service.write_experiment_manifest",
                     return_value={"path": "/p/manifest.json", "url": "/runtime/manifest.json"},
                 ):
                     resp = _run_visual_compose(
@@ -593,12 +593,12 @@ class TestVisualComposeContract:
         mock_result.coverUrl = ""
 
         with patch(
-            "app.video_lab.adapters.tts_subtitle_compose.run_tts_subtitle_compose",
+            "app.video_lab.services.visual_compose_service.run_tts_subtitle_compose",
             return_value=mock_result,
         ):
             with patch("app.video_lab.quality.quality_log.append_record"):
                 with patch(
-                    "app.video_lab.router.write_experiment_manifest",
+                    "app.video_lab.services.visual_compose_service.write_experiment_manifest",
                     return_value={"path": "/p/manifest.json", "url": "/runtime/manifest.json"},
                 ):
                     resp = _run_visual_compose("Test content", "template_programmatic_render", {})
@@ -613,8 +613,9 @@ class TestVisualComposeOuterException:
         from app.video_lab.router import visual_compose
         from app.video_lab.schemas import VisualComposeRequest
 
+        # Patch the contract function so any exception is caught by run_visual_compose_endpoint
         with patch(
-            "app.video_lab.router._run_visual_compose",
+            "app.video_lab.services.visual_compose_service.run_visual_compose_contract",
             side_effect=RuntimeError("Database connection failed"),
         ):
             req = VisualComposeRequest(
@@ -631,6 +632,7 @@ class TestVisualComposeOuterException:
         assert "runId" in resp
         assert "experimentId" in resp
         assert "error" in resp
+        # Outer exception from contract is caught by run_visual_compose_endpoint
         assert resp["error"]["code"] == "VIDEO_LAB_INTERNAL_ERROR"
         assert resp["error"]["type"] == "RuntimeError"
         assert "artifacts" in resp
