@@ -560,6 +560,35 @@ def update_style_sweep_job_marks(job_id: str, request: UpdateSweepJobMarksReques
     }
 
 
+class PromoteSweepJobRequest(BaseModel):
+    styleIds: list[str] = Field(..., description="List of styleId values to promote")
+    targetStatus: str = Field(default="candidate", description="Initial sample status")
+    note: str = Field(default="", description="Optional note stored in source.saved_from")
+
+
+@router.post("/style-sweep-jobs/{job_id}/promote")
+def promote_style_sweep_job(job_id: str, request: PromoteSweepJobRequest) -> dict[str, Any]:
+    """Promote one or more successful Style Sweep results as Style Gallery samples.
+
+    Does NOT regenerate any video/TTS/AI assets. Re-uses existing finalVideoUrl /
+    manifestUrl / audioUrl / srtUrl / assUrl from the job result.
+    """
+    from app.video_lab.services.style_sweep_promotion_service import (
+        promote_sweep_results_to_gallery as _promote,
+    )
+
+    try:
+        result = _promote(
+            job_id=job_id,
+            style_ids=request.styleIds,
+            target_status=request.targetStatus,
+            note=request.note,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return result
+
+
 # ─────────────────────────────────────────────
 # Route Recommendation
 # ─────────────────────────────────────────────
