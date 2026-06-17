@@ -260,7 +260,7 @@ def _ken_burns_clip(image_path: str, out_path: Path, seconds: int, resolution: t
         out_path.as_posix(),
     ]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
         if r.returncode != 0 or not out_path.exists():
             return {"success": False, "message": f"FFmpeg Ken Burns failed: {r.stderr[-200:]}"}
         return {"success": True}

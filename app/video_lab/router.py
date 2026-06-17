@@ -314,7 +314,7 @@ def visual_judge(request: VisualJudgeRequest) -> dict[str, Any]:
             probe = subprocess.run(
                 [ffprobe_bin(), "-v", "error", "-show_entries", "format=duration",
                  "-of", "default=nw=1:nk=1", local.as_posix()],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
             )
             duration = float((probe.stdout or "0").strip() or 0)
         except Exception:
@@ -782,7 +782,7 @@ def _extract_video_frame(video_path: str, fraction: float = 0.4) -> str | None:
         probe = subprocess.run(
             [ffprobe_bin(), "-v", "error", "-show_entries", "format=duration",
              "-of", "default=nw=1:nk=1", vp.as_posix()],
-            capture_output=True, text=True, timeout=20,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
         )
         dur = float((probe.stdout or "0").strip() or 0)
         if dur > 0:

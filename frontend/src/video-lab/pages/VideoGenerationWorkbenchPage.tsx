@@ -852,7 +852,7 @@ export default function VideoGenerationWorkbenchPage() {
         body: JSON.stringify(payload),
       });
       const data = await resp.json().catch(() => ({}));
-      if (!resp.ok && !data) throw new Error(`${resp.status}`);
+      if (!resp.ok) throw new Error(data?.detail || data?.message || `HTTP ${resp.status}`);
       if (!data.success) {
         const msg =
           data?.error?.message ||
@@ -953,7 +953,7 @@ export default function VideoGenerationWorkbenchPage() {
         }),
       });
       const data = await resp.json().catch(() => ({}));
-      if (!resp.ok && !data) throw new Error(`${resp.status}`);
+      if (!resp.ok) throw new Error(data?.detail || `HTTP ${resp.status}`);
       if (data.detail) throw new Error(data.detail);
 
       setFullResult(data as FullVideoResult);

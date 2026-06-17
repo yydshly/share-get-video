@@ -76,6 +76,39 @@ def test_summary_accepts_newline_string_conclusions():
     assert r.get("success") is True
 
 
+def test_ken_burns_clip_uses_utf8_replace_for_subprocess(monkeypatch, tmp_path):
+    """V1.2.1.5: _ken_burns_clip must use encoding='utf-8', errors='replace'
+    to avoid UnicodeDecodeError on Windows when FFmpeg emits non-GBK bytes."""
+    import sys
+    captured: dict = {}
+
+    class FakeResult:
+        returncode = 0
+        stderr = ""
+        stdout = ""
+
+    def fake_run(cmd, **kwargs):
+        captured.update(kwargs)
+        out = tmp_path / "clip.mp4"
+        out.write_bytes(b"\x00\x00\x00\x18ftypisom\x00\x00\x02\x00mp41")
+        return FakeResult()
+
+    # subprocess is imported locally inside _ken_burns_clip, so patch at the stdlib level
+    monkeypatch.setattr(sys.modules["subprocess"], "run", fake_run, raising=False)
+
+    img = tmp_path / "in.png"
+    img.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 64)
+    out = tmp_path / "clip.mp4"
+
+    result = frame_preview._ken_burns_clip(str(img), out, 3, (720, 1280), {})
+
+    assert result.get("success") is True, f"Expected success, got {result}"
+    assert captured.get("text") is True, "text=True must be passed"
+    assert captured.get("capture_output") is True, "capture_output=True must be passed"
+    assert captured.get("encoding") == "utf-8", "encoding='utf-8' must be passed"
+    assert captured.get("errors") == "replace", "errors='replace' must be passed"
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])
