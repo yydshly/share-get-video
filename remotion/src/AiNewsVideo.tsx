@@ -1258,6 +1258,26 @@ const KeyPointCard: React.FC<{
     { extrapolateRight: "clamp" }
   );
 
+  // V1.2.5: 卡片表面随 visualTechnique 自适应（academic_sketch → 米纸/墨色，与纸张背景成体系）
+  const sketch = vstyle?.visualTechnique === "academic_sketch";
+  const surface = sketch
+    ? {
+        cardBg: "rgba(255,253,247,0.93)",
+        cardBorder: "rgba(120,90,60,0.45)",
+        cardShadow: "0 10px 34px rgba(120,90,60,0.20)",
+        titleColor: "#3a2e22",
+        bodyColor: "#5c4b38",
+        titleShadow: "none",
+      }
+    : {
+        cardBg: C.card,
+        cardBorder: C.border,
+        cardShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
+        titleColor: C.textPrimary,
+        bodyColor: C.textSecondary,
+        titleShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
+      };
+
   return (
     <AbsoluteFill
       style={{
@@ -1274,16 +1294,16 @@ const KeyPointCard: React.FC<{
         style={{
           width: "82%",
           maxWidth: 880,
-          background: C.card,
+          background: surface.cardBg,
           borderRadius: 24,
-          border: `2px solid ${C.border}`,
+          border: `2px solid ${surface.cardBorder}`,
           padding: layout.cardPadding,
           position: "relative",
           opacity: cardOpacityFx,
           transform: `perspective(900px) translate(${cardTranslateX}, ${cardTranslateY}) rotateY(${cardRotateY}deg) scale(${cardScale})`,
           filter: cardFilter,
           clipPath: cardClipPath,
-          boxShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
+          boxShadow: surface.cardShadow,
           // V0.5.5: 内容垂直居中 + 贴合内容的高度下限，消除卡片下半固定留白
           // V1.2.2: Uses layout config for compact minHeight
           display: "flex",
@@ -1370,11 +1390,11 @@ const KeyPointCard: React.FC<{
           style={{
             fontSize: Math.round(layout.cardTitleFontSize * fs),
             fontWeight: 800,
-            color: C.textPrimary,
+            color: surface.titleColor,
             margin: 0,
             marginBottom: layout.cardElementGap,
             lineHeight: 1.25,
-            textShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
+            textShadow: surface.titleShadow,
           }}
         >
           <KineticHeadline text={kp.title} localFrame={localFrame} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
@@ -1396,7 +1416,7 @@ const KeyPointCard: React.FC<{
         <p
           style={{
             fontSize: Math.round(layout.cardDescFontSize * fs),
-            color: C.textSecondary,
+            color: surface.bodyColor,
             margin: 0,
             marginBottom: layout.cardElementGap,
             lineHeight: 1.65,
