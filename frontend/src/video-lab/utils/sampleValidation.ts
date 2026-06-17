@@ -1,9 +1,9 @@
 /**
- * sampleValidation.ts - V1.2.1
+ * sampleValidation.ts - V1.2.3
  * 样片验证中心 — 工具函数与类型
  */
 
-// V1.2.1: Local type duplication to avoid circular import from page component
+// V1.2.3: Local type duplication to avoid circular import from page component
 interface SampleOutput { type: string; path: string; poster: string; audio_url: string; srt_url: string; manifest_url: string; }
 interface SampleUrls { video_url: string; poster_url: string; audio_url: string; srt_url: string; manifest_url: string; }
 interface Evaluation { readability: number | null; motion: number | null; visual_impact: number | null; stability: number | null; cost: number | null; notes: string; }

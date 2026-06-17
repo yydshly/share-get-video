@@ -476,7 +476,7 @@ function SampleCard({
   copyingRerunId,
   rerunCopyFeedback,
   onCopyRerun,
-  // V1.2.1: 对比篮
+  // V1.2.3: 对比篮
   onAddToTray,
   inCompareTray = false,
 }: {
@@ -497,7 +497,7 @@ function SampleCard({
     message: string;
   } | null;
   onCopyRerun: (id: string) => void;
-  // V1.2.1: 对比篮
+  // V1.2.3: 对比篮
   onAddToTray?: (id: string) => void;
   inCompareTray?: boolean;
 }) {
@@ -626,7 +626,7 @@ function SampleCard({
         </span>
       </div>
 
-      {/* V1.2.1: 验证标签行 — 显示在卡片头部状态 pill 下方 */}
+      {/* V1.2.3: 验证标签行 — 显示在卡片头部状态 pill 下方 */}
       {(() => {
         const tags = getValidationTags(sample);
         const chipStyle = (bg: string, color: string) => ({
@@ -686,7 +686,7 @@ function SampleCard({
       {/* 预览 */}
       {videoSrc ? (
         <>
-          {/* V1.2.1.5: use aspect-ratio container so vertical video is never cropped */}
+          {/* V1.2.3.5: use aspect-ratio container so vertical video is never cropped */}
           <VideoAspectFrame
             aspectRatio={getSampleAspectRatio(sample as unknown as Record<string, unknown>)}
             fitMode={getSampleFitMode(sample as unknown as Record<string, unknown>)}
@@ -701,7 +701,7 @@ function SampleCard({
               poster={posterSrc}
             />
           </VideoAspectFrame>
-          {/* V1.2.1.5: aspect ratio and cropping risk badge */}
+          {/* V1.2.3.5: aspect ratio and cropping risk badge */}
           {(getCroppingRisk(sample as unknown as Record<string, unknown>) || sample.params) && (
             <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginTop: "0.25rem" }}>
               <span style={{ fontSize: "0.62rem", color: "#64748b" }}>
@@ -1154,7 +1154,7 @@ function SampleCard({
         >
           {selectedForCompare ? "✓ 已加入对比" : "⚖ 加入对比"}
         </button>
-        {/* V1.2.1: 加入对比篮按钮 */}
+        {/* V1.2.3: 加入对比篮按钮 */}
         {onAddToTray && (
           <button
             onClick={() => onAddToTray(sample.id)}
@@ -1274,7 +1274,7 @@ function CompareCard({
       {/* Preview */}
       {videoSrc ? (
         <>
-          {/* V1.2.1.5: use aspect-ratio container so vertical video is never cropped */}
+          {/* V1.2.3.5: use aspect-ratio container so vertical video is never cropped */}
           <VideoAspectFrame
             aspectRatio={getSampleAspectRatio(sample as unknown as Record<string, unknown>)}
             fitMode={getSampleFitMode(sample as unknown as Record<string, unknown>)}
@@ -1288,7 +1288,7 @@ function CompareCard({
               poster={posterSrc}
             />
           </VideoAspectFrame>
-          {/* V1.2.1.5: aspect ratio and cropping risk badge */}
+          {/* V1.2.3.5: aspect ratio and cropping risk badge */}
           {getCroppingRisk(sample as unknown as Record<string, unknown>) ? (
             <div style={{ fontSize: "0.62rem", color: "#dc2626", fontWeight: 600, marginTop: "0.2rem" }}>
               {getCroppingRisk(sample as unknown as Record<string, unknown>)}
@@ -1461,13 +1461,11 @@ export default function StyleGalleryPage() {
   const [bundleTags, setBundleTags] = useState<string>("");
   const [savingBundle, setSavingBundle] = useState(false);
 
-  // V1.2.1: 验证中心 — 对比篮（本地暂存，不影响后端状态）
+  // V1.2.3: 验证中心 — 对比篮（本地暂存，不影响后端状态）
   const [compareTray, setCompareTray] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem("style_gallery_compare_tray") || "[]"); } catch { return []; }
   });
   const [showCompareView, setShowCompareView] = useState(false);
-  // 验证结论草稿（内存，不持久化）
-  const [reviewDraft, setReviewDraft] = useState<Record<string, { status: string; notes: string }>>({});
   // 额外筛选
   const [filterAspectRatio, setFilterAspectRatio] = useState("");
   const [filterGenerationMode, setFilterGenerationMode] = useState("");
@@ -1616,7 +1614,7 @@ export default function StyleGalleryPage() {
   useEffect(() => { loadScoreHistory(); }, [loadScoreHistory]);
   useEffect(() => { loadJudgeAvailability(); }, [loadJudgeAvailability]);
   useEffect(() => { loadRouteFit(); }, [loadRouteFit]);
-  // V1.2.1: 持久化对比篮到 localStorage
+  // V1.2.3: 持久化对比篮到 localStorage
   useEffect(() => {
     try { localStorage.setItem("style_gallery_compare_tray", JSON.stringify(compareTray)); } catch { /* ignore */ }
   }, [compareTray]);
@@ -1765,7 +1763,7 @@ export default function StyleGalleryPage() {
     loadSamples();
   };
 
-  // V1.2.1: 对比篮操作（本地暂存，最多 4 条）
+  // V1.2.3: 对比篮操作（本地暂存，最多 4 条）
   const handleAddToTray = (id: string) => {
     if (compareTray.includes(id)) return;
     if (compareTray.length >= 4) {
@@ -1785,6 +1783,14 @@ export default function StyleGalleryPage() {
   };
 
   const traySamples = samples.filter((s) => compareTray.includes(s.id));
+
+  // V1.2.3: 清理失效的对比篮项（localStorage 中存了但样片已不存在）
+  const validTrayIds = new Set(samples.map((s) => s.id));
+  const missingTrayCount = compareTray.filter((id) => !validTrayIds.has(id)).length;
+
+  const handlePruneTray = () => {
+    setCompareTray((prev) => prev.filter((id) => validTrayIds.has(id)));
+  };
 
   const handleJudge = async (id: string) => {
     setJudgingSet((prev) => new Set(prev).add(id));
@@ -1865,25 +1871,33 @@ export default function StyleGalleryPage() {
     }
   };
 
-  // V0.4.2: 删除模板
+  // V0.4.2: 删除模板（V1.2.3: 检查 resp.ok）
   const handleDeleteTemplate = async (templateId: string) => {
     if (!confirm("确认删除该模板？原样片不受影响。")) return;
     try {
-      await fetch(`${API_BASE}/style-templates/${templateId}`, { method: "DELETE" });
+      const resp = await fetch(`${API_BASE}/style-templates/${templateId}`, { method: "DELETE" });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.detail || `HTTP ${resp.status}`);
+      }
       loadTemplates();
     } catch (e) {
       setError("删除模板失败: " + String(e));
     }
   };
 
-  // V1.2.1: 更新样片人工结论（只改 status）
+  // V1.2.3: 更新样片人工结论（只改 status）
   const handleUpdateReview = async (sampleId: string, newStatus: string) => {
     try {
-      await fetch(`${API_BASE}/style-samples/${sampleId}/status`, {
+      const resp = await fetch(`${API_BASE}/style-samples/${sampleId}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.detail || `HTTP ${resp.status}`);
+      }
       loadSamples();
       setSuccessMsg(`已更新样片状态为「${REVIEW_STATUS_LABELS[newStatus]?.label ?? newStatus}」`);
     } catch (e) {
@@ -1899,27 +1913,22 @@ export default function StyleGalleryPage() {
   ];
 
   // V0.7.3: 二次过滤（路线/状态由后端过滤，来源在前端过滤）
-  // V1.2.1: 扩展为验证中心多维筛选
+  // V1.2.3: 扩展为验证中心多维筛选（每样片只取一次 tags）
   const visibleSamples = samples.filter((s) => {
     // 来源
     if (filterSource === "workbench") { if (!isWorkbenchSample(s)) return false; }
     if (filterSource === "gallery") { if (isWorkbenchSample(s)) return false; }
-    // 比例
-    if (filterAspectRatio) {
-      const ar = getValidationTags(s).aspectRatio;
-      if (ar !== filterAspectRatio) return false;
-    }
-    // 生成模式
-    if (filterGenerationMode) {
-      const gm = getValidationTags(s).generationMode;
-      if (gm !== filterGenerationMode) return false;
+    // 比例 / 生成模式 / 视频资产 — 只取一次 tags
+    if (filterAspectRatio || filterGenerationMode || filterHasVideo) {
+      const tags = getValidationTags(s);
+      if (filterAspectRatio && tags.aspectRatio !== filterAspectRatio) return false;
+      if (filterGenerationMode && tags.generationMode !== filterGenerationMode) return false;
+      if (filterHasVideo === "has_video" && !tags.hasVideo) return false;
+      if (filterHasVideo === "no_video" && tags.hasVideo) return false;
     }
     // 评分状态
     if (filterScored === "scored") { if (!s.visual_judgement) return false; }
     if (filterScored === "unscored") { if (s.visual_judgement) return false; }
-    // 视频资产
-    if (filterHasVideo === "has_video") { if (!getValidationTags(s).hasVideo) return false; }
-    if (filterHasVideo === "no_video") { if (getValidationTags(s).hasVideo) return false; }
     return true;
   });
 
@@ -1950,20 +1959,21 @@ export default function StyleGalleryPage() {
     ai_asset_then_compose: "AI 素材氛围路线",
   };
 
-  // V1.2.1: 验证统计
+  // V1.2.3: 验证统计
   const valStats = computeValidationStats(samples);
 
-  // V1.2.1: 验证分组视图
+  // V1.2.3: 验证分组视图（每样片只取一次 tags）
   type GroupEntry = { key: string; label: string; samples: StyleSample[] };
   const groupedSamples: GroupEntry[] = (() => {
     if (!groupBy) return [];
     const groups: Record<string, { label: string; samples: StyleSample[] }> = {};
     for (const s of visibleSamples) {
+      const tags = getValidationTags(s);
       let key: string;
       let label: string;
-      if (groupBy === "route") { key = getValidationTags(s).route; label = key; }
-      else if (groupBy === "aspectRatio") { key = getValidationTags(s).aspectRatio; label = key; }
-      else if (groupBy === "generationMode") { key = getValidationTags(s).generationMode; label = key; }
+      if (groupBy === "route") { key = tags.route; label = key; }
+      else if (groupBy === "aspectRatio") { key = tags.aspectRatio; label = key; }
+      else if (groupBy === "generationMode") { key = tags.generationMode; label = key; }
       else { key = normalizeContentPreview(s.content_preview); label = key || "（空内容）"; }
       if (!groups[key]) groups[key] = { label, samples: [] };
       groups[key].samples.push(s);
@@ -1974,7 +1984,7 @@ export default function StyleGalleryPage() {
   return (
     <div style={{ padding: "2rem", maxWidth: 1400, margin: "0 auto" }}>
       <Link to="/video-lab" style={{ color: "#64748b", fontSize: "0.85rem", textDecoration: "none" }}>← 返回首页</Link>
-      {/* V1.2.1: 验证中心标题 */}
+      {/* V1.2.3: 验证中心标题 */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: "0.5rem", gap: "1rem", flexWrap: "wrap" }}>
         <div>
           <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>样片验证中心</h1>
@@ -1982,7 +1992,7 @@ export default function StyleGalleryPage() {
             查看 Workbench / Style Sweep / Style Gallery 生成的样片，比较不同路线、比例、风格参数的实际效果。
           </p>
         </div>
-        {/* V1.2.1: 验证总览统计条 */}
+        {/* V1.2.3: 验证总览统计条 */}
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: "0.72rem", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 8, padding: "3px 10px", color: "#475569" }}>总数 <b>{valStats.total}</b></span>
           <span style={{ fontSize: "0.72rem", background: "#f0fdfa", border: "1px solid #5eead4", borderRadius: 8, padding: "3px 10px", color: "#0f766e" }}>🧪 Workbench <b>{valStats.workbenchCount}</b></span>
@@ -1993,7 +2003,7 @@ export default function StyleGalleryPage() {
         </div>
       </div>
 
-      {/* V1.2.1: 对比篮面板 */}
+      {/* V1.2.3: 对比篮面板 */}
       {compareTray.length > 0 && (
         <div style={{
           marginTop: "0.85rem",
@@ -2007,7 +2017,7 @@ export default function StyleGalleryPage() {
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
             <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1d4ed8" }}>
-              ⚖ 对比篮 ({compareTray.length}/4) — 本浏览器临时对比，不会删除后端样片
+              ⚖ 对比篮 ({compareTray.length}/4) — 本浏览器临时选择，不会修改后端样片状态；正式标记对比请使用样片卡上的「加入对比」
             </div>
             <div style={{ display: "flex", gap: "0.4rem" }}>
               {compareTray.length >= 2 && (
@@ -2024,8 +2034,21 @@ export default function StyleGalleryPage() {
               >
                 清空
               </button>
+              {missingTrayCount > 0 && (
+                <button
+                  onClick={handlePruneTray}
+                  style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", borderRadius: 6, padding: "0.3rem 0.75rem", fontSize: "0.75rem", cursor: "pointer" }}
+                >
+                  清理失效项 ({missingTrayCount})
+                </button>
+              )}
             </div>
           </div>
+          {missingTrayCount > 0 && (
+            <div style={{ fontSize: "0.7rem", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "0.3rem 0.6rem" }}>
+              对比篮中有 {missingTrayCount} 条样片当前未加载或已被删除，可点击「清理失效项」移除。
+            </div>
+          )}
           <div style={{ display: "flex", gap: "0.5rem", overflowX: "auto", flexWrap: "nowrap" }}>
             {traySamples.map((s) => {
               const tags = getValidationTags(s);
@@ -2154,7 +2177,7 @@ export default function StyleGalleryPage() {
         >
           模板库 ({filteredTemplates.length})
         </button>
-        {/* V1.2.1: 验证视图 tab */}
+        {/* V1.2.3: 验证视图 tab */}
         <button
           onClick={() => setActiveTab("validate")}
           style={{
@@ -2171,7 +2194,7 @@ export default function StyleGalleryPage() {
         </button>
       </div>
 
-      {/* V1.2.1: 扩展筛选栏 */}
+      {/* V1.2.3: 扩展筛选栏 */}
       <div style={{ display: "flex", gap: "0.6rem", marginTop: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <select value={filterRoute} onChange={(e) => setFilterRoute(e.target.value)} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem" }}>
           {routeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -2188,7 +2211,7 @@ export default function StyleGalleryPage() {
           <option value="workbench">Workbench</option>
           <option value="gallery">样片库</option>
         </select>
-        {/* V1.2.1: 比例筛选 */}
+        {/* V1.2.3: 比例筛选 */}
         <select value={filterAspectRatio} onChange={(e) => setFilterAspectRatio(e.target.value)} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", cursor: "pointer" }}>
           <option value="">全部比例</option>
           <option value="9:16">9:16</option>
@@ -2196,19 +2219,19 @@ export default function StyleGalleryPage() {
           <option value="1:1">1:1</option>
           <option value="4:5">4:5</option>
         </select>
-        {/* V1.2.1: 生成模式筛选 */}
+        {/* V1.2.3: 生成模式筛选 */}
         <select value={filterGenerationMode} onChange={(e) => setFilterGenerationMode(e.target.value)} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", cursor: "pointer" }}>
           <option value="">全部模式</option>
           <option value="信息总结">信息总结</option>
           <option value="普通">普通</option>
         </select>
-        {/* V1.2.1: 评分状态筛选 */}
+        {/* V1.2.3: 评分状态筛选 */}
         <select value={filterScored} onChange={(e) => setFilterScored(e.target.value as "" | "scored" | "unscored")} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", cursor: "pointer" }}>
           <option value="">全部评分</option>
           <option value="scored">已视觉评分</option>
           <option value="unscored">未评分</option>
         </select>
-        {/* V1.2.1: 视频资产筛选 */}
+        {/* V1.2.3: 视频资产筛选 */}
         <select value={filterHasVideo} onChange={(e) => setFilterHasVideo(e.target.value as "" | "has_video" | "no_video")} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", cursor: "pointer" }}>
           <option value="">全部资产</option>
           <option value="has_video">有视频</option>
@@ -2814,7 +2837,7 @@ export default function StyleGalleryPage() {
         </div>
       )}
 
-      {/* V1.2.1: 验证视图 Tab */}
+      {/* V1.2.3: 验证视图 Tab */}
       {activeTab === "validate" && (
         <div style={{ marginTop: "1rem" }}>
           {/* 说明 */}
@@ -2956,7 +2979,7 @@ export default function StyleGalleryPage() {
         </div>
       )}
 
-      {/* V1.2.1: 对比视图浮层 */}
+      {/* V1.2.3: 对比视图浮层 */}
       {showCompareView && traySamples.length >= 2 && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
           <div style={{ background: "white", borderRadius: 16, width: "100%", maxWidth: 1200, maxHeight: "95vh", overflowY: "auto", display: "flex", flexDirection: "column" }}>
@@ -2967,7 +2990,15 @@ export default function StyleGalleryPage() {
                 <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: "2px 0 0" }}>对比 {traySamples.length} 条样片的参数差异</p>
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button onClick={() => { navigator.clipboard.writeText(buildValidationReport(traySamples)); setSuccessMsg("已复制验证报告"); setTimeout(() => setSuccessMsg(""), 3000); }} style={{ background: "#7c3aed", color: "white", border: "none", borderRadius: 8, padding: "0.45rem 1rem", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer" }}>
+                <button onClick={() => {
+                  try {
+                    navigator.clipboard.writeText(buildValidationReport(traySamples));
+                    setSuccessMsg("已复制验证报告");
+                    setTimeout(() => setSuccessMsg(""), 3000);
+                  } catch (e) {
+                    setError("复制验证报告失败：" + String(e));
+                  }
+                }} style={{ background: "#7c3aed", color: "white", border: "none", borderRadius: 8, padding: "0.45rem 1rem", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer" }}>
                   📋 复制验证报告
                 </button>
                 <button onClick={() => setShowCompareView(false)} style={{ background: "#f1f5f9", color: "#475569", border: "none", borderRadius: 8, padding: "0.45rem 1rem", fontSize: "0.8rem", cursor: "pointer" }}>
