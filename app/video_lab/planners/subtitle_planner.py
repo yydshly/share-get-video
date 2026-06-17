@@ -172,9 +172,11 @@ def _chunk_text(text: str, max_chars: int) -> list[str]:
         chunks.append(cur)
 
     # 合并过短的碎片到相邻块（避免字幕一闪而过）
+    # 注意：不能合并出超过 limit（约 2 行）的 chunk，否则 _segment_to_entries
+    # 会拆分出超过 max_lines 的 entry 导致丢字
     merged: list[str] = []
     for c in chunks:
-        if merged and len(c) < max_chars * 0.6 and len(merged[-1]) + len(c) <= limit + max_chars:
+        if merged and len(c) < max_chars * 0.6 and len(merged[-1]) + len(c) <= limit:
             merged[-1] += c
         else:
             merged.append(c)
@@ -182,7 +184,11 @@ def _chunk_text(text: str, max_chars: int) -> list[str]:
 
 
 def _segment_to_entries(seg: dict, max_chars: int, max_lines: int) -> list[dict]:
-    """把一个旁白段拆成多条时间分配好的字幕条（按字数比例分时间，不截断）。"""
+    """把一个旁白段拆成多条时间分配好的字幕条（按字数比例分时间，不截断）。
+
+    每个 chunk 如果 wrap 后超过 max_lines 行，会被拆成多条 entry，
+    每条 entry 有 max_lines 行，时间按字数比例分配。
+    """
     text = (seg.get("text", "") or "").strip()
     if not text:
         return []
@@ -194,18 +200,31 @@ def _segment_to_entries(seg: dict, max_chars: int, max_lines: int) -> list[dict]
     entries = []
     t = start
     for idx, c in enumerate(chunks):
-        # 最后一条用段末，避免累计误差
-        if idx == len(chunks) - 1:
-            d = max(0.4, (start + dur) - t)
-        else:
-            d = max(0.4, dur * (len(c) / total_chars))
-        entries.append({
-            "startSec": round(t, 3),
-            "endSec": round(t + d, 3),
-            "text": c,
-            "subLines": _wrap_chars(c, max_chars)[:max_lines],
-        })
-        t += d
+        wrapped = _wrap_chars(c, max_chars)
+        chunk_total_chars = len(c)
+
+        # 如果 wrap 后超过 max_lines 行，拆成多条 entry，每条 max_lines 行
+        pages: list[list[str]] = []
+        for i in range(0, len(wrapped), max_lines):
+            pages.append(wrapped[i:i + max_lines])
+
+        # 计算每页应分配的时间（按字数比例）
+        chars_per_page = chunk_total_chars / len(pages) if pages else 1
+
+        for page_idx, page_lines in enumerate(pages):
+            if page_idx == len(pages) - 1 and idx == len(chunks) - 1:
+                # 最后一个 chunk 的最后一页：用段末，避免累计误差
+                d = max(0.4, (start + dur) - t)
+            else:
+                d = max(0.4, dur * (chars_per_page / total_chars))
+            entries.append({
+                "startSec": round(t, 3),
+                "endSec": round(t + d, 3),
+                "text": c,
+                "subLines": page_lines,
+            })
+            t += d
+
     return entries
 
 
