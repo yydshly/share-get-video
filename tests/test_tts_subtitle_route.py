@@ -298,6 +298,113 @@ def test_tts_compose_step3_builds_kps_with_emphasis_terms():
     assert len(all_terms) > 0, "Should extract at least some emphasis terms"
 
 
+def test_tts_compose_uses_segmented_tts_timeline_for_general_multi_part_plan(monkeypatch, tmp_path):
+    """General routes should align visuals/subtitles to real per-segment TTS durations."""
+    from app.video_lab.adapters import tts_subtitle_compose as adapter
+    from app.video_lab.renderers.visual.base import VisualRenderResult
+    import app.video_lab.planners.llm_content_planner as llm_content_planner
+
+    plan = {
+        "coverTitle": "General sync test",
+        "opening": "Opening narration",
+        "shots": [
+            {"headline": "Item 1", "display": "Display 1", "narration": "First item narration", "emphasisTerms": []},
+            {"headline": "Item 2", "display": "Display 2", "narration": "Second item narration", "emphasisTerms": []},
+        ],
+        "closing": "Closing narration",
+        "source": "test",
+    }
+    captured = {}
+
+    monkeypatch.setattr(adapter, "structure_content", lambda raw_content, test_case_id=None: {"lead": "lead", "items": [], "totalItems": 2})
+    monkeypatch.setattr(llm_content_planner, "plan_shots", lambda *args, **kwargs: plan)
+    monkeypatch.setattr(adapter, "ensure_runtime_exists", lambda: None)
+    monkeypatch.setattr(adapter, "get_experiment_dir", lambda experiment_id: tmp_path / experiment_id)
+    monkeypatch.setattr(adapter, "path_to_url", lambda path: f"/mock/{Path(path).name}")
+    monkeypatch.setattr(adapter, "write_manifest", lambda experiment_id, manifest: _write_test_manifest(tmp_path / experiment_id, manifest))
+    monkeypatch.setattr(adapter, "check_ffmpeg_available", lambda: True)
+
+    class FakeTTSClient:
+        def is_configured(self):
+            return True
+
+        def generate(self, text, output_path):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"fake audio")
+            return {
+                "success": True,
+                "audioPath": str(output_path),
+                "durationSec": 99.0,
+                "providerMessage": "provider duration ignored",
+            }
+
+    class FakeRenderer:
+        def render(self, request):
+            captured["voiceover_segments"] = request.voiceover_segments
+            captured["target_duration_sec"] = request.target_duration_sec
+            video_path = tmp_path / request.experiment_id / "silent.mp4"
+            video_path.parent.mkdir(parents=True, exist_ok=True)
+            video_path.write_bytes(b"fake video")
+            return VisualRenderResult(
+                success=True,
+                route_id="local_frame_compose",
+                silent_video_path=str(video_path),
+                cover_path=str(tmp_path / request.experiment_id / "cover.png"),
+                total_duration_sec=request.target_duration_sec,
+                frame_count=len(request.voiceover_segments),
+            )
+
+    durations = {
+        "voiceover_segment_01.mp3": 4.0,
+        "voiceover_segment_02.mp3": 6.0,
+        "voiceover_segment_03.mp3": 8.0,
+        "voiceover_segment_04.mp3": 2.0,
+        "voiceover.mp3": 20.0,
+    }
+
+    monkeypatch.setattr(adapter, "MiniMaxTTSClient", FakeTTSClient)
+    monkeypatch.setattr(adapter, "_probe_audio_duration", lambda path: durations.get(Path(path).name, 0.0))
+    monkeypatch.setattr(adapter, "_concat_audio_segments", lambda segment_paths, output_path, timeout=300: _write_fake_audio(output_path))
+    monkeypatch.setattr(adapter, "get_visual_renderer", lambda route: FakeRenderer())
+    monkeypatch.setattr(adapter, "compose_av_with_subtitles", lambda **kwargs: {"success": True, "subtitle_renderer": "ass", "subtitle_style": {}})
+    monkeypatch.setattr(adapter, "compose_video_with_audio", lambda **kwargs: {"success": True})
+
+    result = adapter.run_tts_subtitle_compose(
+        experiment_id="exp-general-segmented",
+        test_case_id="case-general",
+        input_payload={"content": "general content"},
+        params={"targetDuration": 30, "aspectRatio": "9:16", "segmentedTts": True},
+    )
+
+    voiceover_artifact = next(
+        artifact
+        for step in result.productionSteps
+        for artifact in step.artifacts
+        if artifact.title == "Voiceover Plan"
+    )
+    segments = voiceover_artifact.payload["segments"]
+
+    assert result.rawOutput["status"] == "succeeded"
+    assert voiceover_artifact.payload["timelineSource"] == "segmented_tts"
+    assert [seg["startSec"] for seg in segments] == [0.0, 4.0, 10.0, 18.0]
+    assert [seg["durationSec"] for seg in segments] == [4.0, 6.0, 8.0, 2.0]
+    assert [seg["durationSec"] for seg in captured["voiceover_segments"]] == [4.0, 6.0, 8.0, 2.0]
+    assert captured["target_duration_sec"] == 20.0
+
+
+def _write_test_manifest(exp_dir: Path, manifest: dict) -> Path:
+    exp_dir.mkdir(parents=True, exist_ok=True)
+    path = exp_dir / "manifest.json"
+    path.write_text("{}", encoding="utf-8")
+    return path
+
+
+def _write_fake_audio(out_path: Path) -> dict:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(b"fake audio")
+    return {"success": True}
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

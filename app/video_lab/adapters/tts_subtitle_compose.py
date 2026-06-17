@@ -20,7 +20,7 @@ from pathlib import Path
 import shlex
 import subprocess
 
-from app.video_lab.config import ffmpeg_bin
+from app.video_lab.config import ffmpeg_bin, ffprobe_bin
 from app.video_lab.models import (
     VideoExperimentResult,
     VideoProductionStep,
@@ -95,6 +95,32 @@ def _is_report_source_bound_plan(plan: dict) -> bool:
     return isinstance(plan, dict) and plan.get("structureType") == "report_source_bound"
 
 
+def _should_use_segmented_tts(params: dict, vo_parts: list[str]) -> bool:
+    """Use per-segment audio files when there is a real multi-frame timeline."""
+    if isinstance(params, dict) and params.get("segmentedTts") is False:
+        return False
+    non_empty_parts = [part for part in vo_parts if (part or "").strip()]
+    return len(non_empty_parts) > 1
+
+
+def _refresh_voiceover_step_metadata(
+    artifact: VideoProductionArtifact,
+    step: VideoProductionStep,
+    voiceover: dict,
+) -> None:
+    segment_count = len(voiceover.get("segments", []) or [])
+    duration = voiceover.get("estimatedDurationSec", 0)
+    timeline_source = voiceover.get("timelineSource", "estimated")
+    artifact.summary = f"{segment_count} segments, ~{duration}s ({timeline_source})"
+    artifact.payload = voiceover
+    step.outputSummary = f"{timeline_source}: {duration}s"
+    step.keyData.update({
+        "estimatedDurationSec": duration,
+        "segmentCount": segment_count,
+        "timelineSource": timeline_source,
+    })
+
+
 def _estimate_segments_from_parts(parts: list[str]) -> dict:
     segments = []
     cursor = 0.0
@@ -114,7 +140,7 @@ def _probe_audio_duration(path: Path, timeout: int = 20) -> float:
     if not path.exists() or path.stat().st_size <= 0:
         return 0.0
     cmd = [
-        "ffprobe",
+        ffprobe_bin(),
         "-v",
         "error",
         "-show_entries",
@@ -484,9 +510,17 @@ def run_tts_subtitle_compose(
         all_logs.extend(step5.logs)
         return _build_failed_result(experiment_id, method_category, steps, "MINIMAX_API_KEY not configured")
 
-    use_segmented_tts = is_source_bound_information_summary and _is_report_source_bound_plan(plan)
+    use_segmented_tts = _should_use_segmented_tts(params, vo_parts)
     if use_segmented_tts:
         tts_result = _generate_segmented_voiceover_audio(tts_client, vo_parts, audio_dir, audio_path)
+        if not tts_result.get("success"):
+            all_warnings.append(f"Segmented TTS failed, fallback to single TTS: {tts_result.get('providerMessage', '')}")
+            all_logs.append(f"  Segmented TTS fallback: {tts_result.get('providerMessage', 'unknown')}")
+            use_segmented_tts = False
+            tts_result = tts_client.generate(
+                text=voiceover_text,
+                output_path=audio_path,
+            )
     else:
         tts_result = tts_client.generate(
             text=voiceover_text,
@@ -570,6 +604,8 @@ def run_tts_subtitle_compose(
             voiceover_result["segments"] = segments
             voiceover_result["estimatedDurationSec"] = round(real_audio_dur, 2)
             all_logs.append(f"  Rescaled subtitle timeline x{scale:.2f} to match audio {real_audio_dur:.1f}s")
+
+    _refresh_voiceover_step_metadata(artifact_vo, step4, voiceover_result)
 
     # Step 6: generate SRT + ASS subtitles
     subtitle_dir = exp_dir / "subtitles"
@@ -885,6 +921,9 @@ def run_tts_subtitle_compose(
                 "text": _seg.get("text", ""),
                 "startSec": _seg.get("startSec", 0),
                 "durationSec": _seg.get("durationSec", 0),
+                "audioDurationSource": _seg.get("audioDurationSource", voiceover_result.get("timelineSource", "estimated")),
+                "providerDurationSec": _seg.get("providerDurationSec"),
+                "audioTimelineScale": _seg.get("audioTimelineScale"),
             })
 
         # V0.8.3: budgetDebug — narration 字数预算 vs 实际音频时长
@@ -914,6 +953,7 @@ def run_tts_subtitle_compose(
             "shotCount": len(plan_shots_list),
             "shots": _plan_debug_shots,
             "voiceoverSegments": _plan_debug_segments,
+            "voiceoverTimelineSource": voiceover_result.get("timelineSource", "estimated"),
             "budgetDebug": _budget_debug,
         }
         if plan.get("sourceRefs"):
@@ -994,6 +1034,7 @@ def run_tts_subtitle_compose(
             "engine": "minimax-tts",
             "resolution": f"{resolution[0]}x{resolution[1]}",
             "audioDurationSec": tts_result.get("durationSec", 0),
+            "voiceoverTimelineSource": voiceover_result.get("timelineSource", "estimated"),
             "subtitleCount": len(srt_result.get("subtitles", [])),
             "subtitleBurned": subtitle_burned,
             "subtitleFallback": subtitle_fallback,
@@ -1015,6 +1056,7 @@ def run_tts_subtitle_compose(
             "engine": "minimax-tts",
             "status": "succeeded",
             "audioDurationSec": tts_result.get("durationSec", 0),
+            "voiceoverTimelineSource": voiceover_result.get("timelineSource", "estimated"),
             "subtitleCount": len(srt_result.get("subtitles", [])),
             "subtitleBurned": subtitle_burned,
             "subtitleFallback": subtitle_fallback,

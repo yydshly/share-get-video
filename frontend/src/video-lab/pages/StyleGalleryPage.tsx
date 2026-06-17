@@ -868,6 +868,30 @@ function SampleCard({
                 <span style={{ color: "#1e293b" }}>{sample.generation.remotion_family}</span>
               </>
             )}
+            {String(sample.params?.voiceoverTimelineSource || "") && (
+              <>
+                <span style={{ color: "#94a3b8" }}>timeline</span>
+                <span style={{ color: "#1e293b" }}>{String(sample.params.voiceoverTimelineSource)}</span>
+              </>
+            )}
+            {String(sample.params?.structureType || "") && (
+              <>
+                <span style={{ color: "#94a3b8" }}>structure</span>
+                <span style={{ color: "#1e293b" }}>{String(sample.params.structureType)}</span>
+              </>
+            )}
+            {sample.params?.stepCount != null && (
+              <>
+                <span style={{ color: "#94a3b8" }}>steps</span>
+                <span style={{ color: "#1e293b" }}>{String(sample.params.stepCount)}</span>
+              </>
+            )}
+            {sample.params?.contentLength != null && (
+              <>
+                <span style={{ color: "#94a3b8" }}>contentChars</span>
+                <span style={{ color: "#1e293b" }}>{String(sample.params.contentLength)}</span>
+              </>
+            )}
             {sample.job_run?.status && (
               <>
                 <span style={{ color: "#94a3b8" }}>jobRun状态</span>

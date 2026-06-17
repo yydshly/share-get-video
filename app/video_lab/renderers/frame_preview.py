@@ -352,6 +352,27 @@ def _select_preview_start_frame(
     return cover_frames
 
 
+def _select_report_preview_frame(
+    frames: list[dict],
+    preview_mode: str,
+    visual_route: str,
+) -> dict:
+    """Pick a concrete report frame for non-Remotion clip previews."""
+    if not frames:
+        return {}
+    opening = next((f for f in frames if f.get("type") == "opening"), frames[0])
+    keypoints = [f for f in frames if f.get("type") == "keypoint"]
+    if preview_mode == "opening":
+        return opening
+    if preview_mode == "first_item":
+        return keypoints[0] if keypoints else opening
+    # route_demo: show a representative content frame so Pillow / AI asset
+    # previews compare the same semantic segment as Remotion.
+    if visual_route == "ai_asset_then_compose" and len(keypoints) >= 2:
+        return keypoints[1]
+    return keypoints[0] if keypoints else opening
+
+
 def render_clip_preview(
     content: str,
     visual_route: str,
@@ -378,6 +399,7 @@ def render_clip_preview(
             from app.video_lab.renderers.local_frame_renderer import generate_frames
             from app.video_lab.renderers.render_params import resolve_resolution
 
+            preview_mode = params.get("previewSegmentMode", "route_demo")
             resolution = resolve_resolution(params.get("aspectRatio", "9:16"))
             backgrounds: dict[str | int, str] = {}
             warnings: list[str] = []
@@ -416,10 +438,10 @@ def render_clip_preview(
                 style_params=params,
             )
             frames = frame_result.get("frames", [])
-            opening = next((f for f in frames if f.get("type") == "opening"), frames[0] if frames else {})
-            img_path = str(opening.get("path") or "")
+            selected_frame = _select_report_preview_frame(frames, str(preview_mode), visual_route)
+            img_path = str(selected_frame.get("path") or "")
             if not img_path:
-                return {"success": False, "route": visual_route, "message": "Report opening preview frame missing", "elapsedMs": int((time.time() - t0) * 1000)}
+                return {"success": False, "route": visual_route, "message": "Report preview frame missing", "elapsedMs": int((time.time() - t0) * 1000)}
             out_path = Path(img_path).parent / "clip.mp4"
             kb = _ken_burns_clip(img_path, out_path, clip_seconds, resolution, params)
             if not kb.get("success"):
@@ -433,7 +455,10 @@ def render_clip_preview(
                 "warnings": warnings + frame_result.get("warnings", []),
                 "elapsedMs": int((time.time() - t0) * 1000),
                 "structureType": "report_source_bound",
-                "frameType": "opening",
+                "frameType": selected_frame.get("type", ""),
+                "previewSegmentMode": preview_mode,
+                "previewFamily": visual_route,
+                "previewFrameName": selected_frame.get("frame_name", Path(img_path).name),
             }
 
         if visual_route == "template_programmatic_render":

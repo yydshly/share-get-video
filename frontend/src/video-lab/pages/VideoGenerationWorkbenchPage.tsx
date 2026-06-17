@@ -66,6 +66,7 @@ interface FullVideoResult {
   };
   params?: Record<string, unknown>;
   steps?: Array<{ name: string; status: string; output: string }>;
+  rawOutput?: Record<string, unknown>;
   jobRun?: JobRun;
 }
 
@@ -313,6 +314,42 @@ function ReviewBadge({ status }: { status: HumanReviewStatus }) {
 }
 
 // ─── JobRun Panel (V1.0.4) ────────────────────────────────────────────────────
+
+function compactGenerationSteps(steps?: FullVideoResult["steps"]) {
+  return (steps || []).slice(0, 20).map((step) => ({
+    name: String(step.name || ""),
+    status: String(step.status || ""),
+    output: String(step.output || "").slice(0, 240),
+  }));
+}
+
+function getVoiceoverTimelineSource(result: FullVideoResult | null): string {
+  const raw = (result?.rawOutput || {}) as Record<string, unknown>;
+  const planDebug = (raw.planDebug || {}) as Record<string, unknown>;
+  return String(raw.voiceoverTimelineSource || planDebug.voiceoverTimelineSource || "");
+}
+
+function getPlanDebugSummary(result: FullVideoResult | null) {
+  const raw = (result?.rawOutput || {}) as Record<string, unknown>;
+  const planDebug = (raw.planDebug || {}) as Record<string, unknown>;
+  const budgetDebug = (planDebug.budgetDebug || {}) as Record<string, unknown>;
+  return {
+    structureType: String(raw.structureType || ""),
+    shotCount: Number(planDebug.shotCount || 0),
+    timelineSource: getVoiceoverTimelineSource(result),
+    targetDurationSec: Number(budgetDebug.targetDurationSec || 0),
+    actualAudioDurationSec: Number(budgetDebug.actualAudioDurationSec || result?.audioDurationSec || 0),
+    overBudget: Boolean(budgetDebug.overBudget),
+  };
+}
+
+function estimatePayloadKb(payload: unknown): number {
+  try {
+    return Math.max(1, Math.round(new Blob([JSON.stringify(payload)]).size / 1024));
+  } catch {
+    return 0;
+  }
+}
 
 function JobRunPanel({ jobRun }: { jobRun?: JobRun | null }) {
   if (!jobRun) return null;
@@ -706,7 +743,7 @@ export default function VideoGenerationWorkbenchPage() {
           input_profile: inputProfile,
         }),
       });
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
       setInfoSummaryPlan(data.plan as InformationSummaryPlan);
       setInfoSummaryInputFingerprint(fingerprint);
@@ -814,7 +851,7 @@ export default function VideoGenerationWorkbenchPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({}));
       if (!resp.ok && !data) throw new Error(`${resp.status}`);
       if (!data.success) {
         const msg =
@@ -915,7 +952,7 @@ export default function VideoGenerationWorkbenchPage() {
           params: buildVisualRouteParams(),
         }),
       });
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({}));
       if (!resp.ok && !data) throw new Error(`${resp.status}`);
       if (data.detail) throw new Error(data.detail);
 
@@ -937,6 +974,17 @@ export default function VideoGenerationWorkbenchPage() {
     setSaveError("");
     setSaveSuccess("");
 
+    const generationContent = buildGenerationContent();
+    const stepSummaries = compactGenerationSteps(fullResult.steps);
+    const planDebugSummary = getPlanDebugSummary(fullResult);
+    const sourceBound = generationMode === "information_summary" && !!infoSummaryPlan;
+    const savePayloadKb = estimatePayloadKb({
+      params: fullResult.params || {},
+      stepSummary: stepSummaries,
+      fullContent: generationContent,
+      jobRun: fullResult.jobRun || {},
+    });
+
     try {
       const resp = await fetch(`${API_BASE}/style-samples`, {
         method: "POST",
@@ -957,9 +1005,17 @@ export default function VideoGenerationWorkbenchPage() {
             reviewNotes,
             quality: fullResult.quality || {},
             warnings: fullResult.warnings || [],
-            steps: fullResult.steps || [],
+            stepSummary: stepSummaries,
+            stepCount: fullResult.steps?.length || 0,
+            voiceoverTimelineSource: planDebugSummary.timelineSource,
+            structureType: planDebugSummary.structureType,
+            sourceBound,
+            inputProfile,
+            generationMode,
             // V1.0.6: full content for reproducible rerun
-            fullContent: buildGenerationContent(),
+            fullContent: generationContent,
+            contentLength: generationContent.length,
+            savePayloadKb,
             contentHash: "",
           },
           output_type: "mp4",
@@ -968,10 +1024,10 @@ export default function VideoGenerationWorkbenchPage() {
           audio_url: stripRuntimeUrlPrefix(fullResult.audioUrl || ""),
           srt_url: stripRuntimeUrlPrefix(fullResult.srtUrl || ""),
           manifest_url: stripRuntimeUrlPrefix(fullResult.manifestUrl || ""),
-          content_preview: buildGenerationContent().slice(0, 160),
+          content_preview: generationContent.slice(0, 160),
           duration_sec: Number(fullResult.audioDurationSec || 0),
           audio_duration_sec: Number(fullResult.audioDurationSec || 0),
-          tags: ["workbench", selectedRoute, status],
+          tags: ["workbench", selectedRoute, status, planDebugSummary.timelineSource || "timeline_unknown"].filter(Boolean),
           evaluation_notes: [
             reviewNotes,
             fullResult.quality?.overallScore != null ? `quality=${fullResult.quality.overallScore}` : "",
@@ -1005,13 +1061,13 @@ export default function VideoGenerationWorkbenchPage() {
             srt_url: fullResult.srtUrl || "",
             manifest_url: fullResult.manifestUrl || "",
             runtime_prefix: "",
-            artifact_count: 0,
+            artifact_count: stepSummaries.length,
           },
           quality_meta: {
             structural_score: fullResult.quality?.overallScore ?? null,
             visual_score: null,
             warnings: fullResult.warnings || [],
-            steps: fullResult.steps || [],
+            steps: stepSummaries,
           },
           review_meta: {
             review_status: status,
@@ -1022,7 +1078,7 @@ export default function VideoGenerationWorkbenchPage() {
           schema_version: "1.0.5",
         }),
       });
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
 
       const savedId = data.id || `workbench_${fullResult.experimentId}`;
@@ -1030,7 +1086,10 @@ export default function VideoGenerationWorkbenchPage() {
       setSaveSuccess(status === "approved" ? `已保存为样片：${savedId}` : `已记录问题样片：${savedId}`);
       return savedId;
     } catch (e) {
-      setSaveError(`保存失败：${String(e)}`);
+      const hint = e instanceof TypeError
+        ? `；保存请求未到达后端，API_BASE=${API_BASE}，payload≈${savePayloadKb}KB`
+        : "";
+      setSaveError(`保存失败：${String(e)}${hint}`);
       return null;
     } finally {
       setSaveLoading(false);
@@ -1171,7 +1230,7 @@ export default function VideoGenerationWorkbenchPage() {
           3. 生成控制
         </h2>
         <p style={{ fontSize: "0.78rem", color: "#64748b", marginBottom: "1rem" }}>
-          预览用于快速看版式；完整视频会调用 TTS、字幕和 FFmpeg 合成，耗时更长（约 30-90 秒）。
+          预览用于快速看版式；完整视频会调用 TTS、字幕和 FFmpeg 合成。报告型输入会完整保留 TTS，Remotion 长报告可能需要数分钟。
         </p>
 
         {/* V1.2.1: Generation Mode Selector */}
@@ -1453,7 +1512,7 @@ export default function VideoGenerationWorkbenchPage() {
               cursor: fullLoading || selectedRouteUnavailable ? "not-allowed" : "pointer",
             }}
           >
-            {fullLoading ? "完整视频生成中（约 30-90 秒）..." : "生成完整视频"}
+            {fullLoading ? "完整视频生成中（按真实 TTS 时长，长报告可能数分钟）..." : "生成完整视频"}
           </button>
 
           {(previewLoading || fullLoading) && (
@@ -1590,6 +1649,15 @@ export default function VideoGenerationWorkbenchPage() {
                   {fullResult.audioUrl && <a href={resolveUrl(fullResult.audioUrl)} target="_blank" rel="noreferrer" style={{ color: "#7c3aed" }}>音频</a>}
                   {fullResult.srtUrl && <a href={resolveUrl(fullResult.srtUrl)} target="_blank" rel="noreferrer" style={{ color: "#7c3aed" }}>字幕</a>}
                   {fullResult.manifestUrl && <a href={resolveUrl(fullResult.manifestUrl)} target="_blank" rel="noreferrer" style={{ color: "#7c3aed" }}>Manifest</a>}
+                </div>
+              )}
+
+              {(getVoiceoverTimelineSource(fullResult) || getPlanDebugSummary(fullResult).shotCount > 0) && (
+                <div style={{ marginBottom: "0.75rem", padding: "0.5rem 0.75rem", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.75rem", color: "#475569", display: "flex", flexWrap: "wrap", gap: "0.5rem 1rem" }}>
+                  <span>timeline: <strong>{getPlanDebugSummary(fullResult).timelineSource || "unknown"}</strong></span>
+                  {getPlanDebugSummary(fullResult).shotCount > 0 && <span>shots: <strong>{getPlanDebugSummary(fullResult).shotCount}</strong></span>}
+                  {getPlanDebugSummary(fullResult).actualAudioDurationSec > 0 && <span>audio: <strong>{Math.round(getPlanDebugSummary(fullResult).actualAudioDurationSec)}s</strong></span>}
+                  {getPlanDebugSummary(fullResult).overBudget && <span style={{ color: "#d97706" }}>long-form: preserved</span>}
                 </div>
               )}
 

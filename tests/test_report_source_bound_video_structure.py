@@ -205,6 +205,7 @@ def test_report_clip_preview_uses_opening_frame_for_pillow(monkeypatch, tmp_path
         "sourceBound": True,
         "inputProfile": "report_overview_items",
         "informationSummaryPlan": plan,
+        "previewSegmentMode": "opening",
     }
     monkeypatch.setattr(frame_preview, "get_frames_dir", lambda experiment_id: tmp_path)
     monkeypatch.setattr("app.video_lab.renderers.file_store.get_frames_dir", lambda experiment_id: tmp_path)
@@ -228,6 +229,81 @@ def test_report_clip_preview_uses_opening_frame_for_pillow(monkeypatch, tmp_path
     assert result["frameType"] == "opening"
     assert result["effect"] == "report_opening_ken_burns"
     assert (tmp_path / "opening.png").exists()
+
+
+def test_report_clip_preview_pillow_can_preview_first_item(monkeypatch, tmp_path):
+    plan = report_plan()
+    params = {
+        "targetDuration": 30,
+        "aspectRatio": "9:16",
+        "generationMode": "information_summary",
+        "sourceBound": True,
+        "inputProfile": "report_overview_items",
+        "informationSummaryPlan": plan,
+        "previewSegmentMode": "first_item",
+    }
+    monkeypatch.setattr(frame_preview, "get_frames_dir", lambda experiment_id: tmp_path)
+    monkeypatch.setattr("app.video_lab.renderers.file_store.get_frames_dir", lambda experiment_id: tmp_path)
+    monkeypatch.setattr(
+        frame_preview,
+        "_ken_burns_clip",
+        lambda image_path, out_path, seconds, resolution, params: _write_fake_clip(out_path),
+    )
+
+    result = frame_preview.render_clip_preview(
+        content="serialized content should be ignored",
+        visual_route="local_frame_compose",
+        params=params,
+        clip_seconds=3,
+        shot={"headline": "old keypoint", "display": "old display"},
+        frame_type="keypoint",
+    )
+
+    assert result["success"] is True
+    assert result["frameType"] == "keypoint"
+    assert result["previewSegmentMode"] == "first_item"
+    assert result["previewFrameName"] == "frame_001.png"
+    assert (tmp_path / "frame_001.png").exists()
+
+
+def test_report_clip_preview_ai_route_demo_uses_content_frame(monkeypatch, tmp_path):
+    plan = report_plan()
+    params = {
+        "targetDuration": 30,
+        "aspectRatio": "9:16",
+        "generationMode": "information_summary",
+        "sourceBound": True,
+        "inputProfile": "report_overview_items",
+        "informationSummaryPlan": plan,
+        "previewSegmentMode": "route_demo",
+    }
+    monkeypatch.setattr(frame_preview, "get_frames_dir", lambda experiment_id: tmp_path)
+    monkeypatch.setattr("app.video_lab.renderers.file_store.get_frames_dir", lambda experiment_id: tmp_path)
+    monkeypatch.setattr(
+        frame_preview,
+        "_ken_burns_clip",
+        lambda image_path, out_path, seconds, resolution, params: _write_fake_clip(out_path),
+    )
+
+    class FakeImageClient:
+        def is_configured(self):
+            return False
+
+    monkeypatch.setattr(frame_preview, "MiniMaxImageClient", FakeImageClient)
+
+    result = frame_preview.render_clip_preview(
+        content="serialized content should be ignored",
+        visual_route="ai_asset_then_compose",
+        params=params,
+        clip_seconds=3,
+        shot={"headline": "old keypoint", "display": "old display"},
+        frame_type="keypoint",
+    )
+
+    assert result["success"] is True
+    assert result["frameType"] == "keypoint"
+    assert result["previewSegmentMode"] == "route_demo"
+    assert result["previewFrameName"] == "frame_002.png"
 
 
 def test_report_clip_preview_remotion_uses_source_bound_props(monkeypatch, tmp_path):

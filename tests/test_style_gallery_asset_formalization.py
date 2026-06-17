@@ -553,6 +553,88 @@ class TestSaveStyleSampleRouter:
         assert saved.job_run["status"] == "succeeded"
         assert saved.schema_version == "1.0.5"
 
+    def test_router_save_workbench_long_report_keeps_content_and_compact_analysis(self, temp_records_dir):
+        """Workbench samples should keep long source text without storing bulky production steps."""
+        from app.video_lab.router import save_style_sample
+        from app.video_lab.schemas import StyleSampleSaveRequest
+        from app.video_lab.style_gallery import store as sg_store
+
+        long_content = "\n".join([f"信息点 {i}：这是一条需要完整保留的长报告内容。" for i in range(160)])
+        step_summary = [
+            {"name": "Generate Voiceover Plan", "status": "succeeded", "output": "segmented_tts: 180s"},
+            {"name": "Generate Silent Video", "status": "succeeded", "output": "route=template_programmatic_render"},
+        ]
+
+        req = StyleSampleSaveRequest(
+            id="s_workbench_long_report_001",
+            route_id="template_programmatic_render",
+            route_name="Remotion Card Stack",
+            style_name="Workbench / Remotion Card Stack",
+            description="long report save",
+            status="approved",
+            params={
+                "source": "workbench",
+                "workbenchRoute": "remotion_card_stack",
+                "fullContent": long_content,
+                "contentLength": len(long_content),
+                "stepSummary": step_summary,
+                "stepCount": 9,
+                "voiceoverTimelineSource": "segmented_tts",
+                "structureType": "report_source_bound",
+                "savePayloadKb": 24,
+            },
+            output_type="mp4",
+            output_path="video_lab/experiments/exp_long/final.mp4",
+            poster_path="video_lab/experiments/exp_long/poster.jpg",
+            manifest_url="video_lab/experiments/exp_long/manifest.json",
+            content_preview=long_content[:160],
+            duration_sec=180.0,
+            audio_duration_sec=180.0,
+            tags=["workbench", "remotion_card_stack", "approved", "segmented_tts"],
+            source={
+                "source_type": "workbench",
+                "source_page": "/video-lab/workbench",
+                "experiment_id": "exp_long",
+                "workbench_route": "remotion_card_stack",
+                "saved_from": "full_video_result",
+            },
+            generation={
+                "visual_route": "template_programmatic_render",
+                "remotion_family": "card_stack",
+                "route_preset": "remotion_card_stack",
+                "aspect_ratio": "9:16",
+                "target_duration": 0,
+                "key_point_count": 6,
+            },
+            asset_meta={
+                "final_video_url": "/runtime/video_lab/experiments/exp_long/final.mp4",
+                "cover_url": "/runtime/video_lab/experiments/exp_long/poster.jpg",
+                "manifest_url": "/runtime/video_lab/experiments/exp_long/manifest.json",
+                "artifact_count": len(step_summary),
+            },
+            quality_meta={
+                "structural_score": 0.9,
+                "warnings": [],
+                "steps": step_summary,
+            },
+            review_meta={"review_status": "approved"},
+            job_run={"status": "succeeded", "progress": 100},
+            schema_version="1.0.5",
+        )
+
+        resp = save_style_sample(req)
+        saved = sg_store.get_sample("s_workbench_long_report_001")
+
+        assert resp["params"]["contentLength"] == len(long_content)
+        assert resp["params"]["voiceoverTimelineSource"] == "segmented_tts"
+        assert resp["params"]["structureType"] == "report_source_bound"
+        assert saved is not None
+        assert saved.params["fullContent"] == long_content
+        assert saved.params["stepSummary"] == step_summary
+        assert "steps" not in saved.params
+        assert saved.quality_meta.steps == step_summary
+        assert saved.asset_meta.artifact_count == len(step_summary)
+
     def test_router_list_style_samples_filters_source_type_and_tag(self, temp_records_dir):
         """Router list_style_samples filters by source_type and tag correctly."""
         from app.video_lab.router import save_style_sample, list_style_samples

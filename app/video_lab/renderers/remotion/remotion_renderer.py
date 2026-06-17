@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from app.video_lab.renderers.file_store import get_experiment_dir, path_to_url, write_manifest
-from app.video_lab.config import REMOTION_DIR
+from app.video_lab.config import REMOTION_DIR, ffprobe_bin
 # Paths passed to CLI are relative to cwd=REMOTION_DIR
 REMOTION_ROOT_TSX = Path("src") / "Root.tsx"
 REMOTION_PROPS_PATH = Path("src") / "props.json"
@@ -40,7 +40,9 @@ def _probe_mp4_duration(path: Path, timeout: int = 20) -> float:
     """Return video duration if ffprobe can read the MP4, otherwise 0."""
     if not path.exists() or path.stat().st_size <= 0:
         return 0.0
-    ffprobe = shutil.which("ffprobe")
+    ffprobe = ffprobe_bin()
+    if not Path(ffprobe).exists() and not shutil.which(ffprobe):
+        return 0.0
     if not ffprobe:
         return 0.0
     try:
