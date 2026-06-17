@@ -79,6 +79,42 @@ const HighlightedText: React.FC<{
   );
 };
 
+// V1.2.5: KineticHeadline — 逐字符错峰浮现（fade + 上移），保留高亮。Remotion 特有的动态文字。
+const KineticHeadline: React.FC<{
+  text: string;
+  emphasisTerms?: string[];
+  highlightColor?: string;
+  localFrame: number;     // 相对卡片起始的帧
+  startFrame?: number;    // 反映开始帧
+}> = ({ text, emphasisTerms, highlightColor = C.highlight, localFrame, startFrame = 8 }) => {
+  const segments = getHighlightedSegments(text, emphasisTerms);
+  const chars: { ch: string; hl: boolean }[] = [];
+  segments.forEach((seg) => {
+    for (const ch of seg.text) chars.push({ ch, hl: seg.highlight });
+  });
+  // 总反映时长按字数自适应，控制在 ~22 帧内，长标题更快
+  const per = Math.max(1, Math.min(2.5, 22 / Math.max(1, chars.length)));
+  return (
+    <span>
+      {chars.map((c, i) => {
+        const s = startFrame + i * per;
+        const op = interpolate(localFrame, [s, s + 7], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+        const ty = interpolate(localFrame, [s, s + 7], [12, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+        return (
+          <span key={i} style={{
+            display: "inline-block",
+            whiteSpace: "pre",
+            opacity: op,
+            transform: `translateY(${ty}px)`,
+            color: c.hl ? highlightColor : undefined,
+            fontWeight: c.hl ? 700 : undefined,
+          }}>{c.ch}</span>
+        );
+      })}
+    </span>
+  );
+};
+
 // ─── Colors (ai_frontier_dark preset) ───────────────────────────────────────
 const C = {
   bg: "#0a0e1a",
@@ -1053,11 +1089,10 @@ const KeyPointCard: React.FC<{
             margin: 0,
             marginBottom: layout.cardElementGap,
             lineHeight: 1.25,
-            opacity: titleOpacity,
             textShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
           }}
         >
-          <HighlightedText text={kp.title} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
+          <KineticHeadline text={kp.title} localFrame={localFrame} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
         </h2>
 
         {/* Decorative separator */}
