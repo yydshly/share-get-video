@@ -53,9 +53,9 @@ export function VideoAspectFrame({
       {/* Ensures video fills the aspect-ratio box without distortion */}
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child)) {
-          return React.cloneElement(child as React.ReactElement<React.CSSProperties>, {
+          return React.cloneElement(child as React.ReactElement<{ style?: React.CSSProperties }>, {
             style: {
-              ...((child as React.ReactElement<React.CSSProperties>).props?.style || {}),
+              ...((child as React.ReactElement<{ style?: React.CSSProperties }>).props?.style || {}),
               width: "100%",
               height: "100%",
               objectFit: fitMode,

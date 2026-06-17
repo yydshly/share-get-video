@@ -494,6 +494,9 @@ export default function VideoGenerationWorkbenchPage() {
 
   // V1.2.1: Information Summary Mode
   const [generationMode, setGenerationMode] = useState<GenerationMode>("normal");
+  // Output aspect ratio selector — propagates through preview / full video / sample metadata
+  type OutputAspectRatio = "9:16" | "16:9" | "1:1" | "4:5";
+  const [outputAspectRatio, setOutputAspectRatio] = useState<OutputAspectRatio>("9:16");
   const [infoSummaryLoading, setInfoSummaryLoading] = useState(false);
   const [infoSummaryError, setInfoSummaryError] = useState("");
   const [infoSummaryPlan, setInfoSummaryPlan] = useState<InformationSummaryPlan | null>(null);
@@ -530,6 +533,17 @@ export default function VideoGenerationWorkbenchPage() {
   const [lastGenerationSourceBound, setLastGenerationSourceBound] = useState(false);
   const [lastGenerationInfoPointCount, setLastGenerationInfoPointCount] = useState(0);
   const [lastGenerationFingerprint, setLastGenerationFingerprint] = useState("");
+
+  // Reset generated outputs when output aspect ratio changes (does NOT clear infoSummaryPlan)
+  const resetGeneratedOutputs = () => {
+    setPreviewResult(null);
+    setFullResult(null);
+    setSavedSampleId(null);
+    setSaveSuccess("");
+    setSaveError("");
+    setCompareSuccess(false);
+    setCompareError("");
+  };
 
   // ── Save / Compare State ───────────────────────────────────────────────
   const [savedSampleId, setSavedSampleId] = useState<string | null>(null);
@@ -660,7 +674,10 @@ export default function VideoGenerationWorkbenchPage() {
 
     const base: Record<string, unknown> = {
       targetDuration,
-      aspectRatio: "9:16",
+      aspectRatio: outputAspectRatio,
+      outputAspectRatio,
+      displayAspectRatio: outputAspectRatio,
+      fitMode: "contain",
       keyPointCount,
       // V1.2.1.3: source-bound protection — no LLM re-planning in information_summary mode
       useLlmPlan: isInfoSummaryMode ? false : true,
@@ -979,6 +996,25 @@ export default function VideoGenerationWorkbenchPage() {
     const stepSummaries = compactGenerationSteps(fullResult.steps);
     const planDebugSummary = getPlanDebugSummary(fullResult);
     const sourceBound = generationMode === "information_summary" && !!infoSummaryPlan;
+
+    // Resolve aspect ratio for saving — state wins, then backend params, then default
+    const savedOutputAspectRatio = String(
+      fullResult.params?.outputAspectRatio ||
+      fullResult.params?.aspectRatio ||
+      outputAspectRatio ||
+      "9:16"
+    );
+    const savedDisplayAspectRatio = String(
+      fullResult.params?.displayAspectRatio ||
+      fullResult.params?.aspectRatio ||
+      savedOutputAspectRatio ||
+      "9:16"
+    );
+    const savedFitMode = String(
+      fullResult.params?.fitMode ||
+      "contain"
+    );
+
     const savePayloadKb = estimatePayloadKb({
       params: fullResult.params || {},
       stepSummary: stepSummaries,
@@ -1019,9 +1055,9 @@ export default function VideoGenerationWorkbenchPage() {
             savePayloadKb,
             contentHash: "",
             // V1.2.1.5: display metadata — preserves vertical video shape in gallery / compare UIs
-            outputAspectRatio: String(fullResult.params?.outputAspectRatio || fullResult.params?.aspectRatio || "9:16"),
-            displayAspectRatio: String(fullResult.params?.displayAspectRatio || fullResult.params?.aspectRatio || "9:16"),
-            fitMode: String(fullResult.params?.fitMode || "contain"),
+            outputAspectRatio: savedOutputAspectRatio,
+            displayAspectRatio: savedDisplayAspectRatio,
+            fitMode: savedFitMode,
           },
           output_type: "mp4",
           output_path: stripRuntimeUrlPrefix(fullResult.finalVideoUrl),
@@ -1054,11 +1090,11 @@ export default function VideoGenerationWorkbenchPage() {
             visual_profile: String(fullResult.params?.visualProfile || ""),
             remotion_family: String(fullResult.params?.remotionFamily || ""),
             route_preset: selectedRoute,
-            aspect_ratio: String(fullResult.params?.aspectRatio || "9:16"),
+            aspect_ratio: savedOutputAspectRatio,
             // V1.2.1.5: display metadata — preserves vertical video shape in gallery / compare UIs
-            output_aspect_ratio: String(fullResult.params?.outputAspectRatio || fullResult.params?.aspectRatio || "9:16"),
-            display_aspect_ratio: String(fullResult.params?.displayAspectRatio || fullResult.params?.aspectRatio || "9:16"),
-            fit_mode: String(fullResult.params?.fitMode || "contain"),
+            output_aspect_ratio: savedOutputAspectRatio,
+            display_aspect_ratio: savedDisplayAspectRatio,
+            fit_mode: savedFitMode,
             target_duration: Number(fullResult.params?.targetDuration || 0),
             key_point_count: Number(fullResult.params?.keyPointCount || 0),
             content_hash: "",
@@ -1072,8 +1108,9 @@ export default function VideoGenerationWorkbenchPage() {
             runtime_prefix: "",
             artifact_count: stepSummaries.length,
             // V1.2.1.5: display metadata — preserves vertical video shape in gallery / compare UIs
-            display_aspect_ratio: String(fullResult.params?.displayAspectRatio || fullResult.params?.aspectRatio || "9:16"),
-            fit_mode: String(fullResult.params?.fitMode || "contain"),
+            aspect_ratio: savedOutputAspectRatio,
+            display_aspect_ratio: savedDisplayAspectRatio,
+            fit_mode: savedFitMode,
           },
           quality_meta: {
             structural_score: fullResult.quality?.overallScore ?? null,
@@ -1514,6 +1551,32 @@ export default function VideoGenerationWorkbenchPage() {
             </select>
           </div>
 
+          {/* Output Aspect Ratio Selector */}
+          <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+            <span style={{ fontSize: "0.78rem", color: "#64748b", whiteSpace: "nowrap" }}>输出比例</span>
+            <select
+              value={outputAspectRatio}
+              onChange={(e) => {
+                setOutputAspectRatio(e.target.value as OutputAspectRatio);
+                resetGeneratedOutputs();
+              }}
+              style={{
+                fontSize: "0.78rem",
+                padding: "0.35rem 0.5rem",
+                borderRadius: 6,
+                border: "1px solid #cbd5e1",
+                background: "#fff",
+                color: "#334155",
+                cursor: "pointer",
+              }}
+            >
+              <option value="9:16">竖屏 9:16</option>
+              <option value="16:9">横屏 16:9</option>
+              <option value="1:1">方形 1:1</option>
+              <option value="4:5">小红书 4:5</option>
+            </select>
+          </div>
+
           <button
             onClick={callPreview}
             disabled={previewLoading || selectedRouteUnavailable}
@@ -1618,8 +1681,13 @@ export default function VideoGenerationWorkbenchPage() {
                   {previewResult.previewStartFrame !== undefined && <span>起始帧：<strong style={{ fontFamily: "monospace" }}>{previewResult.previewStartFrame}</strong></span>}
                 </div>
               )}
+              {/* Output ratio display */}
+              <div style={{ marginBottom: "0.5rem", padding: "0.35rem 0.6rem", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.72rem", color: "#475569", display: "flex", flexWrap: "wrap", gap: "0.4rem 1rem" }}>
+                <span>输出比例：<strong>{outputAspectRatio}</strong></span>
+                <span>展示方式：<strong>contain（不裁剪）</strong></span>
+              </div>
               {previewResult.videoUrl && (
-                <VideoAspectFrame aspectRatio="9:16" fitMode="contain" maxHeight={320}>
+                <VideoAspectFrame aspectRatio={outputAspectRatio} fitMode="contain" maxHeight={320}>
                   <video controls src={resolveUrl(previewResult.videoUrl)} />
                 </VideoAspectFrame>
               )}
@@ -1694,6 +1762,12 @@ export default function VideoGenerationWorkbenchPage() {
                 </div>
               )}
 
+              {/* Output ratio display */}
+              <div style={{ marginBottom: "0.75rem", padding: "0.35rem 0.6rem", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: "0.72rem", color: "#475569", display: "flex", flexWrap: "wrap", gap: "0.5rem 1rem" }}>
+                <span>输出比例：<strong>{String(fullResult.params?.outputAspectRatio || fullResult.params?.aspectRatio || outputAspectRatio)}</strong></span>
+                <span>展示方式：<strong>contain（不裁剪）</strong></span>
+              </div>
+
               {fullResult.quality && fullResult.quality.overallScore != null && (
                 <div style={{ marginBottom: "0.75rem", padding: "0.65rem 0.75rem", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.75rem", color: "#475569" }}>
                   <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4 }}>
@@ -1723,7 +1797,7 @@ export default function VideoGenerationWorkbenchPage() {
                 </details>
               )}
 
-              <VideoAspectFrame aspectRatio="9:16" fitMode="contain" maxHeight={480}>
+              <VideoAspectFrame aspectRatio={String(fullResult.params?.outputAspectRatio || fullResult.params?.aspectRatio || outputAspectRatio)} fitMode="contain" maxHeight={480}>
                 <video controls src={resolveUrl(fullResult.finalVideoUrl)} />
               </VideoAspectFrame>
 
