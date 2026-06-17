@@ -531,6 +531,35 @@ def get_style_sweep_job(job_id: str) -> dict[str, Any]:
     return job.to_dict()
 
 
+@router.get("/style-sweep-jobs")
+def list_style_sweep_jobs(limit: int = 20) -> dict[str, Any]:
+    """Return recent style-sweep job summaries (no full results), newest first."""
+    from app.video_lab.style_sweep_jobs import list_sweep_jobs as _list
+    jobs = _list(limit=limit)
+    return {"jobs": jobs}
+
+
+class UpdateSweepJobMarksRequest(BaseModel):
+    manualMarks: dict[str, Any] = Field(default_factory=dict)
+
+
+@router.patch("/style-sweep-jobs/{job_id}/marks")
+def update_style_sweep_job_marks(job_id: str, request: UpdateSweepJobMarksRequest) -> dict[str, Any]:
+    """Save human-readable marks (issues + notes) for a style-sweep job."""
+    from datetime import datetime, timezone
+    from app.video_lab.style_sweep_jobs import update_sweep_job_marks as _update_marks
+
+    updated = _update_marks(job_id, request.manualMarks)
+    if updated is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    return {
+        "jobId": updated.jobId,
+        "saved": True,
+        "manualMarkCount": len(updated.manualMarks),
+        "updatedAt": updated.updatedAt,
+    }
+
+
 # ─────────────────────────────────────────────
 # Route Recommendation
 # ─────────────────────────────────────────────

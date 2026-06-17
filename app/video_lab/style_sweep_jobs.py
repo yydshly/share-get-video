@@ -61,6 +61,10 @@ class SweepJob:
     updatedAt: str = ""
     finishedAt: str = ""
     error: str = ""
+    # V1.2.3 P1B: history review fields
+    contentPreview: str = ""          # first 120 chars of content
+    params: dict[str, Any] = field(default_factory=dict)  # original request params
+    manualMarks: dict[str, Any] = field(default_factory=dict)  # human labels & notes
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -74,6 +78,10 @@ class SweepJob:
                 StyleResultEntry(**r) if isinstance(r, dict) else r
                 for r in d["results"]
             ]
+        # V1.2.3 P1B: safely handle missing fields from old job JSONs
+        for field_name in ("contentPreview", "params", "manualMarks"):
+            if field_name not in d:
+                d[field_name] = {} if field_name == "params" else ({} if field_name == "manualMarks" else "")
         return SweepJob(**d)
 
 
@@ -112,6 +120,7 @@ def create_sweep_job(
     """Create a new sweep job, persist it, and start background execution."""
     job_id = f"sweep_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    resolved_params = params or {}
 
     job = SweepJob(
         jobId=job_id,
@@ -121,6 +130,9 @@ def create_sweep_job(
         total=total,
         startedAt=now,
         updatedAt=now,
+        contentPreview=content[:120] if content else "",
+        params=resolved_params,
+        manualMarks={},
     )
     _save_job(job)
 
@@ -138,6 +150,53 @@ def create_sweep_job(
 def get_sweep_job(job_id: str) -> SweepJob | None:
     """Load job state from disk. Returns None if not found."""
     return _load_job(job_id)
+
+
+def list_sweep_jobs(limit: int = 20) -> list[dict[str, Any]]:
+    """Return recent sweep jobs as summary dicts (no full results), sorted by updatedAt desc."""
+    jobs_dir = _get_jobs_dir()
+    if not jobs_dir.exists():
+        return []
+
+    summaries: list[tuple[str, SweepJob]] = []
+    for fp in jobs_dir.glob("sweep_*.json"):
+        try:
+            job = SweepJob.from_dict(json.loads(fp.read_text(encoding="utf-8")))
+            summaries.append((fp.stem, job))
+        except Exception:
+            continue
+
+    # Sort by updatedAt descending (newest first)
+    summaries.sort(key=lambda x: x[1].updatedAt or x[1].startedAt or "", reverse=True)
+    results: list[dict[str, Any]] = []
+    for stem, job in summaries[:limit]:
+        results.append({
+            "jobId": job.jobId,
+            "status": job.status,
+            "routeId": job.routeId,
+            "routeName": job.routeName,
+            "total": job.total,
+            "completed": job.completed,
+            "succeeded": job.succeeded,
+            "failed": job.failed,
+            "startedAt": job.startedAt,
+            "updatedAt": job.updatedAt,
+            "finishedAt": job.finishedAt,
+            "contentPreview": job.contentPreview,
+            "params": job.params,
+        })
+    return results
+
+
+def update_sweep_job_marks(job_id: str, manual_marks: dict[str, Any]) -> SweepJob | None:
+    """Overwrite the manualMarks field of a job. Returns updated job or None if not found."""
+    job = _load_job(job_id)
+    if job is None:
+        return None
+    job.manualMarks = manual_marks
+    job.updatedAt = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    _save_job(job)
+    return job
 
 
 # ─── Background worker ───────────────────────────────────────────────────────

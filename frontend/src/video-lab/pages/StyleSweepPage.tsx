@@ -4,7 +4,7 @@
 // V0.8.0 起：每个结果卡片支持人工问题标签 + 备注 + 排查信息导出。
 // 注意：人工标注当前只在前端 state，不持久化；刷新页面后丢失。
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { resolveUrl, API_BASE } from "../utils/url";
 
 const DEFAULT_CONTENT = `今日AI前沿三条要点。
@@ -81,6 +81,7 @@ interface SweepResponse {
   styleCount: number;
   succeededCount: number;
   results: StyleResult[];
+  manualMarks?: Record<string, IssueMark>; // V1.2.3 P1B: restored from job
 }
 
 // 人工标注：key = styleId
@@ -134,7 +135,8 @@ export default function StyleSweepPage() {
   const [jobProgress, setJobProgress] = useState({ total: 0, completed: 0, succeeded: 0, failed: 0 });
   const [currentStyleName, setCurrentStyleName] = useState("");
 
-  // V0.8.0：人工标注 state（仅前端，刷新即丢）
+  // V0.8.0：人工标注 state
+// V1.2.3 P1B: now persisted to job JSON via PATCH /style-sweep-jobs/{job_id}/marks
   const [issueMarks, setIssueMarks] = useState<Record<string, IssueMark>>({});
   // 展开排查信息的卡片集合
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -143,7 +145,89 @@ export default function StyleSweepPage() {
   // 每个卡片"复制 JSON" 反馈
   const [jsonCopyState, setJsonCopyState] = useState<Record<string, CopyState>>({});
 
+  // V1.2.3 P1B: 历史记录
+  const [historyJobs, setHistoryJobs] = useState<Array<{
+    jobId: string; status: string; routeId: string; routeName: string;
+    total: number; completed: number; succeeded: number; failed: number;
+    startedAt: string; updatedAt: string; finishedAt: string;
+    contentPreview: string; params: Record<string, unknown>;
+  }>>([]);
+  // 保存标注反馈
+  const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "failed">("");
+
   const activeRoute = ROUTES.find((r) => r.id === routeId)!;
+
+  // V1.2.3 P1B: 加载最近历史记录
+  const loadHistory = async () => {
+    try {
+      const resp = await fetch(`${API_BASE}/style-sweep-jobs?limit=20`);
+      if (!resp.ok) return;
+      const data: { jobs: typeof historyJobs } = await resp.json();
+      setHistoryJobs(data.jobs ?? []);
+    } catch { /* non-fatal */ }
+  };
+
+  // V1.2.3 P1B: 页面初始化时加载历史记录
+  useEffect(() => { loadHistory(); }, []);
+
+  // V1.2.3 P1B: 打开历史 job，恢复结果 + 标注
+  const openHistoryJob = async (jh: typeof historyJobs[0]) => {
+    try {
+      const resp = await fetch(`${API_BASE}/style-sweep-jobs/${jh.jobId}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const job = await resp.json();
+      // 恢复结果
+      setData({
+        routeId: job.routeId,
+        routeName: job.routeName,
+        styleCount: job.total,
+        succeededCount: job.succeeded ?? 0,
+        results: job.results ?? [],
+      });
+      // 恢复人工标注（从 job.manualMarks 读回）
+      setIssueMarks(job.manualMarks ?? {});
+      setJobId(job.jobId);
+      setJobStatus(job.status);
+      setJobProgress({
+        total: job.total ?? 0,
+        completed: job.completed ?? 0,
+        succeeded: job.succeeded ?? 0,
+        failed: job.failed ?? 0,
+      });
+      setRouteId(job.routeId);
+      setRunning(false);
+      setError("");
+      setExpanded({});
+      setReportCopyState("");
+      setJsonCopyState({});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // V1.2.3 P1B: 保存当前标注到 job JSON
+  const saveMarks = async () => {
+    if (!jobId) return;
+    setSaveState("saving");
+    try {
+      const resp = await fetch(`${API_BASE}/style-sweep-jobs/${jobId}/marks`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manualMarks: issueMarks }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail ?? `HTTP ${resp.status}`);
+      }
+      setSaveState("saved");
+      setTimeout(() => setSaveState(""), 2000);
+      // 刷新历史列表
+      loadHistory();
+    } catch (e) {
+      setSaveState("failed");
+      setTimeout(() => setSaveState(""), 3000);
+    }
+  };
 
   const runSweep = async () => {
     setRunning(true);
@@ -175,6 +259,8 @@ export default function StyleSweepPage() {
       setJobStatus(jobInfo.status);
       // 开始轮询
       pollJob(jobInfo.jobId);
+      // V1.2.3 P1B: 立即刷新历史列表
+      loadHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setRunning(false);
@@ -567,6 +653,39 @@ export default function StyleSweepPage() {
         <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} /> 我已了解耗时与额度消耗
       </label>
 
+      {/* V1.2.3 P1B: 最近 Sweep 记录 */}
+      {historyJobs.length > 0 && (
+        <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 10, padding: "0.9rem 1rem", marginBottom: "1rem", fontSize: "0.8rem" }}>
+          <div style={{ fontWeight: 600, marginBottom: "0.5rem", color: "#15803d" }}>📋 最近 Sweep 记录</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", maxHeight: 220, overflowY: "auto" }}>
+            {historyJobs.map((j) => (
+              <div key={j.jobId} style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 600, color: "#374151", minWidth: 100 }}>{j.routeName}</span>
+                <span style={{
+                  background: j.status === "completed" ? "#dcfce7" : j.status === "failed" ? "#fee2e2" : "#fef9c3",
+                  color: j.status === "completed" ? "#15803d" : j.status === "failed" ? "#dc2626" : "#854d0e",
+                  borderRadius: 8, padding: "1px 6px", fontSize: "0.7rem",
+                }}>{j.status}</span>
+                <span style={{ color: "#6b7280" }}>{j.succeeded}/{j.total}</span>
+                <span style={{ color: "#9ca3af", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
+                  {j.contentPreview || "（无内容摘要）"}
+                </span>
+                <button
+                  onClick={() => openHistoryJob(j)}
+                  style={{
+                    padding: "2px 8px", borderRadius: 6, fontSize: "0.72rem",
+                    border: "1px solid #2563eb", background: "white", color: "#2563eb",
+                    cursor: "pointer", fontWeight: 600,
+                  }}
+                >
+                  打开
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <button onClick={runSweep} disabled={running || !confirmed || !content.trim()}
         style={{
           padding: "0.7rem 1.5rem", borderRadius: 8, border: "none", fontSize: "0.95rem", fontWeight: 600,
@@ -690,6 +809,34 @@ export default function StyleSweepPage() {
               )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              {/* V1.2.3 P1B: 保存标注按钮 */}
+              {!jobId ? (
+                <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>（非 job 模式，无法保存标注）</span>
+              ) : (
+                <>
+                  {saveState === "saved" && (
+                    <span style={{ fontSize: "0.78rem", color: "#16a34a" }}>已保存标注</span>
+                  )}
+                  {saveState === "failed" && (
+                    <span style={{ fontSize: "0.78rem", color: "#dc2626" }}>保存失败</span>
+                  )}
+                  {saveState === "saving" && (
+                    <span style={{ fontSize: "0.78rem", color: "#7c3aed" }}>保存中...</span>
+                  )}
+                  <button
+                    onClick={saveMarks}
+                    disabled={saveState === "saving"}
+                    style={{
+                      padding: "0.5rem 1rem", borderRadius: 8, fontSize: "0.8rem", fontWeight: 600,
+                      border: "1px solid #15803d", background: "#f0fdf4", color: "#15803d",
+                      cursor: saveState === "saving" ? "not-allowed" : "pointer",
+                      opacity: saveState === "saving" ? 0.6 : 1,
+                    }}
+                  >
+                    💾 保存标注
+                  </button>
+                </>
+              )}
               {reportCopyState === "copied" && (
                 <span style={{ fontSize: "0.78rem", color: "#16a34a" }}>已复制排查报告</span>
               )}
