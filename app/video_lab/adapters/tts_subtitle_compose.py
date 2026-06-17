@@ -607,6 +607,13 @@ def run_tts_subtitle_compose(
 
     _refresh_voiceover_step_metadata(artifact_vo, step4, voiceover_result)
 
+    # Resolve visual route before subtitle style, so subtitles and renderer use same effective route
+    visual_route = resolve_visual_route(params)
+    renderer = get_visual_renderer(visual_route)
+    if renderer is None:
+        renderer = get_visual_renderer(DEFAULT_VISUAL_ROUTE)
+        visual_route = DEFAULT_VISUAL_ROUTE
+
     # Step 6: generate SRT + ASS subtitles
     subtitle_dir = exp_dir / "subtitles"
     subtitle_dir.mkdir(parents=True, exist_ok=True)
@@ -686,15 +693,8 @@ def run_tts_subtitle_compose(
     steps.append(step6)
     all_logs.extend(step6.logs)
 
-    # Step 7: generate silent video via pluggable VisualRenderer
-    # 视觉路线可插拔：默认 local_frame_compose (Pillow)，可用 params.visualRoute 切换
-    # （如 template_programmatic_render = Remotion）。下游 TTS/字幕/合成保持共享。
-    visual_route = resolve_visual_route(params)
-    renderer = get_visual_renderer(visual_route)
-    if renderer is None:
-        renderer = get_visual_renderer(DEFAULT_VISUAL_ROUTE)
-        visual_route = DEFAULT_VISUAL_ROUTE
-
+    # Step 7: generate silent video via pre-resolved VisualRenderer
+    # 视觉路线已在 Step 6 前解析完毕；下游 TTS/字幕/合成共享同一 visual_route。
     # 画面时长对齐真实音频时长（成片为 audio_preserved），避免画面比音频短一截
     visual_target = real_audio_dur if real_audio_dur > 0 else target_duration
     visual_request = VisualRenderRequest(
