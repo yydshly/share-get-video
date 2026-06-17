@@ -74,6 +74,8 @@ export type RemotionStyle = {
   cardStackPeekFrames?: number;
   // V1.2.2: Aspect-ratio-aware layout mode — drives density and sizing per output ratio
   aspectRatioLayoutMode?: AspectRatioLayoutMode;
+  // V1.2.x: Debug switch — show PREV/NEXT stack labels on card layers
+  debugStackLabels?: boolean;
 };
 
 // V0.6.2: Remotion family — selects visual presentation paradigm

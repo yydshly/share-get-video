@@ -178,6 +178,13 @@ function getLayoutConfig(layoutMode?: string) {
   return LAYOUT_CONFIGS[layoutMode || "vertical_compact"] || LAYOUT_CONFIGS.vertical_compact;
 }
 
+/** V1.2.x: Metric number font size adapts to layout mode and font scale. */
+function getMetricFontSize(layoutMode?: string, fontScale = 1): number {
+  const mode = layoutMode || "vertical_compact";
+  const base = mode === "square_compact" ? 64 : 72;
+  return Math.round(base * fontScale);
+}
+
 /** Truncate text to maxChars, adding ellipsis if truncated. */
 function truncateText(text: string, maxChars: number): string {
   if (!text) return "";
@@ -381,7 +388,9 @@ const MetricValueCard: React.FC<{
   label: string; value: number; unit: string;
   startFrame?: number; durationFrames?: number;
   style?: React.CSSProperties;
-}> = ({ label, value, unit, startFrame = 18, durationFrames = 26, style }) => {
+  // V1.2.x: Font size for the big metric number — adapts to layout mode
+  metricFontSize?: number;
+}> = ({ label, value, unit, startFrame = 18, durationFrames = 26, style, metricFontSize = 72 }) => {
   const frame = useCurrentFrame();
   const p = interpolate(frame, [startFrame, startFrame + durationFrames], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const eased = 1 - Math.pow(1 - p, 3);
@@ -390,7 +399,7 @@ const MetricValueCard: React.FC<{
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <div style={{ fontSize: 22, color: C.textMuted, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 80, fontWeight: 900, color: style?.color ?? C.highlight, textShadow: `0 0 36px ${style?.color ?? C.highlight}55`, lineHeight: 1 }}>
+      <div style={{ fontSize: metricFontSize, fontWeight: 900, color: style?.color ?? C.highlight, textShadow: `0 0 36px ${style?.color ?? C.highlight}55`, lineHeight: 1 }}>
         {current.toFixed(decimals)}{unit}
       </div>
     </div>
@@ -720,7 +729,7 @@ const CoverPage: React.FC<{
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {truncateText(kp.body, 60)}
+                    {truncateText(kp.body, layout.descMaxChars)}
                   </div>
                 )}
               </div>
@@ -990,7 +999,7 @@ const KeyPointCard: React.FC<{
                 // Show final value directly without animation
                 return (
                   <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
-                    <div style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
+                    <div style={{ fontSize: getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs), fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
                       {m.value}{unit}
                     </div>
                     {motionScale > 0.9 && motionScale < 1.1 && <DataBar pct={Math.min(100, Math.max(0, m.value))} fromColor={accent} toColor={hl} />}
@@ -1003,7 +1012,7 @@ const KeyPointCard: React.FC<{
                     value={m.value}
                     suffix={unit}
                     decimals={m.value % 1 === 0 ? 0 : 1}
-                    style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}
+                    style={{ fontSize: getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs), fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}
                   />
                   {metricAnimation === "countup_bar" && (
                     <DataBar pct={Math.min(100, Math.max(0, m.value))} fromColor={accent} toColor={hl} />
@@ -1020,6 +1029,7 @@ const KeyPointCard: React.FC<{
                     value={m.value}
                     unit={unit}
                     style={{ color: hl }}
+                    metricFontSize={getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs)}
                   />
                 </div>
               );
@@ -1031,6 +1041,7 @@ const KeyPointCard: React.FC<{
                   value={m.value}
                   unit={unit}
                   style={{ color: hl }}
+                  metricFontSize={getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs)}
                 />
               </div>
             );
@@ -1041,7 +1052,7 @@ const KeyPointCard: React.FC<{
           if (metricAnimation === "none") {
             return (
               <div style={{ marginTop: 6, marginBottom: 8, opacity: bodyOpacity }}>
-                <div style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
+                <div style={{ fontSize: getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs), fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
                   {stat.value}{stat.suffix}
                 </div>
               </div>
@@ -1053,7 +1064,7 @@ const KeyPointCard: React.FC<{
                 value={stat.value}
                 suffix={stat.suffix}
                 decimals={stat.value % 1 === 0 ? 0 : 1}
-                style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}
+                style={{ fontSize: getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs), fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}
               />
               {metricAnimation === "countup_bar" && (
                 <DataBar pct={stat.value} fromColor={accent} toColor={hl} />
@@ -1113,6 +1124,8 @@ const CardStackLayer: React.FC<{
   // Card Stack specific positioning
   const isPrev = stackPosition === -1;
   const isNext = stackPosition === 1;
+  // V1.2.x: Debug switch — hide PREV/NEXT stack labels by default
+  const showStackDebugLabels = vstyle?.debugStackLabels === true;
 
   // Previous card: slides out to top-right, shrinks, fades
   // Current card: slides in from bottom-right, grows, becomes prominent
@@ -1184,7 +1197,7 @@ const CardStackLayer: React.FC<{
       }}
     >
       {/* V0.6.5.2: Small verification label for prev layer — top-right corner */}
-      {isPrev && (
+      {showStackDebugLabels && isPrev && (
         <div style={{
           position: "absolute",
           top: 12,
@@ -1203,7 +1216,7 @@ const CardStackLayer: React.FC<{
         </div>
       )}
       {/* V0.6.5.2: Small verification label for next layer — bottom-left corner */}
-      {isNext && (
+      {showStackDebugLabels && isNext && (
         <div style={{
           position: "absolute",
           bottom: 12,
@@ -1268,7 +1281,7 @@ const CardStackLayer: React.FC<{
         fontSize: Math.round(layout.cardDescFontSize * fs), color: C.textSecondary,
         margin: 0, marginBottom: layout.cardElementGap, lineHeight: 1.65,
       }}>
-        <HighlightedText text={kp.body} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
+        <HighlightedText text={truncateText(kp.body, layout.descMaxChars)} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
       </p>
 
       {showDataViz && (() => {
@@ -1286,7 +1299,7 @@ const CardStackLayer: React.FC<{
             if (metricAnimation === "none") {
               return (
                 <div style={{ marginTop: 6, marginBottom: 8 }}>
-                  <div style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
+                  <div style={{ fontSize: getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs), fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
                     {m.value}{unit}
                   </div>
                 </div>
@@ -1295,14 +1308,14 @@ const CardStackLayer: React.FC<{
             return (
               <div style={{ marginTop: 6, marginBottom: 8 }}>
                 <CountUpNumber value={m.value} suffix={unit} decimals={m.value % 1 === 0 ? 0 : 1}
-                  style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }} />
+                  style={{ fontSize: getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs), fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }} />
                 {metricAnimation === "countup_bar" && <DataBar pct={Math.min(100, Math.max(0, m.value))} fromColor={accent} toColor={hl} />}
               </div>
             );
           }
           return (
             <div style={{ marginTop: 6, marginBottom: 8 }}>
-              <MetricValueCard label={m.label ?? unit} value={m.value} unit={unit} style={{ color: hl }} />
+              <MetricValueCard label={m.label ?? unit} value={m.value} unit={unit} style={{ color: hl }} metricFontSize={getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs)} />
             </div>
           );
         }
@@ -1311,7 +1324,7 @@ const CardStackLayer: React.FC<{
         if (metricAnimation === "none") {
           return (
             <div style={{ marginTop: 6, marginBottom: 8 }}>
-              <div style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
+              <div style={{ fontSize: getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs), fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }}>
                 {stat.value}{stat.suffix}
               </div>
             </div>
@@ -1320,7 +1333,7 @@ const CardStackLayer: React.FC<{
         return (
           <div style={{ marginTop: 6, marginBottom: 8 }}>
             <CountUpNumber value={stat.value} suffix={stat.suffix} decimals={stat.value % 1 === 0 ? 0 : 1}
-              style={{ fontSize: 80, fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }} />
+              style={{ fontSize: getMetricFontSize(vstyle?.aspectRatioLayoutMode, fs), fontWeight: 900, color: hl, textShadow: `0 0 36px ${hl}55`, lineHeight: 1 }} />
             {metricAnimation === "countup_bar" && <DataBar pct={stat.value} fromColor={accent} toColor={hl} />}
           </div>
         );
