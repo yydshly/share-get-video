@@ -193,10 +193,35 @@ function truncateText(text: string, maxChars: number): string {
   return clean.slice(0, maxChars - 1) + "…";
 }
 
-// V1.2.1.4: BackgroundLayer — programmatic CSS background (no image assets)
-// Supports 4 presets: tech_grid_dark, aurora_blue, glass_dashboard, warm_cinematic
-// V1.2.3: Redesigned to make all three matrix backgrounds visually distinct:
-//   tech_grid_dark   → 科技网格（清晰网格线 + 亮蓝科技光）
+// V1.2.4: FloatingParticles — frame-driven drifting dots (Remotion-only effect).
+// Deterministic positions (index-seeded) so renders are stable; dots rise & fade-breathe.
+const FloatingParticles: React.FC<{ count: number; color: string; maxSize?: number }> = ({ count, color, maxSize = 5 }) => {
+  const frame = useCurrentFrame();
+  const dots = [];
+  for (let i = 0; i < count; i++) {
+    const baseX = (i * 73) % 100;
+    const size = 2 + ((i * 37) % maxSize);
+    const speed = 0.12 + ((i % 5) * 0.06);
+    const phase = (i * 53) % 120;
+    const y = (((phase - frame * speed) % 120) + 120) % 120; // 0..120, rising
+    const x = baseX + Math.sin((frame + i * 30) / 45) * 2.5;
+    const op = 0.12 + 0.28 * (0.5 + 0.5 * Math.sin((frame + i * 20) / 28));
+    dots.push(
+      <div key={i} style={{
+        position: "absolute", left: `${x}%`, top: `${y - 10}%`,
+        width: size, height: size, borderRadius: "50%",
+        background: color, opacity: op, boxShadow: `0 0 ${size * 2.5}px ${color}`,
+      }} />
+    );
+  }
+  return <>{dots}</>;
+};
+
+// V1.2.4: BackgroundLayer — frame-animated programmatic backgrounds (no image assets).
+// Each preset has a distinct MOTION signature (Remotion-specific — a static renderer
+// like Pillow can't do flowing grids / scan sweeps / drifting particles):
+//   tech_grid_dark   → 流动网格 + 扫描光带 + 上升数据粒子 + 呼吸辉光
+//   aurora_blue      → 缓慢漂移的蓝紫极光（呼吸）
 //   glass_dashboard  → 玻璃面板（frosted glass + 蓝紫高光层）
 //   warm_cinematic   → 暖色电影感（琥珀/金色光晕 + 暗角）
 const BackgroundLayer: React.FC<{
@@ -204,6 +229,7 @@ const BackgroundLayer: React.FC<{
   accent?: string;
   highlight?: string;
 }> = ({ preset = "tech_grid_dark", accent = C.accent, highlight = C.highlight }) => {
+  const frame = useCurrentFrame();
   if (preset === "glass_dashboard") {
     // ── glass_dashboard: frosted glass panels + layered blue-purple glows ──
     // Key differentiator: backdrop-blur glass panels, NOT just glows
@@ -386,42 +412,51 @@ const BackgroundLayer: React.FC<{
     );
   }
 
-  // Default: tech_grid_dark — 深蓝黑底 + 清晰网格 + 蓝色科技光
+  // Default: tech_grid_dark — 深蓝黑底 + 流动网格 + 扫描光带 + 上升粒子 + 呼吸辉光
+  const gridPan = -((frame * 0.4) % 60);
+  const scanY = ((frame * 0.55) % 130) - 15;
+  const glow1 = 0.55 + 0.45 * Math.sin(frame / 45);
+  const glow2 = 0.45 + 0.35 * Math.sin(frame / 32 + 1.5);
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        zIndex: 0,
-        background: C.bg,
-        overflow: "hidden",
-      }}
-    >
-      {/* Primary blue tech glow — top center */}
+    <div style={{ position: "absolute", inset: 0, zIndex: 0, background: C.bg, overflow: "hidden" }}>
+      {/* Flowing grid — 60px lines panning upward (stronger, bluish) */}
       <div style={{
-        position: "absolute", top: "5%", left: "20%", width: "60%", height: "55%",
-        background: `radial-gradient(ellipse, ${accent}22 0%, transparent 70%)`,
-        filter: "blur(60px)",
-      }} />
-      {/* Secondary blue glow — bottom right */}
-      <div style={{
-        position: "absolute", bottom: "5%", right: "5%", width: "45%", height: "45%",
-        background: `radial-gradient(circle, ${accent}14 0%, transparent 65%)`,
-        filter: "blur(50px)",
-      }} />
-      {/* Grid — prominent 60px grid lines */}
-      <div style={{
-        position: "absolute", inset: 0,
+        position: "absolute", left: 0, right: 0, top: "-10%", height: "120%",
+        transform: `translateY(${gridPan}px)`,
         backgroundImage: `
-          repeating-linear-gradient(0deg, transparent, transparent 59px, ${C.border}28 59px, ${C.border}28 60px),
-          repeating-linear-gradient(90deg, transparent, transparent 59px, ${C.border}28 59px, ${C.border}28 60px)
+          repeating-linear-gradient(0deg, transparent, transparent 59px, ${accent}33 59px, ${accent}33 60px),
+          repeating-linear-gradient(90deg, transparent, transparent 59px, ${accent}26 59px, ${accent}26 60px)
         `,
-        opacity: 0.9,
+        opacity: 0.7,
       }} />
-      {/* Top gradient mask */}
+      {/* Primary blue tech glow — top center, breathing */}
       <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, height: "15%",
-        background: `linear-gradient(180deg, ${C.bg} dd 0%, transparent 100%)`,
+        position: "absolute", top: "0%", left: "15%", width: "70%", height: "55%",
+        background: `radial-gradient(ellipse, ${accent}3a 0%, transparent 70%)`,
+        filter: "blur(70px)", opacity: glow1,
+      }} />
+      {/* Secondary glow — bottom right, breathing */}
+      <div style={{
+        position: "absolute", bottom: "0%", right: "0%", width: "55%", height: "50%",
+        background: `radial-gradient(circle, ${highlight}22 0%, transparent 65%)`,
+        filter: "blur(60px)", opacity: glow2,
+      }} />
+      {/* Horizontal scan light band — sweeps top→bottom */}
+      <div style={{
+        position: "absolute", left: 0, right: 0, top: `${scanY}%`, height: "12%",
+        background: `linear-gradient(180deg, transparent, ${accent}1f 45%, ${accent}40 50%, ${accent}1f 55%, transparent)`,
+        filter: "blur(6px)",
+      }} />
+      {/* Rising data particles */}
+      <FloatingParticles count={18} color={accent} maxSize={4} />
+      {/* Top + bottom gradient masks */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: "14%",
+        background: `linear-gradient(180deg, ${C.bg}dd 0%, transparent 100%)`,
+      }} />
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0, height: "16%",
+        background: `linear-gradient(0deg, ${C.bg}cc 0%, transparent 100%)`,
       }} />
     </div>
   );
