@@ -101,6 +101,43 @@ interface PromoteState {
   message?: string;
 }
 
+// Stage 3A-4: 资产扫描 dry-run 结果类型
+interface AssetScanItem {
+  path: string;
+  sizeBytes: number;
+  reason: string;
+  sampleIds?: string[];
+  lastModified?: string;
+}
+
+interface AssetScanResult {
+  dryRun: boolean;
+  root: string;
+  minAgeDays: number;
+  totalAssetFiles: number;
+  protectedCount: number;
+  deletableCount: number;
+  skippedCount: number;
+  estimatedDeletableBytes: number;
+  protectedItems: AssetScanItem[];
+  deletableItems: AssetScanItem[];
+  skippedItems: AssetScanItem[];
+  warnings: string[];
+}
+
+// Stage 3A-4: 字节数 → 人类可读字符串
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let idx = 0;
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx += 1;
+  }
+  return `${value.toFixed(value >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
+}
+
 // V0.8.4: 备注关键词 → 建议问题标签。仅做提示，不自动写入用户标注。
 // 返回 id 数组（与 ISSUE_OPTIONS 中的 id 对齐），不含 "ok" / "render_failed"。
 function inferIssueHintsFromNote(note: string, status?: string): string[] {
@@ -168,6 +205,12 @@ export default function StyleSweepPage() {
   const [deletingJobId, setDeletingJobId] = useState<string>("");
   // Stage 3A-2: 删除反馈提示
   const [deleteHint, setDeleteHint] = useState<"" | "success" | "failed">("");
+
+  // Stage 3A-4: 运行资产扫描 dry-run 状态
+  const [assetScan, setAssetScan] = useState<AssetScanResult | null>(null);
+  const [assetScanLoading, setAssetScanLoading] = useState(false);
+  const [assetScanError, setAssetScanError] = useState("");
+  const [assetScanMinAgeDays, setAssetScanMinAgeDays] = useState(7);
 
   const activeRoute = ROUTES.find((r) => r.id === routeId)!;
 
@@ -343,6 +386,26 @@ export default function StyleSweepPage() {
       }
     } finally {
       setDeletingJobId("");
+    }
+  };
+
+  // Stage 3A-4: dry-run 扫描运行资产，不会删除任何文件
+  const runAssetScan = async () => {
+    setAssetScanLoading(true);
+    setAssetScanError("");
+    try {
+      const resp = await fetch(
+        `${API_BASE}/style-sweep-assets/scan?minAgeDays=${assetScanMinAgeDays}&includeProtected=true&limit=100`,
+      );
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.detail ?? `HTTP ${resp.status}`);
+      }
+      setAssetScan(data as AssetScanResult);
+    } catch (e) {
+      setAssetScanError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAssetScanLoading(false);
     }
   };
 
@@ -828,6 +891,170 @@ export default function StyleSweepPage() {
           ❌ 删除失败
         </div>
       )}
+
+      {/* Stage 3A-4: 运行资产扫描 / 清理预览（仅 dry-run） */}
+      <div style={{
+        background: "#fefce8", border: "1px solid #fde047", borderRadius: 10,
+        padding: "0.9rem 1rem", marginBottom: "1rem", fontSize: "0.8rem",
+      }}>
+        <div style={{ fontWeight: 600, marginBottom: "0.4rem", color: "#854d0e" }}>
+          🧹 运行资产扫描 / 清理预览
+        </div>
+        <div style={{ color: "#92400e", marginBottom: "0.6rem", lineHeight: 1.5 }}>
+          当前只做 <strong>dry-run 扫描</strong>，不会删除任何文件。
+          可清理候选只是候选，真正删除前仍需重新扫描并二次确认。
+          Style Gallery 引用的资产会被保护。
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8rem" }}>
+            最小存在天数：
+            <input
+              type="number"
+              value={assetScanMinAgeDays}
+              min={0}
+              max={365}
+              onChange={(e) => setAssetScanMinAgeDays(Math.max(0, Number(e.target.value) || 0))}
+              style={{ width: 64, padding: "0.3rem", border: "1px solid #cbd5e1", borderRadius: 6 }}
+            />
+          </label>
+          <button
+            onClick={runAssetScan}
+            disabled={assetScanLoading}
+            style={{
+              padding: "0.45rem 1rem", borderRadius: 8, fontSize: "0.82rem", fontWeight: 600,
+              border: "1px solid #a16207", background: assetScanLoading ? "#fde68a" : "#fef9c3",
+              color: "#854d0e", cursor: assetScanLoading ? "not-allowed" : "pointer",
+            }}
+          >
+            {assetScanLoading ? "扫描中..." : "🔍 扫描资产"}
+          </button>
+        </div>
+
+        {assetScanError && (
+          <div style={{ marginTop: "0.6rem", color: "#dc2626", fontSize: "0.78rem" }}>
+            资产扫描失败：{assetScanError}
+          </div>
+        )}
+
+        {assetScan && (
+          <div style={{ marginTop: "0.8rem" }}>
+            <div style={{
+              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+              gap: "0.5rem", marginBottom: "0.7rem",
+            }}>
+              <div style={{ background: "white", border: "1px solid #fde047", borderRadius: 8, padding: "0.55rem 0.7rem" }}>
+                <div style={{ fontSize: "0.7rem", color: "#92400e" }}>总资产文件</div>
+                <div style={{ fontWeight: 700, fontSize: "1.05rem", color: "#854d0e" }}>{assetScan.totalAssetFiles}</div>
+              </div>
+              <div style={{ background: "white", border: "1px solid #86efac", borderRadius: 8, padding: "0.55rem 0.7rem" }}>
+                <div style={{ fontSize: "0.7rem", color: "#15803d" }}>受保护</div>
+                <div style={{ fontWeight: 700, fontSize: "1.05rem", color: "#15803d" }}>{assetScan.protectedCount}</div>
+              </div>
+              <div style={{ background: "white", border: "1px solid #fdba74", borderRadius: 8, padding: "0.55rem 0.7rem" }}>
+                <div style={{ fontSize: "0.7rem", color: "#c2410c" }}>可清理候选</div>
+                <div style={{ fontWeight: 700, fontSize: "1.05rem", color: "#c2410c" }}>{assetScan.deletableCount}</div>
+              </div>
+              <div style={{ background: "white", border: "1px solid #cbd5e1", borderRadius: 8, padding: "0.55rem 0.7rem" }}>
+                <div style={{ fontSize: "0.7rem", color: "#475569" }}>暂时跳过</div>
+                <div style={{ fontWeight: 700, fontSize: "1.05rem", color: "#334155" }}>{assetScan.skippedCount}</div>
+              </div>
+              <div style={{ background: "white", border: "1px solid #fdba74", borderRadius: 8, padding: "0.55rem 0.7rem" }}>
+                <div style={{ fontSize: "0.7rem", color: "#c2410c" }}>预计可释放</div>
+                <div style={{ fontWeight: 700, fontSize: "1.05rem", color: "#c2410c" }}>{formatBytes(assetScan.estimatedDeletableBytes)}</div>
+              </div>
+            </div>
+
+            {assetScan.warnings.length > 0 && (
+              <div style={{ marginBottom: "0.6rem", color: "#a16207", fontSize: "0.74rem" }}>
+                ⚠️ 警告：
+                <ul style={{ margin: "0.25rem 0 0 1.2rem", padding: 0 }}>
+                  {assetScan.warnings.map((w, idx) => (<li key={idx}>{w}</li>))}
+                </ul>
+              </div>
+            )}
+
+            {/* 受保护资产 */}
+            <details style={{ marginBottom: "0.4rem" }}>
+              <summary style={{ cursor: "pointer", fontWeight: 600, color: "#15803d", fontSize: "0.8rem" }}>
+                🟢 受保护资产（Style Gallery 正在引用） — {assetScan.protectedItems.length} 项
+              </summary>
+              <div style={{ marginTop: "0.4rem", maxHeight: 260, overflowY: "auto", fontSize: "0.74rem" }}>
+                {assetScan.protectedItems.length === 0 ? (
+                  <div style={{ color: "#94a3b8" }}>（无）</div>
+                ) : (
+                  assetScan.protectedItems.map((it, idx) => (
+                    <div key={idx} style={{
+                      borderTop: "1px dashed #d1fae5", padding: "0.35rem 0",
+                      color: "#166534",
+                    }}>
+                      <div style={{ fontFamily: "monospace", wordBreak: "break-all" }}>{it.path}</div>
+                      <div style={{ color: "#6b7280" }}>
+                        size: {formatBytes(it.sizeBytes)}
+                        {it.sampleIds && it.sampleIds.length > 0 && (
+                          <> · sampleIds: {it.sampleIds.join(", ")}</>
+                        )}
+                      </div>
+                      <div style={{ color: "#6b7280" }}>reason: {it.reason}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </details>
+
+            {/* 可清理候选 */}
+            <details style={{ marginBottom: "0.4rem" }}>
+              <summary style={{ cursor: "pointer", fontWeight: 600, color: "#c2410c", fontSize: "0.8rem" }}>
+                🟠 可清理候选（不会自动删除） — {assetScan.deletableItems.length} 项
+              </summary>
+              <div style={{ marginTop: "0.4rem", maxHeight: 260, overflowY: "auto", fontSize: "0.74rem" }}>
+                {assetScan.deletableItems.length === 0 ? (
+                  <div style={{ color: "#94a3b8" }}>（无）</div>
+                ) : (
+                  assetScan.deletableItems.map((it, idx) => (
+                    <div key={idx} style={{
+                      borderTop: "1px dashed #fed7aa", padding: "0.35rem 0",
+                      color: "#7c2d12",
+                    }}>
+                      <div style={{ fontFamily: "monospace", wordBreak: "break-all" }}>{it.path}</div>
+                      <div style={{ color: "#6b7280" }}>
+                        size: {formatBytes(it.sizeBytes)}
+                        {it.lastModified && <> · lastModified: {it.lastModified}</>}
+                      </div>
+                      <div style={{ color: "#6b7280" }}>reason: {it.reason}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </details>
+
+            {/* 暂时跳过 */}
+            <details>
+              <summary style={{ cursor: "pointer", fontWeight: 600, color: "#475569", fontSize: "0.8rem" }}>
+                ⚪ 暂时跳过 — {assetScan.skippedItems.length} 项
+              </summary>
+              <div style={{ marginTop: "0.4rem", maxHeight: 260, overflowY: "auto", fontSize: "0.74rem" }}>
+                {assetScan.skippedItems.length === 0 ? (
+                  <div style={{ color: "#94a3b8" }}>（无）</div>
+                ) : (
+                  assetScan.skippedItems.map((it, idx) => (
+                    <div key={idx} style={{
+                      borderTop: "1px dashed #e2e8f0", padding: "0.35rem 0",
+                      color: "#334155",
+                    }}>
+                      <div style={{ fontFamily: "monospace", wordBreak: "break-all" }}>{it.path}</div>
+                      <div style={{ color: "#6b7280" }}>
+                        size: {formatBytes(it.sizeBytes)}
+                        {it.lastModified && <> · lastModified: {it.lastModified}</>}
+                      </div>
+                      <div style={{ color: "#6b7280" }}>reason: {it.reason}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </details>
+          </div>
+        )}
+      </div>
 
       <button onClick={runSweep} disabled={running || !confirmed || !content.trim()}
         style={{
