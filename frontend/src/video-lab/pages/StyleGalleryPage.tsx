@@ -14,6 +14,15 @@ import {
   getSampleFitMode,
   getCroppingRisk,
 } from "../utils/aspectRatio";
+import {
+  computeValidationStats,
+  getValidationTags,
+  buildDiffTable,
+  buildValidationReport,
+  normalizeContentPreview,
+  REVIEW_STATUS_LABELS,
+  SOURCE_LABELS,
+} from "../utils/sampleValidation";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -467,6 +476,9 @@ function SampleCard({
   copyingRerunId,
   rerunCopyFeedback,
   onCopyRerun,
+  // V1.2.1: 对比篮
+  onAddToTray,
+  inCompareTray = false,
 }: {
   sample: StyleSample;
   onDelete: (id: string) => void;
@@ -485,6 +497,9 @@ function SampleCard({
     message: string;
   } | null;
   onCopyRerun: (id: string) => void;
+  // V1.2.1: 对比篮
+  onAddToTray?: (id: string) => void;
+  inCompareTray?: boolean;
 }) {
   const color = ROUTE_COLORS[sample.route_id] ?? "#64748b";
   const statusInfo = STATUS_LABELS[sample.status] ?? STATUS_LABELS.candidate;
@@ -610,6 +625,25 @@ function SampleCard({
           {statusInfo.label}
         </span>
       </div>
+
+      {/* V1.2.1: 验证标签行 — 显示在卡片头部状态 pill 下方 */}
+      {(() => {
+        const tags = getValidationTags(sample);
+        const chipStyle = (bg: string, color: string) => ({
+          fontSize: "0.6rem", background: bg, color, borderRadius: 4, padding: "1px 5px", fontWeight: 500 as const,
+        });
+        return (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem" }}>
+            <span style={chipStyle("#f1f5f9", "#475569")}>{tags.source}</span>
+            <span style={chipStyle("#ede9fe", "#7c3aed")}>{tags.route}</span>
+            <span style={chipStyle("#dbeafe", "#1d4ed8")}>{tags.aspectRatio}</span>
+            <span style={chipStyle("#f0fdf4", "#16a34a")}>{tags.generationMode}</span>
+            {tags.remotionFamily !== "—" && <span style={chipStyle("#fef3c7", "#92400e")}>{tags.remotionFamily}</span>}
+            {tags.layoutMode !== "—" && <span style={chipStyle("#fef3c7", "#92400e")}>{tags.layoutMode}</span>}
+            {tags.voiceoverTimeline !== "—" && <span style={chipStyle("#f5f3ff", "#6d28d9")}>TTS:{tags.voiceoverTimeline}</span>}
+          </div>
+        );
+      })()}
 
       {/* V0.7.3: Workbench 来源信息块 — 不再藏在 tags / params details */}
       {isWb && (
@@ -1120,6 +1154,25 @@ function SampleCard({
         >
           {selectedForCompare ? "✓ 已加入对比" : "⚖ 加入对比"}
         </button>
+        {/* V1.2.1: 加入对比篮按钮 */}
+        {onAddToTray && (
+          <button
+            onClick={() => onAddToTray(sample.id)}
+            disabled={inCompareTray}
+            style={{
+              background: inCompareTray ? "#bfdbfe" : "#ede9fe",
+              color: inCompareTray ? "#3b82f6" : "#7c3aed",
+              border: "1px solid",
+              borderColor: inCompareTray ? "#93c5fd" : "#c4b5fd",
+              borderRadius: 6,
+              padding: "0.35rem 0.75rem",
+              fontSize: "0.72rem",
+              cursor: inCompareTray ? "default" : "pointer",
+            }}
+          >
+            {inCompareTray ? "✓ 已在对比篮" : "⚖ 对比篮"}
+          </button>
+        )}
         {/* V0.4.2: 升级为模板按钮 */}
         <button
           onClick={() => onPromote(sample.id)}
@@ -1393,9 +1446,9 @@ export default function StyleGalleryPage() {
   } | null>(null);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare" | "templates">(() => {
+  const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare" | "templates" | "validate">(() => {
     const v = searchParams.get("tab");
-    return v === "gallery" || v === "compare" || v === "templates" ? v : "presets";
+    return v === "gallery" || v === "compare" || v === "templates" || v === "validate" ? v : "presets";
   });
   const [scoreSummary, setScoreSummary] = useState<Record<string, RouteScoreSummary>>({});
   const [judgeAvailable, setJudgeAvailable] = useState<boolean>(true);
@@ -1407,6 +1460,21 @@ export default function StyleGalleryPage() {
   const [bundleGoal, setBundleGoal] = useState<string>("");
   const [bundleTags, setBundleTags] = useState<string>("");
   const [savingBundle, setSavingBundle] = useState(false);
+
+  // V1.2.1: 验证中心 — 对比篮（本地暂存，不影响后端状态）
+  const [compareTray, setCompareTray] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("style_gallery_compare_tray") || "[]"); } catch { return []; }
+  });
+  const [showCompareView, setShowCompareView] = useState(false);
+  // 验证结论草稿（内存，不持久化）
+  const [reviewDraft, setReviewDraft] = useState<Record<string, { status: string; notes: string }>>({});
+  // 额外筛选
+  const [filterAspectRatio, setFilterAspectRatio] = useState("");
+  const [filterGenerationMode, setFilterGenerationMode] = useState("");
+  const [filterScored, setFilterScored] = useState<"" | "scored" | "unscored">("");
+  const [filterHasVideo, setFilterHasVideo] = useState<"" | "has_video" | "no_video">("");
+  // 验证分组视图
+  const [groupBy, setGroupBy] = useState<"" | "route" | "aspectRatio" | "generationMode" | "content">("");
 
   const loadPresets = useCallback(async () => {
     try {
@@ -1548,6 +1616,10 @@ export default function StyleGalleryPage() {
   useEffect(() => { loadScoreHistory(); }, [loadScoreHistory]);
   useEffect(() => { loadJudgeAvailability(); }, [loadJudgeAvailability]);
   useEffect(() => { loadRouteFit(); }, [loadRouteFit]);
+  // V1.2.1: 持久化对比篮到 localStorage
+  useEffect(() => {
+    try { localStorage.setItem("style_gallery_compare_tray", JSON.stringify(compareTray)); } catch { /* ignore */ }
+  }, [compareTray]);
   useEffect(() => { loadBundles(); }, [loadBundles]);
 
   // 通用：生成一条样片并自动保存到样片库（预置风格 / 模板复用共用，避免复制粘贴）
@@ -1693,6 +1765,27 @@ export default function StyleGalleryPage() {
     loadSamples();
   };
 
+  // V1.2.1: 对比篮操作（本地暂存，最多 4 条）
+  const handleAddToTray = (id: string) => {
+    if (compareTray.includes(id)) return;
+    if (compareTray.length >= 4) {
+      setError("对比篮最多支持 4 条样片，请先移除部分样片。");
+      return;
+    }
+    setCompareTray((prev) => [...prev, id]);
+    setError("");
+  };
+
+  const handleRemoveFromTray = (id: string) => {
+    setCompareTray((prev) => prev.filter((s) => s !== id));
+  };
+
+  const handleClearTray = () => {
+    setCompareTray([]);
+  };
+
+  const traySamples = samples.filter((s) => compareTray.includes(s.id));
+
   const handleJudge = async (id: string) => {
     setJudgingSet((prev) => new Set(prev).add(id));
     setError("");
@@ -1783,6 +1876,21 @@ export default function StyleGalleryPage() {
     }
   };
 
+  // V1.2.1: 更新样片人工结论（只改 status）
+  const handleUpdateReview = async (sampleId: string, newStatus: string) => {
+    try {
+      await fetch(`${API_BASE}/style-samples/${sampleId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      loadSamples();
+      setSuccessMsg(`已更新样片状态为「${REVIEW_STATUS_LABELS[newStatus]?.label ?? newStatus}」`);
+    } catch (e) {
+      setError("更新失败: " + String(e));
+    }
+  };
+
   const routeOptions = [
     { value: "", label: "全部路线" },
     { value: "local_frame_compose", label: "Pillow 信息卡" },
@@ -1791,9 +1899,27 @@ export default function StyleGalleryPage() {
   ];
 
   // V0.7.3: 二次过滤（路线/状态由后端过滤，来源在前端过滤）
+  // V1.2.1: 扩展为验证中心多维筛选
   const visibleSamples = samples.filter((s) => {
-    if (filterSource === "workbench") return isWorkbenchSample(s);
-    if (filterSource === "gallery") return !isWorkbenchSample(s);
+    // 来源
+    if (filterSource === "workbench") { if (!isWorkbenchSample(s)) return false; }
+    if (filterSource === "gallery") { if (isWorkbenchSample(s)) return false; }
+    // 比例
+    if (filterAspectRatio) {
+      const ar = getValidationTags(s).aspectRatio;
+      if (ar !== filterAspectRatio) return false;
+    }
+    // 生成模式
+    if (filterGenerationMode) {
+      const gm = getValidationTags(s).generationMode;
+      if (gm !== filterGenerationMode) return false;
+    }
+    // 评分状态
+    if (filterScored === "scored") { if (!s.visual_judgement) return false; }
+    if (filterScored === "unscored") { if (s.visual_judgement) return false; }
+    // 视频资产
+    if (filterHasVideo === "has_video") { if (!getValidationTags(s).hasVideo) return false; }
+    if (filterHasVideo === "no_video") { if (getValidationTags(s).hasVideo) return false; }
     return true;
   });
 
@@ -1824,13 +1950,101 @@ export default function StyleGalleryPage() {
     ai_asset_then_compose: "AI 素材氛围路线",
   };
 
+  // V1.2.1: 验证统计
+  const valStats = computeValidationStats(samples);
+
+  // V1.2.1: 验证分组视图
+  type GroupEntry = { key: string; label: string; samples: StyleSample[] };
+  const groupedSamples: GroupEntry[] = (() => {
+    if (!groupBy) return [];
+    const groups: Record<string, { label: string; samples: StyleSample[] }> = {};
+    for (const s of visibleSamples) {
+      let key: string;
+      let label: string;
+      if (groupBy === "route") { key = getValidationTags(s).route; label = key; }
+      else if (groupBy === "aspectRatio") { key = getValidationTags(s).aspectRatio; label = key; }
+      else if (groupBy === "generationMode") { key = getValidationTags(s).generationMode; label = key; }
+      else { key = normalizeContentPreview(s.content_preview); label = key || "（空内容）"; }
+      if (!groups[key]) groups[key] = { label, samples: [] };
+      groups[key].samples.push(s);
+    }
+    return Object.entries(groups).map(([key, { label, samples }]) => ({ key, label, samples }));
+  })();
+
   return (
-    <div style={{ padding: "2rem", maxWidth: 1280, margin: "0 auto" }}>
+    <div style={{ padding: "2rem", maxWidth: 1400, margin: "0 auto" }}>
       <Link to="/video-lab" style={{ color: "#64748b", fontSize: "0.85rem", textDecoration: "none" }}>← 返回首页</Link>
-      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginTop: "0.5rem" }}>路线风格样片库</h1>
-      <p style={{ color: "#64748b", fontSize: "0.9rem", marginTop: "0.25rem" }}>
-        V0.7.3 · 无数据库 · 风格探索 · 视觉评分 · 对比选优 · 模板沉淀 · Workbench 样片识别
-      </p>
+      {/* V1.2.1: 验证中心标题 */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: "0.5rem", gap: "1rem", flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>样片验证中心</h1>
+          <p style={{ color: "#64748b", fontSize: "0.85rem", marginTop: "0.2rem" }}>
+            查看 Workbench / Style Sweep / Style Gallery 生成的样片，比较不同路线、比例、风格参数的实际效果。
+          </p>
+        </div>
+        {/* V1.2.1: 验证总览统计条 */}
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: "0.72rem", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 8, padding: "3px 10px", color: "#475569" }}>总数 <b>{valStats.total}</b></span>
+          <span style={{ fontSize: "0.72rem", background: "#f0fdfa", border: "1px solid #5eead4", borderRadius: 8, padding: "3px 10px", color: "#0f766e" }}>🧪 Workbench <b>{valStats.workbenchCount}</b></span>
+          <span style={{ fontSize: "0.72rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "3px 10px", color: "#1d4ed8" }}>⚖ 对比篮 <b>{compareTray.length}</b></span>
+          <span style={{ fontSize: "0.72rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "3px 10px", color: "#166534" }}>★ 已评分 <b>{valStats.scoredCount}</b></span>
+          <span style={{ fontSize: "0.72rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "3px 10px", color: "#166534" }}>✓ 已确认 <b>{valStats.approvedCount}</b></span>
+          <span style={{ fontSize: "0.72rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "3px 10px", color: "#991b1b" }}>✗ 已淘汰 <b>{valStats.discardedCount}</b></span>
+        </div>
+      </div>
+
+      {/* V1.2.1: 对比篮面板 */}
+      {compareTray.length > 0 && (
+        <div style={{
+          marginTop: "0.85rem",
+          background: "#eff6ff",
+          border: "1px solid #3b82f6",
+          borderRadius: 12,
+          padding: "0.7rem 1rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+            <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1d4ed8" }}>
+              ⚖ 对比篮 ({compareTray.length}/4) — 本浏览器临时对比，不会删除后端样片
+            </div>
+            <div style={{ display: "flex", gap: "0.4rem" }}>
+              {compareTray.length >= 2 && (
+                <button
+                  onClick={() => setShowCompareView(true)}
+                  style={{ background: "#3b82f6", color: "white", border: "none", borderRadius: 6, padding: "0.3rem 0.75rem", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}
+                >
+                  进入对比视图
+                </button>
+              )}
+              <button
+                onClick={handleClearTray}
+                style={{ background: "white", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 6, padding: "0.3rem 0.75rem", fontSize: "0.75rem", cursor: "pointer" }}
+              >
+                清空
+              </button>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", overflowX: "auto", flexWrap: "nowrap" }}>
+            {traySamples.map((s) => {
+              const tags = getValidationTags(s);
+              return (
+                <div key={s.id} style={{ flexShrink: 0, background: "white", border: "1px solid #bfdbfe", borderRadius: 8, padding: "0.5rem 0.75rem", minWidth: 160, maxWidth: 220, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.style_name}</div>
+                  <div style={{ fontSize: "0.62rem", color: "#64748b" }}>{tags.route}</div>
+                  <div style={{ fontSize: "0.62rem", color: "#64748b" }}>{tags.aspectRatio} · {tags.generationMode}</div>
+                  <div style={{ display: "flex", gap: "0.3rem", marginTop: "0.2rem" }}>
+                    <button onClick={() => handleRemoveFromTray(s.id)} style={{ background: "#fef2f2", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 4, padding: "1px 6px", fontSize: "0.62rem", cursor: "pointer" }}>移除</button>
+                    <button onClick={() => handleUpdateReview(s.id, "approved")} style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: 4, padding: "1px 6px", fontSize: "0.62rem", cursor: "pointer" }} title="标记为已确认">✓ 通过</button>
+                    <button onClick={() => handleUpdateReview(s.id, "rejected")} style={{ background: "#fef2f2", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 4, padding: "1px 6px", fontSize: "0.62rem", cursor: "pointer" }} title="标记为已淘汰">✗ 淘汰</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* V0.7.3: 顶部 — 已定位到 Workbench 保存的样片（来自 URL ?sample_id=） */}
       {highlightSampleId && !highlightDismissed && (
@@ -1940,59 +2154,67 @@ export default function StyleGalleryPage() {
         >
           模板库 ({filteredTemplates.length})
         </button>
+        {/* V1.2.1: 验证视图 tab */}
+        <button
+          onClick={() => setActiveTab("validate")}
+          style={{
+            background: activeTab === "validate" ? "#7c3aed" : "#f1f5f9",
+            color: activeTab === "validate" ? "white" : "#7c3aed",
+            border: "none",
+            borderRadius: 8,
+            padding: "0.5rem 1.25rem",
+            fontSize: "0.85rem",
+            cursor: "pointer",
+          }}
+        >
+          验证视图
+        </button>
       </div>
 
-      {/* 筛选 */}
-      <div style={{ display: "flex", gap: "1rem", marginTop: "1rem", flexWrap: "wrap" }}>
-        <select
-          value={filterRoute}
-          onChange={(e) => setFilterRoute(e.target.value)}
-          style={{ padding: "0.4rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.8rem" }}
-        >
+      {/* V1.2.1: 扩展筛选栏 */}
+      <div style={{ display: "flex", gap: "0.6rem", marginTop: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+        <select value={filterRoute} onChange={(e) => setFilterRoute(e.target.value)} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem" }}>
           {routeOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          style={{ padding: "0.4rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.8rem" }}
-        >
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem" }}>
           <option value="">全部状态</option>
           <option value="candidate">候选中</option>
           <option value="approved">已确认</option>
           <option value="rejected">已放弃</option>
           <option value="comparing">对比中</option>
         </select>
-        {/* V0.7.3: 来源筛选（仅样片库 tab 有意义，其它 tab 会忽略） */}
-        <select
-          value={filterSource}
-          onChange={(e) => setFilterSource(e.target.value as "" | "workbench" | "gallery")}
-          style={{
-            padding: "0.4rem 0.75rem",
-            border: `1px solid ${filterSource === "workbench" ? "#0f766e" : "#e2e8f0"}`,
-            background: filterSource === "workbench" ? "#f0fdfa" : "white",
-            color: filterSource === "workbench" ? "#0f766e" : "#475569",
-            borderRadius: 8,
-            fontSize: "0.8rem",
-            fontWeight: filterSource === "workbench" ? 600 : 400,
-            cursor: "pointer",
-          }}
-        >
+        <select value={filterSource} onChange={(e) => setFilterSource(e.target.value as "" | "workbench" | "gallery")} style={{ padding: "0.35rem 0.65rem", border: `1px solid ${filterSource ? "#0f766e" : "#e2e8f0"}`, background: filterSource ? "#f0fdfa" : "white", color: filterSource ? "#0f766e" : "#475569", borderRadius: 8, fontSize: "0.78rem", cursor: "pointer" }}>
           <option value="">全部来源</option>
-          <option value="workbench">🧪 Workbench 样片</option>
-          <option value="gallery">样片库生成</option>
+          <option value="workbench">Workbench</option>
+          <option value="gallery">样片库</option>
         </select>
-        <button
-          onClick={() => { if (activeTab === "gallery") loadSamples(); else loadPresets(); }}
-          style={{
-            background: "#f1f5f9",
-            color: "#475569",
-            border: "1px solid #e2e8f0",
-            borderRadius: 8,
-            padding: "0.4rem 0.75rem",
-            fontSize: "0.8rem",
-            cursor: "pointer",
-          }}
-        >
+        {/* V1.2.1: 比例筛选 */}
+        <select value={filterAspectRatio} onChange={(e) => setFilterAspectRatio(e.target.value)} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", cursor: "pointer" }}>
+          <option value="">全部比例</option>
+          <option value="9:16">9:16</option>
+          <option value="16:9">16:9</option>
+          <option value="1:1">1:1</option>
+          <option value="4:5">4:5</option>
+        </select>
+        {/* V1.2.1: 生成模式筛选 */}
+        <select value={filterGenerationMode} onChange={(e) => setFilterGenerationMode(e.target.value)} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", cursor: "pointer" }}>
+          <option value="">全部模式</option>
+          <option value="信息总结">信息总结</option>
+          <option value="普通">普通</option>
+        </select>
+        {/* V1.2.1: 评分状态筛选 */}
+        <select value={filterScored} onChange={(e) => setFilterScored(e.target.value as "" | "scored" | "unscored")} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", cursor: "pointer" }}>
+          <option value="">全部评分</option>
+          <option value="scored">已视觉评分</option>
+          <option value="unscored">未评分</option>
+        </select>
+        {/* V1.2.1: 视频资产筛选 */}
+        <select value={filterHasVideo} onChange={(e) => setFilterHasVideo(e.target.value as "" | "has_video" | "no_video")} style={{ padding: "0.35rem 0.65rem", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: "0.78rem", cursor: "pointer" }}>
+          <option value="">全部资产</option>
+          <option value="has_video">有视频</option>
+          <option value="no_video">缺视频</option>
+        </select>
+        <button onClick={() => { if (activeTab === "gallery" || activeTab === "validate") loadSamples(); else loadPresets(); }} style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.35rem 0.75rem", fontSize: "0.78rem", cursor: "pointer" }}>
           🔄 刷新
         </button>
       </div>
@@ -2221,6 +2443,8 @@ export default function StyleGalleryPage() {
                   copyingRerunId={copyingRerunId}
                   rerunCopyFeedback={rerunCopyFeedback}
                   onCopyRerun={handleCopyRerun}
+                  onAddToTray={handleAddToTray}
+                  inCompareTray={compareTray.includes(s.id)}
                 />
               ))}
             </div>
@@ -2587,6 +2811,230 @@ export default function StyleGalleryPage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* V1.2.1: 验证视图 Tab */}
+      {activeTab === "validate" && (
+        <div style={{ marginTop: "1rem" }}>
+          {/* 说明 */}
+          <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "0.7rem 1rem", marginBottom: "1rem", fontSize: "0.78rem", color: "#475569", lineHeight: 1.6 }}>
+            <b>验证视图</b>：将样片按路线 / 比例 / 生成模式分组，方便横向比较同类内容的不同参数效果。<br />
+            筛选栏可组合使用。点击样片卡右上角「加入对比篮」可添加最多 4 条样片到对比篮，然后在页面顶部进入对比视图。
+          </div>
+
+          {/* 分组控件 */}
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: "0.78rem", color: "#64748b" }}>分组方式：</span>
+            {([["", "不分组"], ["route", "按路线"], ["aspectRatio", "按比例"], ["generationMode", "按生成模式"], ["content", "按内容"]] as const).map(([val, label]) => (
+              <button key={val} onClick={() => setGroupBy(val)} style={{ background: groupBy === val ? "#7c3aed" : "#f1f5f9", color: groupBy === val ? "white" : "#7c3aed", border: "none", borderRadius: 6, padding: "0.25rem 0.65rem", fontSize: "0.72rem", cursor: "pointer" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* 统计小条 */}
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+            {Object.entries(valStats.byRoute).map(([k, v]) => (
+              <span key={k} style={{ fontSize: "0.7rem", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 8, padding: "2px 10px", color: "#475569" }}>{k} <b>{v}</b></span>
+            ))}
+            <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>|</span>
+            {Object.entries(valStats.byAspectRatio).map(([k, v]) => (
+              <span key={k} style={{ fontSize: "0.7rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "2px 10px", color: "#1d4ed8" }}>{k} <b>{v}</b></span>
+            ))}
+          </div>
+
+          {/* 分组内容 */}
+          {groupBy && groupedSamples.length > 0 ? (
+            groupedSamples.map((group) => (
+              <div key={group.key} style={{ marginBottom: "1.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                  <div style={{ width: 4, height: 18, background: "#7c3aed", borderRadius: 2 }} />
+                  <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>{group.label}</h3>
+                  <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>({group.samples.length} 条)</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0.85rem" }}>
+                  {group.samples.map((s) => {
+                    const tags = getValidationTags(s);
+                    const inTray = compareTray.includes(s.id);
+                    return (
+                      <div key={s.id} style={{ background: "white", border: `1px solid ${inTray ? "#3b82f6" : "#e2e8f0"}`, borderRadius: 12, padding: "0.85rem", display: "flex", flexDirection: "column", gap: "0.5rem", position: "relative" }}>
+                        {inTray && <div style={{ position: "absolute", top: 8, right: 8, fontSize: "0.6rem", background: "#3b82f6", color: "white", borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>⚖ 对比篮</div>}
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.4rem" }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.style_name}</div>
+                            <div style={{ fontSize: "0.65rem", color: "#64748b" }}>{s.route_name}</div>
+                          </div>
+                          <span style={{ fontSize: "0.62rem", background: `${STATUS_LABELS[s.status]?.color ?? "#64748b"}15`, color: STATUS_LABELS[s.status]?.color ?? "#64748b", borderRadius: 8, padding: "1px 6px", flexShrink: 0 }}>
+                            {STATUS_LABELS[s.status]?.label ?? s.status}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem" }}>
+                          <span style={{ fontSize: "0.6rem", background: "#f1f5f9", color: "#475569", borderRadius: 4, padding: "1px 5px" }}>{tags.source}</span>
+                          <span style={{ fontSize: "0.6rem", background: "#ede9fe", color: "#7c3aed", borderRadius: 4, padding: "1px 5px" }}>{tags.route}</span>
+                          <span style={{ fontSize: "0.6rem", background: "#dbeafe", color: "#1d4ed8", borderRadius: 4, padding: "1px 5px" }}>{tags.aspectRatio}</span>
+                          <span style={{ fontSize: "0.6rem", background: "#f0fdf4", color: "#16a34a", borderRadius: 4, padding: "1px 5px" }}>{tags.generationMode}</span>
+                          {tags.remotionFamily !== "—" && <span style={{ fontSize: "0.6rem", background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "1px 5px" }}>{tags.remotionFamily}</span>}
+                          {tags.layoutMode !== "—" && <span style={{ fontSize: "0.6rem", background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "1px 5px" }}>{tags.layoutMode}</span>}
+                          {s.visual_judgement && <span style={{ fontSize: "0.6rem", background: "#f0fdf4", color: "#16a34a", borderRadius: 4, padding: "1px 5px" }}>★{s.visual_judgement.score}</span>}
+                        </div>
+                        {s.urls.video_url || s.output?.path ? (
+                          <VideoAspectFrame aspectRatio={getSampleAspectRatio(s as unknown as Record<string, unknown>)} fitMode={getSampleFitMode(s as unknown as Record<string, unknown>)} maxHeight={140}>
+                            <video controls playsInline muted src={resolveUrl(s.urls.video_url || s.output?.path || "")} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                          </VideoAspectFrame>
+                        ) : (
+                          <div style={{ height: 80, background: "#f1f5f9", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "0.72rem" }}>暂无预览</div>
+                        )}
+                        <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+                          <button onClick={() => handleAddToTray(s.id)} disabled={inTray || compareTray.length >= 4} style={{ background: inTray ? "#bfdbfe" : "#eff6ff", color: inTray ? "#3b82f6" : "#1d4ed8", border: "1px solid", borderColor: inTray ? "#bfdbfe" : "#93c5fd", borderRadius: 5, padding: "0.2rem 0.5rem", fontSize: "0.65rem", cursor: inTray ? "default" : "pointer" }}>
+                            {inTray ? "✓ 已加入" : "⚖ 加入对比篮"}
+                          </button>
+                          <button onClick={() => handleUpdateReview(s.id, s.status === "approved" ? "candidate" : "approved")} style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: 5, padding: "0.2rem 0.5rem", fontSize: "0.65rem", cursor: "pointer" }}>
+                            {s.status === "approved" ? "取消确认" : "✓ 通过"}
+                          </button>
+                          <button onClick={() => handleUpdateReview(s.id, "rejected")} style={{ background: "#fef2f2", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 5, padding: "0.2rem 0.5rem", fontSize: "0.65rem", cursor: "pointer" }}>
+                            ✗ 淘汰
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          ) : groupBy ? (
+            <div style={{ textAlign: "center", padding: "3rem 0", color: "#94a3b8", fontSize: "0.85rem" }}>当前分组下没有样片</div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0.85rem" }}>
+              {visibleSamples.map((s) => {
+                const tags = getValidationTags(s);
+                const inTray = compareTray.includes(s.id);
+                return (
+                  <div key={s.id} style={{ background: "white", border: `1px solid ${inTray ? "#3b82f6" : "#e2e8f0"}`, borderRadius: 12, padding: "0.85rem", display: "flex", flexDirection: "column", gap: "0.5rem", position: "relative" }}>
+                    {inTray && <div style={{ position: "absolute", top: 8, right: 8, fontSize: "0.6rem", background: "#3b82f6", color: "white", borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>⚖ 对比篮</div>}
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.4rem" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.style_name}</div>
+                        <div style={{ fontSize: "0.65rem", color: "#64748b" }}>{s.route_name}</div>
+                      </div>
+                      <span style={{ fontSize: "0.62rem", background: `${STATUS_LABELS[s.status]?.color ?? "#64748b"}15`, color: STATUS_LABELS[s.status]?.color ?? "#64748b", borderRadius: 8, padding: "1px 6px", flexShrink: 0 }}>
+                        {STATUS_LABELS[s.status]?.label ?? s.status}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem" }}>
+                      <span style={{ fontSize: "0.6rem", background: "#f1f5f9", color: "#475569", borderRadius: 4, padding: "1px 5px" }}>{tags.source}</span>
+                      <span style={{ fontSize: "0.6rem", background: "#ede9fe", color: "#7c3aed", borderRadius: 4, padding: "1px 5px" }}>{tags.route}</span>
+                      <span style={{ fontSize: "0.6rem", background: "#dbeafe", color: "#1d4ed8", borderRadius: 4, padding: "1px 5px" }}>{tags.aspectRatio}</span>
+                      <span style={{ fontSize: "0.6rem", background: "#f0fdf4", color: "#16a34a", borderRadius: 4, padding: "1px 5px" }}>{tags.generationMode}</span>
+                      {tags.remotionFamily !== "—" && <span style={{ fontSize: "0.6rem", background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "1px 5px" }}>{tags.remotionFamily}</span>}
+                      {tags.layoutMode !== "—" && <span style={{ fontSize: "0.6rem", background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "1px 5px" }}>{tags.layoutMode}</span>}
+                      {s.visual_judgement && <span style={{ fontSize: "0.6rem", background: "#f0fdf4", color: "#16a34a", borderRadius: 4, padding: "1px 5px" }}>★{s.visual_judgement.score}</span>}
+                    </div>
+                    {s.urls.video_url || s.output?.path ? (
+                      <VideoAspectFrame aspectRatio={getSampleAspectRatio(s as unknown as Record<string, unknown>)} fitMode={getSampleFitMode(s as unknown as Record<string, unknown>)} maxHeight={140}>
+                        <video controls playsInline muted src={resolveUrl(s.urls.video_url || s.output?.path || "")} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      </VideoAspectFrame>
+                    ) : (
+                      <div style={{ height: 80, background: "#f1f5f9", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "0.72rem" }}>暂无预览</div>
+                    )}
+                    <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+                      <button onClick={() => handleAddToTray(s.id)} disabled={inTray || compareTray.length >= 4} style={{ background: inTray ? "#bfdbfe" : "#eff6ff", color: inTray ? "#3b82f6" : "#1d4ed8", border: "1px solid", borderColor: inTray ? "#bfdbfe" : "#93c5fd", borderRadius: 5, padding: "0.2rem 0.5rem", fontSize: "0.65rem", cursor: inTray ? "default" : "pointer" }}>
+                        {inTray ? "✓ 已加入" : "⚖ 加入对比篮"}
+                      </button>
+                      <button onClick={() => handleUpdateReview(s.id, s.status === "approved" ? "candidate" : "approved")} style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: 5, padding: "0.2rem 0.5rem", fontSize: "0.65rem", cursor: "pointer" }}>
+                        {s.status === "approved" ? "取消确认" : "✓ 通过"}
+                      </button>
+                      <button onClick={() => handleUpdateReview(s.id, "rejected")} style={{ background: "#fef2f2", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 5, padding: "0.2rem 0.5rem", fontSize: "0.65rem", cursor: "pointer" }}>
+                        ✗ 淘汰
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* V1.2.1: 对比视图浮层 */}
+      {showCompareView && traySamples.length >= 2 && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div style={{ background: "white", borderRadius: 16, width: "100%", maxWidth: 1200, maxHeight: "95vh", overflowY: "auto", display: "flex", flexDirection: "column" }}>
+            {/* 浮层头部 */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
+              <div>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>对比视图</h2>
+                <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: "2px 0 0" }}>对比 {traySamples.length} 条样片的参数差异</p>
+              </div>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button onClick={() => { navigator.clipboard.writeText(buildValidationReport(traySamples)); setSuccessMsg("已复制验证报告"); setTimeout(() => setSuccessMsg(""), 3000); }} style={{ background: "#7c3aed", color: "white", border: "none", borderRadius: 8, padding: "0.45rem 1rem", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer" }}>
+                  📋 复制验证报告
+                </button>
+                <button onClick={() => setShowCompareView(false)} style={{ background: "#f1f5f9", color: "#475569", border: "none", borderRadius: 8, padding: "0.45rem 1rem", fontSize: "0.8rem", cursor: "pointer" }}>
+                  关闭
+                </button>
+              </div>
+            </div>
+
+            {/* 视频对比区 */}
+            <div style={{ padding: "1rem 1.25rem", display: "grid", gridTemplateColumns: traySamples.length === 2 ? "1fr 1fr" : "1fr 1fr 1fr", gap: "0.75rem", flex: "0 0 auto" }}>
+              {traySamples.map((s) => {
+                const tags = getValidationTags(s);
+                const src = resolveUrl(s.urls.video_url || s.output?.path || "");
+                return (
+                  <div key={s.id} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.style_name}</div>
+                    <div style={{ fontSize: "0.68rem", color: "#64748b", display: "flex", flexWrap: "wrap", gap: "0.2rem" }}>
+                      <span style={{ background: "#ede9fe", color: "#7c3aed", borderRadius: 4, padding: "1px 5px" }}>{tags.route}</span>
+                      <span style={{ background: "#dbeafe", color: "#1d4ed8", borderRadius: 4, padding: "1px 5px" }}>{tags.aspectRatio}</span>
+                      <span style={{ background: "#f0fdf4", color: "#16a34a", borderRadius: 4, padding: "1px 5px" }}>{tags.generationMode}</span>
+                      {s.visual_judgement && <span style={{ background: "#fef3c7", color: "#92400e", borderRadius: 4, padding: "1px 5px" }}>★{s.visual_judgement.score}</span>}
+                    </div>
+                    {src ? (
+                      <VideoAspectFrame aspectRatio={getSampleAspectRatio(s as unknown as Record<string, unknown>)} fitMode={getSampleFitMode(s as unknown as Record<string, unknown>)} maxHeight={220}>
+                        <video controls playsInline muted src={src} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                      </VideoAspectFrame>
+                    ) : (
+                      <div style={{ height: 120, background: "#f1f5f9", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: "0.75rem" }}>暂无预览</div>
+                    )}
+                    <div style={{ fontSize: "0.65rem", color: "#64748b" }}>
+                      {s.duration_sec}s · {tags.remotionFamily} · {tags.layoutMode}
+                    </div>
+                    <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                      <button onClick={() => { handleUpdateReview(s.id, "approved"); }} style={{ background: s.status === "approved" ? "#10b981" : "#f0fdf4", color: s.status === "approved" ? "white" : "#16a34a", border: "1px solid #bbf7d0", borderRadius: 4, padding: "0.2rem 0.5rem", fontSize: "0.62rem", cursor: "pointer" }}>✓ 通过</button>
+                      <button onClick={() => { handleUpdateReview(s.id, "rejected"); }} style={{ background: s.status === "rejected" ? "#ef4444" : "#fef2f2", color: s.status === "rejected" ? "white" : "#ef4444", border: "1px solid #fecaca", borderRadius: 4, padding: "0.2rem 0.5rem", fontSize: "0.62rem", cursor: "pointer" }}>✗ 淘汰</button>
+                      <button onClick={() => handleRemoveFromTray(s.id)} style={{ background: "#fef2f2", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 4, padding: "0.2rem 0.5rem", fontSize: "0.62rem", cursor: "pointer" }}>移除</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 差异参数表 */}
+            <div style={{ padding: "0 1.25rem 1rem", overflowX: "auto" }}>
+              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.5rem" }}>差异参数表</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.72rem" }}>
+                <thead>
+                  <tr style={{ background: "#f8fafc" }}>
+                    <th style={{ textAlign: "left", padding: "0.4rem 0.6rem", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 600, whiteSpace: "nowrap" }}>字段</th>
+                    {traySamples.map((s) => (
+                      <th key={s.id} style={{ textAlign: "left", padding: "0.4rem 0.6rem", borderBottom: "1px solid #e2e8f0", color: "#1e293b", fontWeight: 600, minWidth: 100 }}>{s.style_name}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {buildDiffTable(traySamples).map((row) => (
+                    <tr key={row.field} style={{ background: row.allSame ? "transparent" : "#fffbeb" }}>
+                      <td style={{ padding: "0.35rem 0.6rem", borderBottom: "1px solid #f1f5f9", color: "#64748b", fontWeight: 500 }}>{row.label}</td>
+                      {traySamples.map((s) => (
+                        <td key={s.id} style={{ padding: "0.35rem 0.6rem", borderBottom: "1px solid #f1f5f9", color: row.allSame ? "#475569" : "#92400e", fontWeight: row.allSame ? 400 : 700 }}>{row.values[s.id]}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>
