@@ -128,6 +128,12 @@ export default function StyleSweepPage() {
   const [data, setData] = useState<SweepResponse | null>(null);
   const [error, setError] = useState("");
 
+  // V1.2.3: Job polling state
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<string>("");
+  const [jobProgress, setJobProgress] = useState({ total: 0, completed: 0, succeeded: 0, failed: 0 });
+  const [currentStyleName, setCurrentStyleName] = useState("");
+
   // V0.8.0：人工标注 state（仅前端，刷新即丢）
   const [issueMarks, setIssueMarks] = useState<Record<string, IssueMark>>({});
   // 展开排查信息的卡片集合
@@ -143,13 +149,18 @@ export default function StyleSweepPage() {
     setRunning(true);
     setError("");
     setData(null);
+    setJobId(null);
+    setJobStatus("");
+    setJobProgress({ total: 0, completed: 0, succeeded: 0, failed: 0 });
+    setCurrentStyleName("");
     // 重置标注（新一轮排查从零开始）
     setIssueMarks({});
     setExpanded({});
     setReportCopyState("");
     setJsonCopyState({});
     try {
-      const resp = await fetch(`${API_BASE}/style-sweep`, {
+      // V1.2.3: 先创建 job，立即拿到 jobId
+      const jobResp = await fetch(`${API_BASE}/style-sweep-jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -158,12 +169,65 @@ export default function StyleSweepPage() {
           params: { targetDuration: duration, aspectRatio: "9:16", keyPointCount, useLlmPlan },
         }),
       });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      setData(await resp.json());
+      if (!jobResp.ok) throw new Error(`HTTP ${jobResp.status}`);
+      const jobInfo: { jobId: string; status: string } = await jobResp.json();
+      setJobId(jobInfo.jobId);
+      setJobStatus(jobInfo.status);
+      // 开始轮询
+      pollJob(jobInfo.jobId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
       setRunning(false);
+    }
+  };
+
+  // V1.2.3: 轮询 job 状态，每 2.5 秒一次
+  const pollJob = async (id: string) => {
+    try {
+      const resp = await fetch(`${API_BASE}/style-sweep-jobs/${id}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const job = await resp.json();
+      setJobStatus(job.status);
+      setJobProgress({
+        total: job.total ?? 0,
+        completed: job.completed ?? 0,
+        succeeded: job.succeeded ?? 0,
+        failed: job.failed ?? 0,
+      });
+      setCurrentStyleName(job.currentStyleName ?? "");
+
+      // 已有结果就立即增量展示
+      if (job.results && job.results.length > 0) {
+        setData({
+          routeId: job.routeId,
+          routeName: job.routeName,
+          styleCount: job.total,
+          succeededCount: job.succeeded ?? 0,
+          results: job.results,
+        });
+      }
+
+      // 终止状态：停止轮询
+      if (job.status === "completed" || job.status === "failed" || job.status === "cancelled") {
+        setRunning(false);
+        // 如果已有完整数据就不覆盖（job.results 可能已全部返回）
+        if ((!data || data.results.length === 0) && job.results) {
+          setData({
+            routeId: job.routeId,
+            routeName: job.routeName,
+            styleCount: job.total,
+            succeededCount: job.succeeded ?? 0,
+            results: job.results,
+          });
+        }
+        return;
+      }
+
+      // 继续轮询
+      setTimeout(() => pollJob(id), 2500);
+    } catch (e) {
+      // 网络抖动不中断，等下一轮
+      setTimeout(() => pollJob(id), 2500);
     }
   };
 
@@ -509,11 +573,53 @@ export default function StyleSweepPage() {
           background: running || !confirmed || !content.trim() ? "#cbd5e1" : "#c026d3", color: "white",
           cursor: running || !confirmed || !content.trim() ? "not-allowed" : "pointer",
         }}>
-        {running ? "⏳ 出片中…（请耐心等待，勿关闭）" : "🎨 开始对比样式"}
+        {running ? "⏳ 运行中..." : "🎨 开始对比样式"}
       </button>
 
       {error && <div style={{ marginTop: "1rem", color: "#ef4444", fontSize: "0.85rem" }}>出错：{error}</div>}
-      {running && (
+
+      {/* V1.2.3: 进度展示（job 轮询模式） */}
+      {running && jobId && (
+        <div style={{
+          marginTop: "1.5rem",
+          background: "#f5f3ff",
+          border: "1px solid #c4b5fd",
+          borderRadius: 12,
+          padding: "1rem 1.25rem",
+          fontSize: "0.85rem",
+          color: "#4c1d95",
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: "0.5rem" }}>🎬 正在生成样式视频</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.5rem" }}>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: "#7c3aed" }}>路线</div>
+              <div style={{ fontWeight: 600 }}>{data?.routeName ?? activeRoute.name}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: "#7c3aed" }}>进度</div>
+              <div style={{ fontWeight: 600 }}>{jobProgress.completed} / {jobProgress.total}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: "#7c3aed" }}>当前样式</div>
+              <div style={{ fontWeight: 600 }}>{currentStyleName || "—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: "#16a34a" }}>成功</div>
+              <div style={{ fontWeight: 600, color: "#16a34a" }}>{jobProgress.succeeded}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: "#dc2626" }}>失败</div>
+              <div style={{ fontWeight: 600, color: "#dc2626" }}>{jobProgress.failed}</div>
+            </div>
+          </div>
+          <div style={{ marginTop: "0.6rem", fontSize: "0.78rem", color: "#7c3aed" }}>
+            ✅ 已完成样式可先播放查看，请勿关闭页面
+          </div>
+        </div>
+      )}
+
+      {/* V1.2.3: 旧同步模式运行中提示（无 jobId 时降级显示） */}
+      {running && !jobId && (
         <div style={{ marginTop: "1.5rem", color: "#64748b", fontSize: "0.85rem" }}>
           正在逐样式出片，完成后一次性并排展示。
         </div>

@@ -496,6 +496,41 @@ def style_sweep(request: StyleSweepRequest) -> dict[str, Any]:
 
 
 # ─────────────────────────────────────────────
+# style-sweep-jobs — async job API for progress reporting
+# ─────────────────────────────────────────────
+@router.post("/style-sweep-jobs")
+def create_style_sweep_job(request: StyleSweepRequest) -> dict[str, Any]:
+    """Create a new async style-sweep job. Returns jobId immediately;
+    poll GET /style-sweep-jobs/{jobId} for progress."""
+    from app.video_lab.style_sweep import styles_for_route
+    from app.video_lab.style_sweep_jobs import create_sweep_job
+
+    route_styles = styles_for_route(request.routeId)
+    route_name = route_styles[0].get("route_name", request.routeId) if route_styles else request.routeId
+
+    job = create_sweep_job(
+        content=request.content,
+        route_id=request.routeId,
+        route_name=route_name,
+        total=len(route_styles),
+        render_fn=_run_visual_compose,
+        styles=route_styles,
+    )
+    return {"jobId": job.jobId, "status": job.status}
+
+
+@router.get("/style-sweep-jobs/{job_id}")
+def get_style_sweep_job(job_id: str) -> dict[str, Any]:
+    """Return current state of a style-sweep job."""
+    from app.video_lab.style_sweep_jobs import get_sweep_job
+
+    job = get_sweep_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    return job.to_dict()
+
+
+# ─────────────────────────────────────────────
 # Route Recommendation
 # ─────────────────────────────────────────────
 @router.get("/route-recommendation")
