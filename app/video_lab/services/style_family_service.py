@@ -407,3 +407,101 @@ def run_visual_style_matrix(request) -> dict[str, Any]:
         "items": items,
         "totalElapsedMs": elapsed,
     }
+
+
+# V1.2.4: Visual Technique Matrix
+VALID_VISUAL_TECHNIQUE_MATRIX_FAMILIES = [
+    "caption_story",
+    "data_news",
+    "timeline_news",
+]
+
+VALID_VISUAL_TECHNIQUES = [
+    "academic_sketch",
+]
+
+
+def run_visual_technique_matrix(request) -> dict[str, Any]:
+    """
+    V1.2.4: Visual Technique Matrix — family × visualTechnique clips.
+
+    First technique: academic_sketch — paper-like background, grid lines, hand-drawn annotations.
+
+    Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
+    All clips are temporary lab assets.
+    """
+    t0 = time.time()
+
+    content = request.content.strip() or STYLE_FAMILY_DEFAULT_CONTENT
+    params = dict(request.params or {})
+    params["visualRoute"] = "template_programmatic_render"
+    clip_seconds = int(params.get("clipSeconds", 2))
+    key_point_count = int(params.get("keyPointCount", 2))
+
+    # Inject defaults when not explicitly set
+    if "visualStylePreset" not in params:
+        params["visualStylePreset"] = "warm_paper"
+    if "backgroundPreset" not in params:
+        params["backgroundPreset"] = "warm_cinematic"
+    if "transitionStyle" not in params:
+        params["transitionStyle"] = "slide_fade"
+
+    matrix_config = dict(request.matrix or {})
+    families = matrix_config.get("families", VALID_VISUAL_TECHNIQUE_MATRIX_FAMILIES)
+    visual_techniques = matrix_config.get("visualTechniques", VALID_VISUAL_TECHNIQUES)
+
+    families = [f for f in families if f in VALID_VISUAL_TECHNIQUE_MATRIX_FAMILIES]
+    visual_techniques = [vt for vt in visual_techniques if vt in VALID_VISUAL_TECHNIQUES]
+
+    if not families:
+        raise ValueError(
+            f"families filter resulted in empty set. "
+            f"Allowed values: {VALID_VISUAL_TECHNIQUE_MATRIX_FAMILIES}"
+        )
+    if not visual_techniques:
+        raise ValueError(
+            f"visualTechniques filter resulted in empty set. "
+            f"Allowed values: {VALID_VISUAL_TECHNIQUES}"
+        )
+    total = len(families) * len(visual_techniques)
+    if total > MAX_MATRIX_ITEMS:
+        raise ValueError(
+            f"visual technique matrix is limited to {MAX_MATRIX_ITEMS} clips per request, "
+            f"but {total} requested ({len(families)} families × {len(visual_techniques)} techniques). "
+            f"Reduce families or techniques."
+        )
+
+    items: list[dict[str, Any]] = []
+
+    for family_id in families:
+        for vt in visual_techniques:
+            family_params = {
+                **params,
+                "remotionFamily": family_id,
+                "keyPointCount": key_point_count,
+                "visualTechnique": vt,
+            }
+            result = render_clip_preview(
+                content=content,
+                visual_route="template_programmatic_render",
+                params=family_params,
+                clip_seconds=clip_seconds,
+            )
+            items.append({
+                "family": family_id,
+                "visualTechnique": vt,
+                "success": result.get("success", False),
+                "videoUrl": result.get("clipUrl", ""),
+                "experimentId": result.get("experimentId", ""),
+                "clipSeconds": result.get("clipSeconds", clip_seconds),
+                "elapsedMs": result.get("elapsedMs", 0),
+                "message": result.get("message", ""),
+                "warnings": result.get("warnings", []),
+            })
+
+    elapsed = int((time.time() - t0) * 1000)
+
+    return {
+        "items": items,
+        "totalElapsedMs": elapsed,
+    }

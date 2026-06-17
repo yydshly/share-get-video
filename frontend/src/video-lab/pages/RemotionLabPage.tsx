@@ -206,8 +206,8 @@ const EFFECT_PROTOTYPES = [
     remotionTechniques: ["SVG filter", "Rough.js 风格", "frame wobble", "spring", "handwritten typography", "paper grid background"],
     futureParameter: "visualTechnique: academic_sketch",
     priority: "P0" as const,
-    implementationLevel: "prototype_reference" as const,
-    nextStep: "优先转为真实 Remotion visualTechnique，适合第一批实现。",
+    implementationLevel: "implemented_minimal" as const,
+    nextStep: "已接入 remotion-style-family 视觉技法矩阵，可直接生成 academic_sketch 样片。",
   },
   {
     id: "agent_sandbox_25d",
@@ -373,6 +373,7 @@ function TabEffectPrototype() {
     prototype_reference: { bg: "#fffbeb", color: "#b45309" },
     planned: { bg: "#eff6ff", color: "#2563eb" },
     implemented: { bg: "#f0fdf4", color: "#15803d" },
+    implemented_minimal: { bg: "#f0fdf4", color: "#15803d" },
   };
 
   return (
@@ -430,7 +431,8 @@ function TabEffectPrototype() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
           {EFFECT_PROTOTYPES.map((proto) => {
-            const lv = levelBg[proto.implementationLevel] ?? levelBg.prototype_reference;
+            const implLevel: string = proto.implementationLevel;
+            const lv = levelBg[implLevel] ?? levelBg.prototype_reference;
             return (
               <div
                 key={proto.id}
@@ -495,10 +497,34 @@ function TabEffectPrototype() {
                   </div>
                 </div>
 
-                <div style={{ padding: "0.5rem 1rem", borderTop: "1px solid #f1f5f9", background: "#fefce8" }}>
-                  <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "#b45309" }}>
-                    ⚠ 当前状态：{proto.implementationLevel === "prototype_reference" ? "prototype_reference — 尚未接入真实 Remotion 渲染" : proto.implementationLevel}
-                  </span>
+                <div style={{ padding: "0.5rem 1rem", borderTop: "1px solid #f1f5f9", background: proto.implementationLevel === "implemented_minimal" ? "#f0fdf4" : "#fefce8" }}>
+                  {proto.implementationLevel === "implemented_minimal" ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "#15803d" }}>
+                        ✓ 当前状态：implemented_minimal — 已接入最小真实渲染
+                      </span>
+                      <Link
+                        to="/video-lab/remotion-style-family#visual-technique-matrix"
+                        style={{
+                          display: "inline-block",
+                          background: "#16a34a",
+                          color: "white",
+                          borderRadius: "6px",
+                          padding: "0.3rem 0.7rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          textDecoration: "none",
+                          textAlign: "center",
+                        }}
+                      >
+                        前往生成 academic_sketch 样片
+                      </Link>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "#b45309" }}>
+                      ⚠ 当前状态：{implLevel === "prototype_reference" ? "prototype_reference — 尚未接入真实 Remotion 渲染" : implLevel}
+                    </span>
+                  )}
                 </div>
               </div>
             );

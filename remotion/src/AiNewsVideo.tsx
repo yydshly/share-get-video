@@ -253,6 +253,108 @@ const FloatingParticles: React.FC<{ count: number; color: string; maxSize?: numb
   return <>{dots}</>;
 };
 
+// V1.2.4: AcademicSketchLayer — hand-drawn annotation overlay for academic_sketch technique
+// Lightweight SVG annotations: underlines, circles, arrows, question marks — low opacity, non-blocking
+const AcademicSketchLayer: React.FC<{ accent?: string; highlight?: string }> = ({ accent = "#b45309", highlight = "#d97706" }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  // Very subtle entrance — slight wobble over first 2 seconds
+  const opacity = Math.min(1, frame / (fps * 0.8));
+  const wobble = Math.sin(frame / 18) * 1.5;
+  const wobbleY = Math.cos(frame / 22) * 1.2;
+
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 12, pointerEvents: "none", opacity }}>
+      <svg
+        width="100%"
+        height="100%"
+        viewBox="0 0 1080 1920"
+        style={{ position: "absolute", inset: 0 }}
+        preserveAspectRatio="none"
+      >
+        {/* Hand-drawn underline — top area, wavy */}
+        <path
+          d={`M 120 ${880 + wobbleY} Q 220 ${876 + wobbleY} 320 ${882 + wobbleY} T 520 ${878 + wobbleY} T 720 ${883 + wobbleY} T 900 ${879 + wobbleY}`}
+          stroke={accent}
+          strokeWidth="2.5"
+          fill="none"
+          strokeLinecap="round"
+          opacity="0.35"
+        />
+        {/* Hand-drawn circle annotation — top right */}
+        <ellipse
+          cx="920"
+          cy="320"
+          rx="58"
+          ry="52"
+          stroke={highlight}
+          strokeWidth="2"
+          fill="none"
+          strokeDasharray="4 3"
+          opacity="0.4"
+          transform={`rotate(${wobble * 0.3} 920 320)`}
+        />
+        {/* Hand-drawn arrow — left side pointing up */}
+        <path
+          d={`M 80 ${1600 + wobbleY} Q 82 ${1550 + wobbleY} 100 ${1480 + wobbleY} L 92 ${1490 + wobbleY} M 100 ${1480 + wobbleY} L 108 ${1498 + wobbleY}`}
+          stroke={accent}
+          strokeWidth="2"
+          fill="none"
+          strokeLinecap="round"
+          opacity="0.3"
+        />
+        {/* Question mark — top left */}
+        <text
+          x="100"
+          y="360"
+          fontSize="48"
+          fontFamily="Georgia, serif"
+          fill={accent}
+          opacity="0.22"
+          fontStyle="italic"
+          transform={`rotate(${-6 + wobble * 0.2} 100 360)`}
+        >
+          ?
+        </text>
+        {/* Second question mark — bottom right */}
+        <text
+          x="900"
+          y="1720"
+          fontSize="40"
+          fontFamily="Georgia, serif"
+          fill={highlight}
+          opacity="0.18"
+          fontStyle="italic"
+          transform={`rotate(${4 - wobble * 0.15} 900 1720)`}
+        >
+          ?
+        </text>
+        {/* Hand-drawn underline — bottom area */}
+        <path
+          d={`M 140 ${1300 + wobbleY * 0.7} Q 240 ${1296 + wobbleY * 0.7} 380 ${1302 + wobbleY * 0.7} T 620 ${1298 + wobbleY * 0.7} T 860 ${1303 + wobbleY * 0.7}`}
+          stroke={accent}
+          strokeWidth="2"
+          fill="none"
+          strokeLinecap="round"
+          opacity="0.25"
+        />
+        {/* Asterisk / star annotation */}
+        <text
+          x="540"
+          y="1850"
+          fontSize="36"
+          fontFamily="Georgia, serif"
+          fill={highlight}
+          opacity="0.2"
+        >
+          ✱
+        </text>
+      </svg>
+    </div>
+  );
+};
+
 // V1.2.4: BackgroundLayer — frame-animated programmatic backgrounds (no image assets).
 // Each preset has a distinct MOTION signature (Remotion-specific — a static renderer
 // like Pillow can't do flowing grids / scan sweeps / drifting particles):
@@ -263,16 +365,66 @@ const FloatingParticles: React.FC<{ count: number; color: string; maxSize?: numb
 //   neon_circuit     → neon circuit grid + pulse nodes + scan sweep
 //   deep_space       → deep starfield + orbital arcs + drifting nebula
 // V1.2.4: visualStylePreset overrides surface background (light_editorial → white)
+// V1.2.4: visualTechnique === "academic_sketch" uses paper background
 const BackgroundLayer: React.FC<{
   preset?: BackgroundPreset;
   accent?: string;
   highlight?: string;
   visualStylePreset?: string;
-}> = ({ preset = "tech_grid_dark", accent = C.accent, highlight = C.highlight, visualStylePreset }) => {
+  visualTechnique?: string;
+}> = ({ preset = "tech_grid_dark", accent = C.accent, highlight = C.highlight, visualStylePreset, visualTechnique }) => {
   const tokens = resolveVisualStyleTokens(visualStylePreset);
   const frame = useCurrentFrame();
   // Use visual style surface background when set, otherwise preset background
   const baseBg = tokens.surfaceBackground;
+
+  // V1.2.4: academic_sketch — warm paper grid background, minimal motion
+  if (visualTechnique === "academic_sketch") {
+    const paperBg = "#faf7f2";
+    const gridColor = "rgba(180, 160, 120, 0.18)";
+    const marginColor = "rgba(220, 80, 60, 0.28)";
+    // Slight wobble on grid lines for hand-drawn feel
+    const wobbleX = Math.sin(frame / 22) * 1.2;
+    const wobbleY = Math.cos(frame / 28) * 0.8;
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: paperBg, overflow: "hidden" }}>
+        {/* Grid lines — faint graph paper */}
+        <div style={{
+          position: "absolute", inset: "-5%",
+          transform: `translate(${wobbleX}px, ${wobbleY}px)`,
+          backgroundImage: `
+            linear-gradient(90deg, ${gridColor} 1px, transparent 1px),
+            linear-gradient(0deg, ${gridColor} 1px, transparent 1px)
+          `,
+          backgroundSize: "32px 32px",
+          opacity: 0.85,
+        }} />
+        {/* Left margin line — red ink */}
+        <div style={{
+          position: "absolute", left: "12%", top: 0, bottom: 0, width: 1,
+          background: marginColor,
+        }} />
+        {/* Top margin line */}
+        <div style={{
+          position: "absolute", top: "8%", left: 0, right: 0, height: 1,
+          background: marginColor,
+        }} />
+        {/* Subtle paper grain overlay */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "repeating-radial-gradient(circle at 50% 50%, transparent 0, rgba(180,160,120,0.04) 1px, transparent 2px)",
+          backgroundSize: "4px 4px",
+          opacity: 0.6,
+        }} />
+        {/* Gentle vignette to soften edges */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse at center, transparent 60%, rgba(160,140,100,0.15) 100%)",
+        }} />
+      </div>
+    );
+  }
+
   if (preset === "glass_dashboard") {
     // ── glass_dashboard: frosted glass panels + layered blue-purple glows ──
     // Key differentiator: backdrop-blur glass panels, NOT just glows
@@ -2983,7 +3135,9 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   return (
     <AbsoluteFill style={{ background: "transparent" }}>
       {/* V1.2.1.4: Programmatic background layer at root — individual pages can override */}
-      <BackgroundLayer preset={style?.backgroundPreset} accent={style?.accentColor} highlight={style?.highlightColor} visualStylePreset={style?.visualStylePreset} />
+      <BackgroundLayer preset={style?.backgroundPreset} accent={style?.accentColor} highlight={style?.highlightColor} visualStylePreset={style?.visualStylePreset} visualTechnique={style?.visualTechnique} />
+      {/* V1.2.4: Academic sketch annotation overlay */}
+      {style?.visualTechnique === "academic_sketch" && <AcademicSketchLayer accent={style?.accentColor} highlight={style?.highlightColor} />}
       {/* Cover / report opening */}
       <Sequence from={0} durationInFrames={coverFrames + safeOverlap}>
         {isReportSourceBound ? (

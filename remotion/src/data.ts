@@ -61,6 +61,9 @@ export type BackgroundPreset =
 // V1.2.4: Visual style preset — overall visual tone overrides
 export type VisualStylePreset = "light_editorial" | "warm_paper" | "bold_magazine";
 
+// V1.2.4: Visual technique —特色表现技法
+export type VisualTechnique = "academic_sketch";
+
 export type RemotionStyle = {
   accentColor?: string;     // 主题强调色（标号/分隔线/数据条/图标）
   highlightColor?: string;  // 关键词/数字高亮色
@@ -83,6 +86,8 @@ export type RemotionStyle = {
   debugStackLabels?: boolean;
   // V1.2.4: Visual style preset — overall visual tone (light/warm/bold)
   visualStylePreset?: VisualStylePreset;
+  // V1.2.4: Visual technique — academic_sketch (paper-like, grid, hand-drawn)
+  visualTechnique?: VisualTechnique;
 };
 
 // V0.6.2: Remotion family — selects visual presentation paradigm

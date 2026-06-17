@@ -30,6 +30,7 @@ from app.video_lab.schemas import (
     BackgroundVariantMatrixRequest,
     TransitionVariantMatrixRequest,
     VisualStyleMatrixRequest,
+    VisualTechniqueMatrixRequest,
     TechniqueProbeRequest,
     StyleSweepRequest,
 )
@@ -47,6 +48,7 @@ from app.video_lab.services import (
     run_background_variant_matrix,
     run_transition_variant_matrix,
     run_visual_style_matrix,
+    run_visual_technique_matrix,
     run_technique_probe_endpoint,
     run_style_sweep_endpoint,
     extract_style_sample_assets,
@@ -428,6 +430,20 @@ def style_family_visual_style_matrix(request: VisualStyleMatrixRequest) -> dict[
     """
     try:
         return run_visual_style_matrix(request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# V1.2.4: Lab-only visual technique matrix
+@router.post("/style-family/visual-technique-matrix")
+def style_family_visual_technique_matrix(request: VisualTechniqueMatrixRequest) -> dict[str, Any]:
+    """Visual Technique Matrix: family x visualTechnique clips.
+
+    First technique: academic_sketch (paper-like, grid, hand-drawn annotations).
+    Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
+    """
+    try:
+        return run_visual_technique_matrix(request)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

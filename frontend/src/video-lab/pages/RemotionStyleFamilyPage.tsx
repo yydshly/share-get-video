@@ -86,6 +86,24 @@ interface VisualStyleMatrixResponse {
   totalElapsedMs: number;
 }
 
+// V1.2.4: Visual Technique Matrix
+interface VisualTechniqueMatrixItem {
+  family: string;
+  visualTechnique: string;
+  success: boolean;
+  videoUrl: string;
+  experimentId: string;
+  clipSeconds: number;
+  elapsedMs: number;
+  message: string;
+  warnings: string[];
+}
+
+interface VisualTechniqueMatrixResponse {
+  items: VisualTechniqueMatrixItem[];
+  totalElapsedMs: number;
+}
+
 // ─── Style Family Definition ───────────────────────────────────────────────────
 
 interface StyleFamily {
@@ -2148,6 +2166,193 @@ function VisualStyleVariantMatrix({
   );
 }
 
+// V1.2.4: Visual Technique Matrix Component
+function VisualTechniqueVariantMatrix({
+  result,
+  onReload,
+  loading,
+}: {
+  result: VisualTechniqueMatrixResponse | null;
+  onReload: () => void;
+  loading: boolean;
+}) {
+  const resolveUrl = (u: string) =>
+    u && u.startsWith("/runtime/")
+      ? `${import.meta.env.VITE_API_BASE?.replace(/\/video-lab$/, "") ?? ""}${u}`
+      : u || "";
+
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1.25rem",
+        marginBottom: "2.5rem",
+        overflow: "hidden",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.85rem", flexWrap: "wrap" }}>
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+          视觉技法矩阵 · V1.2.4
+        </h2>
+        <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
+          3 family × 1 technique = 3 clips
+        </span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {result && (
+            <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+              {result.items.filter((it) => it.success).length}/{result.items.length} 成功 · {result.totalElapsedMs}ms
+            </span>
+          )}
+          <button
+            onClick={onReload}
+            disabled={loading}
+            style={{
+              background: loading ? "#94a3b8" : "#7c3aed",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              padding: "0.45rem 1rem",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              cursor: loading ? "wait" : "pointer",
+            }}
+          >
+            {loading ? "渲染中..." : "运行视觉技法矩阵"}
+          </button>
+        </div>
+      </div>
+
+      <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.85rem" }}>
+        同一内容（Caption Story / Data News / Timeline）× academic_sketch 视觉技法，
+        观察手绘网格纸、纸张质感、学术批注的视觉特征。Lab-only。
+      </p>
+
+      {/* Grid */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          gap: "0.85rem",
+        }}
+      >
+        {(result?.items ?? []).map((item) => {
+          const hasVideo = item.success && Boolean(item.videoUrl);
+          return (
+            <div
+              key={`${item.family}-${item.visualTechnique}`}
+              style={{
+                border: "1px solid #d4a57430",
+                borderRadius: "10px",
+                overflow: "hidden",
+                background: "white",
+              }}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #d4a57418 0%, #faf7f2 100%)",
+                  borderBottom: "1px solid #d4a57430",
+                  padding: "0.5rem 0.75rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                }}
+              >
+                <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#92400e" }}>
+                  {item.family}
+                </span>
+                <span style={{ color: "#d4a574", fontSize: "0.65rem" }}>×</span>
+                <span style={{ fontSize: "0.75rem", color: "#b45309", fontFamily: "monospace" }}>
+                  {item.visualTechnique}
+                </span>
+              </div>
+
+              {/* Video */}
+              <div style={{ padding: "0.4rem", background: "#faf7f2" }}>
+                {hasVideo ? (
+                  <video
+                    controls
+                    src={resolveUrl(item.videoUrl)}
+                    style={{
+                      width: "100%",
+                      height: "220px",
+                      objectFit: "contain",
+                      display: "block",
+                      borderRadius: "6px",
+                      background: "#1e1a14",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      height: "220px",
+                      background: "#f5f0e8",
+                      borderRadius: "6px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "0.72rem",
+                      color: "#b45309",
+                      textAlign: "center",
+                      padding: "0.5rem",
+                    }}
+                  >
+                    {item.message ? `失败：${item.message}` : "待渲染"}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div style={{
+                padding: "0.35rem 0.75rem",
+                borderTop: "1px solid #d4a57420",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}>
+                {item.success ? (
+                  <span style={{ fontSize: "0.65rem", color: "#16a34a" }}>✓ 成功</span>
+                ) : (
+                  <span style={{ fontSize: "0.65rem", color: "#ef4444" }}>✗ 失败</span>
+                )}
+                <span style={{ fontSize: "0.62rem", color: "#94a3b8" }}>
+                  {item.elapsedMs}ms
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Observation hints */}
+      {result && (
+        <div
+          style={{
+            marginTop: "1rem",
+            padding: "0.85rem 1rem",
+            background: "#faf7f2",
+            borderRadius: "8px",
+            fontSize: "0.78rem",
+            color: "#475569",
+            lineHeight: 1.6,
+          }}
+        >
+          <div style={{ fontWeight: 600, color: "#92400e", marginBottom: "0.3rem" }}>观察提示：</div>
+          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+            <li>是否明显摆脱深蓝科技背景，呈现米白纸张质感？</li>
+            <li>是否有网格纸线条和手绘批注元素？</li>
+            <li>文字是否仍然可读？</li>
+            <li>caption_story / data_news / timeline_news 三种 family 下是否都能保持学术草稿质感？</li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function RemotionStyleFamilyPage() {
@@ -2166,6 +2371,10 @@ export default function RemotionStyleFamilyPage() {
   const [visualStyleMatrixLoading, setVisualStyleMatrixLoading] = useState(false);
   const [visualStyleMatrixResult, setVisualStyleMatrixResult] = useState<VisualStyleMatrixResponse | null>(null);
   const [visualStyleMatrixError, setVisualStyleMatrixError] = useState("");
+  // V1.2.4: Visual Technique Matrix state
+  const [visualTechniqueMatrixLoading, setVisualTechniqueMatrixLoading] = useState(false);
+  const [visualTechniqueMatrixResult, setVisualTechniqueMatrixResult] = useState<VisualTechniqueMatrixResponse | null>(null);
+  const [visualTechniqueMatrixError, setVisualTechniqueMatrixError] = useState("");
 
   const runCompare = async () => {
     setCompareLoading(true);
@@ -2271,6 +2480,40 @@ export default function RemotionStyleFamilyPage() {
       setVisualStyleMatrixError(String(e));
     } finally {
       setVisualStyleMatrixLoading(false);
+    }
+  };
+
+  // V1.2.4: Visual Technique Matrix
+  const runVisualTechniqueMatrix = async () => {
+    setVisualTechniqueMatrixLoading(true);
+    setVisualTechniqueMatrixError("");
+    setVisualTechniqueMatrixResult(null);
+    try {
+      const resp = await fetch(`${API_BASE}/style-family/visual-technique-matrix`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "研究显示，新一代 AI 模型在多模态理解、工具调用和复杂推理任务上都有显著提升，但评测指标仍然难以完整衡量真实智能。",
+          params: {
+            clipSeconds: 2,
+            keyPointCount: 2,
+            visualStylePreset: "warm_paper",
+            backgroundPreset: "warm_cinematic",
+            transitionStyle: "slide_fade",
+          },
+          matrix: {
+            families: ["caption_story", "data_news", "timeline_news"],
+            visualTechniques: ["academic_sketch"],
+          },
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+      setVisualTechniqueMatrixResult(data);
+    } catch (e) {
+      setVisualTechniqueMatrixError(String(e));
+    } finally {
+      setVisualTechniqueMatrixLoading(false);
     }
   };
 
@@ -2780,6 +3023,21 @@ export default function RemotionStyleFamilyPage() {
       {visualStyleMatrixError && (
         <div style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "1rem", padding: "0.75rem", background: "#fef2f2", borderRadius: "8px" }}>
           错误：{visualStyleMatrixError}
+        </div>
+      )}
+
+      {/* V1.2.4: Visual Technique Matrix */}
+      <div id="visual-technique-matrix">
+        <VisualTechniqueVariantMatrix
+          result={visualTechniqueMatrixResult}
+          onReload={runVisualTechniqueMatrix}
+          loading={visualTechniqueMatrixLoading}
+        />
+      </div>
+
+      {visualTechniqueMatrixError && (
+        <div style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "1rem", padding: "0.75rem", background: "#fef2f2", borderRadius: "8px" }}>
+          错误：{visualTechniqueMatrixError}
         </div>
       )}
 

@@ -244,6 +244,27 @@ class VisualStyleMatrixRequest(BaseModel):
     )
 
 
+class VisualTechniqueMatrixRequest(BaseModel):
+    """JSON body for POST /video-lab/style-family/visual-technique-matrix
+    V1.2.4: Lab-only visual technique matrix — family × visualTechnique.
+
+    Academic sketch as first implemented technique.
+    """
+
+    content: str = Field(
+        default="研究显示，新一代 AI 模型在多模态理解、工具调用和复杂推理任务上都有显著提升，但评测指标仍然难以完整衡量真实智能。",
+        description="Source content for lab clips",
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Render params such as keyPointCount, clipSeconds, visualStylePreset, backgroundPreset, transitionStyle",
+    )
+    matrix: dict[str, Any] = Field(
+        ...,
+        description="Matrix config with families and visualTechniques",
+    )
+
+
 class CreateChainBenchmarkRequest(BaseModel):
     """JSON body for POST /video-lab/chain-benchmarks"""
 
