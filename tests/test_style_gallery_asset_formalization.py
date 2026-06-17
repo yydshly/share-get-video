@@ -414,6 +414,80 @@ class TestMarkSampleForCompare:
         assert r2["status"] == SampleStatus.COMPARING.value
 
 
+# ─── Update Sample Status Tests ──────────────────────────────────────────────
+
+class TestUpdateSampleStatus:
+    """V1.2.3: POST /style-samples/{sample_id}/status updates sample status."""
+
+    def test_update_status_to_approved(self, temp_records_dir):
+        """Updating status to 'approved' should succeed and return updated sample."""
+        from app.video_lab.router import update_sample_status
+
+        sample = make_base_sample("s_status_001", status=SampleStatus.CANDIDATE)
+        sg_store.save_sample(sample)
+
+        result = update_sample_status("s_status_001", {"status": "approved"})
+
+        assert result["status"] == SampleStatus.APPROVED.value
+        assert result["id"] == "s_status_001"
+
+    def test_update_status_to_rejected(self, temp_records_dir):
+        """Updating status to 'rejected' should succeed."""
+        from app.video_lab.router import update_sample_status
+
+        sample = make_base_sample("s_status_002", status=SampleStatus.CANDIDATE)
+        sg_store.save_sample(sample)
+
+        result = update_sample_status("s_status_002", {"status": "rejected"})
+
+        assert result["status"] == SampleStatus.REJECTED.value
+
+    def test_update_status_to_candidate(self, temp_records_dir):
+        """Updating status back to 'candidate' should succeed (cancel confirm/review)."""
+        from app.video_lab.router import update_sample_status
+
+        sample = make_base_sample("s_status_003", status=SampleStatus.APPROVED)
+        sg_store.save_sample(sample)
+
+        result = update_sample_status("s_status_003", {"status": "candidate"})
+
+        assert result["status"] == SampleStatus.CANDIDATE.value
+
+    def test_update_status_to_comparing(self, temp_records_dir):
+        """Updating status to 'comparing' should succeed (cancel compare)."""
+        from app.video_lab.router import update_sample_status
+
+        sample = make_base_sample("s_status_004", status=SampleStatus.CANDIDATE)
+        sg_store.save_sample(sample)
+
+        result = update_sample_status("s_status_004", {"status": "comparing"})
+
+        assert result["status"] == SampleStatus.COMPARING.value
+
+    def test_update_status_invalid_returns_400(self, temp_records_dir):
+        """An invalid status value should return HTTP 400."""
+        from app.video_lab.router import update_sample_status
+        from fastapi import HTTPException
+
+        sample = make_base_sample("s_status_005", status=SampleStatus.CANDIDATE)
+        sg_store.save_sample(sample)
+
+        with pytest.raises(HTTPException) as exc_info:
+            update_sample_status("s_status_005", {"status": "not_a_real_status"})
+        assert exc_info.value.status_code == 400
+        assert "Invalid status" in exc_info.value.detail
+
+    def test_update_status_missing_sample_returns_404(self, temp_records_dir):
+        """Updating a non-existent sample should return HTTP 404."""
+        from app.video_lab.router import update_sample_status
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            update_sample_status("nonexistent_sample_id", {"status": "approved"})
+        assert exc_info.value.status_code == 404
+        assert "not found" in exc_info.value.detail.lower()
+
+
 # ─── Router Integration Tests ────────────────────────────────────────────────
 
 class TestSaveStyleSampleRouter:

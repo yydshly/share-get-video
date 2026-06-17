@@ -738,6 +738,8 @@ def mark_sample_for_compare(sample_id: str) -> dict[str, Any]:
 @router.post("/style-samples/{sample_id}/status")
 def update_sample_status(sample_id: str, request: dict[str, str]) -> dict[str, Any]:
     from app.video_lab.style_gallery import store as sg_store
+    from app.video_lab.style_gallery.models import SampleStatus
+
     sample = sg_store.get_sample(sample_id)
     if not sample:
         raise HTTPException(status_code=404, detail=f"Sample not found: {sample_id}")
