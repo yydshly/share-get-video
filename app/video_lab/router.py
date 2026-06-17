@@ -559,6 +559,35 @@ def delete_style_sweep_job(job_id: str) -> dict[str, Any]:
     }
 
 
+# ─────────────────────────────────────────────
+# style-sweep-assets — dry-run scan (Stage 3A-4)
+# ─────────────────────────────────────────────
+@router.get("/style-sweep-assets/scan")
+def scan_style_sweep_assets(
+    minAgeDays: int = 7,
+    includeProtected: bool = True,
+    limit: int = 500,
+) -> dict[str, Any]:
+    """Dry-run scan of Style Sweep runtime assets.
+
+    Returns asset inventory grouped into:
+    - protectedItems: files still referenced by Style Gallery samples (MUST NOT delete)
+    - deletableItems: unreferenced files old enough to consider cleaning
+    - skippedItems: unreferenced files too new to safely clean
+
+    This endpoint does NOT delete any files.
+    """
+    from app.video_lab.services.style_sweep_asset_cleanup_service import (
+        scan_style_sweep_assets as _scan,
+    )
+
+    return _scan(
+        min_age_days=minAgeDays,
+        include_protected=includeProtected,
+        limit=limit,
+    )
+
+
 class UpdateSweepJobMarksRequest(BaseModel):
     manualMarks: dict[str, Any] = Field(default_factory=dict)
 
