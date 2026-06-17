@@ -476,7 +476,7 @@ function SampleCard({
   copyingRerunId,
   rerunCopyFeedback,
   onCopyRerun,
-  // V1.2.3: 对比篮
+  // V1.2.3: 当前验证篮
   onAddToTray,
   inCompareTray = false,
 }: {
@@ -497,7 +497,7 @@ function SampleCard({
     message: string;
   } | null;
   onCopyRerun: (id: string) => void;
-  // V1.2.3: 对比篮
+  // V1.2.3: 当前验证篮
   onAddToTray?: (id: string) => void;
   inCompareTray?: boolean;
 }) {
@@ -1154,7 +1154,7 @@ function SampleCard({
         >
           {selectedForCompare ? "✓ 已加入对比" : "⚖ 加入对比"}
         </button>
-        {/* V1.2.3: 加入对比篮按钮 */}
+        {/* V1.2.3: 加入验证篮按钮 */}
         {onAddToTray && (
           <button
             onClick={() => onAddToTray(sample.id)}
@@ -1170,7 +1170,7 @@ function SampleCard({
               cursor: inCompareTray ? "default" : "pointer",
             }}
           >
-            {inCompareTray ? "✓ 已在对比篮" : "⚖ 对比篮"}
+            {inCompareTray ? "✓ 已在验证篮" : "⚖ 验证篮"}
           </button>
         )}
         {/* V0.4.2: 升级为模板按钮 */}
@@ -1446,9 +1446,12 @@ export default function StyleGalleryPage() {
   } | null>(null);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [activeTab, setActiveTab] = useState<"presets" | "gallery" | "compare" | "templates" | "validate">(() => {
+  // V1.2.3: 默认进入样片库，而非预置风格；带 sample_id 时优先 gallery
+  const [activeTab, setActiveTab] = useState<"gallery" | "validate" | "presets" | "templates" | "compare">(() => {
     const v = searchParams.get("tab");
-    return v === "gallery" || v === "compare" || v === "templates" || v === "validate" ? v : "presets";
+    if (v === "gallery" || v === "validate" || v === "presets" || v === "templates" || v === "compare") return v;
+    if (searchParams.get("sample_id")) return "gallery";
+    return "gallery";
   });
   const [scoreSummary, setScoreSummary] = useState<Record<string, RouteScoreSummary>>({});
   const [judgeAvailable, setJudgeAvailable] = useState<boolean>(true);
@@ -1461,7 +1464,7 @@ export default function StyleGalleryPage() {
   const [bundleTags, setBundleTags] = useState<string>("");
   const [savingBundle, setSavingBundle] = useState(false);
 
-  // V1.2.3: 验证中心 — 对比篮（本地暂存，不影响后端状态）
+  // V1.2.3: 验证中心 — 当前验证篮（本地暂存，不影响后端状态）
   const [compareTray, setCompareTray] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem("style_gallery_compare_tray") || "[]"); } catch { return []; }
   });
@@ -1614,7 +1617,7 @@ export default function StyleGalleryPage() {
   useEffect(() => { loadScoreHistory(); }, [loadScoreHistory]);
   useEffect(() => { loadJudgeAvailability(); }, [loadJudgeAvailability]);
   useEffect(() => { loadRouteFit(); }, [loadRouteFit]);
-  // V1.2.3: 持久化对比篮到 localStorage
+  // V1.2.3: 持久化当前验证篮到 localStorage
   useEffect(() => {
     try { localStorage.setItem("style_gallery_compare_tray", JSON.stringify(compareTray)); } catch { /* ignore */ }
   }, [compareTray]);
@@ -1763,11 +1766,11 @@ export default function StyleGalleryPage() {
     loadSamples();
   };
 
-  // V1.2.3: 对比篮操作（本地暂存，最多 4 条）
+  // V1.2.3: 当前验证篮操作（本地暂存，最多 4 条）
   const handleAddToTray = (id: string) => {
     if (compareTray.includes(id)) return;
     if (compareTray.length >= 4) {
-      setError("对比篮最多支持 4 条样片，请先移除部分样片。");
+      setError("当前验证篮最多支持 4 条样片，请先移除部分样片。");
       return;
     }
     setCompareTray((prev) => [...prev, id]);
@@ -1784,7 +1787,7 @@ export default function StyleGalleryPage() {
 
   const traySamples = samples.filter((s) => compareTray.includes(s.id));
 
-  // V1.2.3: 清理失效的对比篮项（localStorage 中存了但样片已不存在）
+  // V1.2.3: 清理失效的验证篮项（localStorage 中存了但样片已不存在）
   const validTrayIds = new Set(samples.map((s) => s.id));
   const missingTrayCount = compareTray.filter((id) => !validTrayIds.has(id)).length;
 
@@ -1996,14 +1999,47 @@ export default function StyleGalleryPage() {
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
           <span style={{ fontSize: "0.72rem", background: "#f1f5f9", border: "1px solid #e2e8f0", borderRadius: 8, padding: "3px 10px", color: "#475569" }}>总数 <b>{valStats.total}</b></span>
           <span style={{ fontSize: "0.72rem", background: "#f0fdfa", border: "1px solid #5eead4", borderRadius: 8, padding: "3px 10px", color: "#0f766e" }}>🧪 Workbench <b>{valStats.workbenchCount}</b></span>
-          <span style={{ fontSize: "0.72rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "3px 10px", color: "#1d4ed8" }}>⚖ 对比篮 <b>{compareTray.length}</b></span>
+          <span style={{ fontSize: "0.72rem", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: "3px 10px", color: "#1d4ed8" }}>⚖ 当前验证篮 <b>{compareTray.length}</b></span>
           <span style={{ fontSize: "0.72rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "3px 10px", color: "#166534" }}>★ 已评分 <b>{valStats.scoredCount}</b></span>
           <span style={{ fontSize: "0.72rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "3px 10px", color: "#166534" }}>✓ 已确认 <b>{valStats.approvedCount}</b></span>
           <span style={{ fontSize: "0.72rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "3px 10px", color: "#991b1b" }}>✗ 已淘汰 <b>{valStats.discardedCount}</b></span>
         </div>
       </div>
 
-      {/* V1.2.3: 对比篮面板 */}
+      {/* V1.2.3: 主流程引导条 */}
+      <div style={{ marginTop: "0.6rem", display: "flex", gap: "0.4rem", flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: "0.7rem", color: "#64748b" }}>验证流程：</span>
+        {[
+          { label: "Workbench 保存", tip: "Workbench 生成完整视频后保存" },
+          { label: "筛选样片", tip: "按路线/比例/模式筛选" },
+          { label: "加入验证篮", tip: "最多 4 条，临时本地选择" },
+          { label: "对比参数差异", tip: "进入验证视图查看" },
+          { label: "复制验证报告", tip: "Markdown 格式发给 ChatGPT" },
+          { label: "标记结论", tip: "通过 / 淘汰 / 候选中" },
+        ].map((step, i) => (
+          <span key={i} style={{ display: "flex", alignItems: "center", gap: "0.2rem" }}>
+            <span style={{
+              fontSize: "0.65rem",
+              background: "#f1f5f9",
+              border: "1px solid #e2e8f0",
+              borderRadius: 6,
+              padding: "2px 8px",
+              color: "#475569",
+              fontWeight: 500,
+            }} title={step.tip}>
+              {step.label}
+            </span>
+            {i < 5 && <span style={{ color: "#cbd5e1", fontSize: "0.6rem" }}>→</span>}
+          </span>
+        ))}
+      </div>
+
+      {/* V1.2.3: 当前验证篮面板 */}
+      {compareTray.length === 1 && (
+        <div style={{ marginTop: "0.5rem", fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.4rem 0.75rem" }}>
+          💡 至少选择 2 条样片后才能进入验证视图横向对比参数差异
+        </div>
+      )}
       {compareTray.length > 0 && (
         <div style={{
           marginTop: "0.85rem",
@@ -2017,7 +2053,7 @@ export default function StyleGalleryPage() {
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
             <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1d4ed8" }}>
-              ⚖ 对比篮 ({compareTray.length}/4) — 本浏览器临时选择，不会修改后端样片状态；正式标记对比请使用样片卡上的「加入对比」
+              ⚖ 当前验证篮 ({compareTray.length}/4) — 本浏览器临时选择，用于本次并排比较；不会修改后端样片状态。正式标记为对比中，请使用样片卡上的「加入对比」。
             </div>
             <div style={{ display: "flex", gap: "0.4rem" }}>
               {compareTray.length >= 2 && (
@@ -2025,14 +2061,14 @@ export default function StyleGalleryPage() {
                   onClick={() => setShowCompareView(true)}
                   style={{ background: "#3b82f6", color: "white", border: "none", borderRadius: 6, padding: "0.3rem 0.75rem", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}
                 >
-                  进入对比视图
+                  进入验证视图
                 </button>
               )}
               <button
                 onClick={handleClearTray}
                 style={{ background: "white", color: "#ef4444", border: "1px solid #fecaca", borderRadius: 6, padding: "0.3rem 0.75rem", fontSize: "0.75rem", cursor: "pointer" }}
               >
-                清空
+                清空验证篮
               </button>
               {missingTrayCount > 0 && (
                 <button
@@ -2046,7 +2082,7 @@ export default function StyleGalleryPage() {
           </div>
           {missingTrayCount > 0 && (
             <div style={{ fontSize: "0.7rem", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "0.3rem 0.6rem" }}>
-              对比篮中有 {missingTrayCount} 条样片当前未加载或已被删除，可点击「清理失效项」移除。
+              当前验证篮中有 {missingTrayCount} 条样片当前未加载或已被删除，可点击「清理失效项」移除。
             </div>
           )}
           <div style={{ display: "flex", gap: "0.5rem", overflowX: "auto", flexWrap: "nowrap" }}>
@@ -2069,7 +2105,7 @@ export default function StyleGalleryPage() {
         </div>
       )}
 
-      {/* V0.7.3: 顶部 — 已定位到 Workbench 保存的样片（来自 URL ?sample_id=） */}
+      {/* V1.2.3: 已定位到 Workbench 保存的样片（来自 URL ?sample_id=） */}
       {highlightSampleId && !highlightDismissed && (
         <div
           style={{
@@ -2079,19 +2115,24 @@ export default function StyleGalleryPage() {
             borderRadius: 10,
             padding: "0.75rem 1rem",
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "space-between",
             gap: "0.75rem",
             flexWrap: "wrap",
           }}
         >
-          <div style={{ fontSize: "0.82rem", color: "#0f766e", fontWeight: 600 }}>
-            📍 已定位到 Workbench 保存的样片：<code style={{ background: "white", padding: "1px 6px", borderRadius: 4, color: "#0f766e" }}>{highlightSampleId}</code>
-            {visibleSamples.find((s) => s.id === highlightSampleId) ? null : (
-              <span style={{ marginLeft: 8, color: "#dc2626", fontWeight: 400 }}>
-                （当前筛选下未显示 — 切换「全部来源」或调整路线/状态筛选可查看）
-              </span>
-            )}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+            <div style={{ fontSize: "0.82rem", color: "#0f766e", fontWeight: 600 }}>
+              📍 已定位到 Workbench 保存的样片：<code style={{ background: "white", padding: "1px 6px", borderRadius: 4, color: "#0f766e" }}>{highlightSampleId}</code>
+              {visibleSamples.find((s) => s.id === highlightSampleId) ? null : (
+                <span style={{ marginLeft: 8, color: "#dc2626", fontWeight: 400 }}>
+                  （当前筛选下未显示 — 切换「全部来源」或调整路线/状态筛选可查看）
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: "0.72rem", color: "#134e4a" }}>
+              💡 建议：将此样片加入当前验证篮，与其他路线或比例样片进行横向对比。
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
@@ -2119,22 +2160,9 @@ export default function StyleGalleryPage() {
         </div>
       )}
 
-      {/* Tab 切换 */}
+      {/* V1.2.3: Tab 切换 — 样片验证主流程优先 */}
       <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", borderBottom: "1px solid #e2e8f0", paddingBottom: "0.75rem" }}>
-        <button
-          onClick={() => setActiveTab("presets")}
-          style={{
-            background: activeTab === "presets" ? "#3b82f6" : "#f1f5f9",
-            color: activeTab === "presets" ? "white" : "#475569",
-            border: "none",
-            borderRadius: 8,
-            padding: "0.5rem 1.25rem",
-            fontSize: "0.85rem",
-            cursor: "pointer",
-          }}
-        >
-          预置风格 ({presets.length})
-        </button>
+        {/* 样片库 */}
         <button
           onClick={() => setActiveTab("gallery")}
           style={{
@@ -2149,35 +2177,7 @@ export default function StyleGalleryPage() {
         >
           样片库 ({samples.length})
         </button>
-        <button
-          onClick={() => setActiveTab("compare")}
-          style={{
-            background: activeTab === "compare" ? "#3b82f6" : "#f1f5f9",
-            color: activeTab === "compare" ? "white" : "#475569",
-            border: "none",
-            borderRadius: 8,
-            padding: "0.5rem 1.25rem",
-            fontSize: "0.85rem",
-            cursor: "pointer",
-          }}
-        >
-          对比面板 ({compareSet.size})
-        </button>
-        <button
-          onClick={() => setActiveTab("templates")}
-          style={{
-            background: activeTab === "templates" ? "#3b82f6" : "#f1f5f9",
-            color: activeTab === "templates" ? "white" : "#475569",
-            border: "none",
-            borderRadius: 8,
-            padding: "0.5rem 1.25rem",
-            fontSize: "0.85rem",
-            cursor: "pointer",
-          }}
-        >
-          模板库 ({filteredTemplates.length})
-        </button>
-        {/* V1.2.3: 验证视图 tab */}
+        {/* 分组验证 */}
         <button
           onClick={() => setActiveTab("validate")}
           style={{
@@ -2190,7 +2190,52 @@ export default function StyleGalleryPage() {
             cursor: "pointer",
           }}
         >
-          验证视图
+          分组验证
+        </button>
+        {/* 风格预置 */}
+        <button
+          onClick={() => setActiveTab("presets")}
+          style={{
+            background: activeTab === "presets" ? "#3b82f6" : "#f1f5f9",
+            color: activeTab === "presets" ? "white" : "#475569",
+            border: "none",
+            borderRadius: 8,
+            padding: "0.5rem 1.25rem",
+            fontSize: "0.85rem",
+            cursor: "pointer",
+          }}
+        >
+          风格预置 ({presets.length})
+        </button>
+        {/* 模板沉淀 */}
+        <button
+          onClick={() => setActiveTab("templates")}
+          style={{
+            background: activeTab === "templates" ? "#3b82f6" : "#f1f5f9",
+            color: activeTab === "templates" ? "white" : "#475569",
+            border: "none",
+            borderRadius: 8,
+            padding: "0.5rem 1.25rem",
+            fontSize: "0.85rem",
+            cursor: "pointer",
+          }}
+        >
+          模板沉淀 ({filteredTemplates.length})
+        </button>
+        {/* 对比包（后端保存的对比包） */}
+        <button
+          onClick={() => setActiveTab("compare")}
+          style={{
+            background: activeTab === "compare" ? "#3b82f6" : "#f1f5f9",
+            color: activeTab === "compare" ? "white" : "#475569",
+            border: "none",
+            borderRadius: 8,
+            padding: "0.5rem 1.25rem",
+            fontSize: "0.85rem",
+            cursor: "pointer",
+          }}
+        >
+          对比包 ({compareSet.size})
         </button>
       </div>
 
@@ -2441,12 +2486,38 @@ export default function StyleGalleryPage() {
           )}
 
           {visibleSamples.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "3rem 0", color: "#94a3b8", fontSize: "0.9rem" }}>
-              {samples.length === 0
-                ? "暂无样片，请先在「预置风格」中生成"
-                : filterSource === "workbench"
-                ? "当前筛选下没有 Workbench 样片，可切回「全部来源」或前往 /video-lab/workbench 生成并通过一条"
-                : "当前来源筛选下没有样片"}
+            <div style={{ textAlign: "center", padding: "3rem 0", color: "#94a3b8", fontSize: "0.9rem", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
+              {samples.length === 0 ? (
+                <>
+                  <div>还没有样片。</div>
+                  <div>请先到 Workbench 生成完整视频，并点击「保存样片」。</div>
+                  <Link
+                    to="/video-lab/workbench"
+                    style={{ background: "#0f766e", color: "white", textDecoration: "none", borderRadius: 8, padding: "0.5rem 1.2rem", fontSize: "0.85rem", fontWeight: 600 }}
+                  >
+                    去 Workbench 生成样片
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <div>当前筛选条件下没有样片。</div>
+                  <div>可以清空筛选，或回到 Workbench 生成对应路线 / 比例的样片。</div>
+                  <button
+                    onClick={() => {
+                      setFilterRoute("");
+                      setFilterStatus("");
+                      setFilterSource("");
+                      setFilterAspectRatio("");
+                      setFilterGenerationMode("");
+                      setFilterScored("");
+                      setFilterHasVideo("");
+                    }}
+                    style={{ background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 8, padding: "0.4rem 1rem", fontSize: "0.82rem", cursor: "pointer" }}
+                  >
+                    清空筛选
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1rem" }}>
@@ -2842,8 +2913,8 @@ export default function StyleGalleryPage() {
         <div style={{ marginTop: "1rem" }}>
           {/* 说明 */}
           <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "0.7rem 1rem", marginBottom: "1rem", fontSize: "0.78rem", color: "#475569", lineHeight: 1.6 }}>
-            <b>验证视图</b>：将样片按路线 / 比例 / 生成模式分组，方便横向比较同类内容的不同参数效果。<br />
-            筛选栏可组合使用。点击样片卡右上角「加入对比篮」可添加最多 4 条样片到对比篮，然后在页面顶部进入对比视图。
+            <b>分组验证</b>：将样片按路线 / 比例 / 生成模式分组，方便横向比较同类内容的不同参数效果。<br />
+            筛选栏可组合使用。点击样片卡按钮「加入验证篮」可添加最多 4 条样片到当前验证篮，然后在页面顶部进入验证视图。
           </div>
 
           {/* 分组控件 */}
@@ -2882,7 +2953,7 @@ export default function StyleGalleryPage() {
                     const inTray = compareTray.includes(s.id);
                     return (
                       <div key={s.id} style={{ background: "white", border: `1px solid ${inTray ? "#3b82f6" : "#e2e8f0"}`, borderRadius: 12, padding: "0.85rem", display: "flex", flexDirection: "column", gap: "0.5rem", position: "relative" }}>
-                        {inTray && <div style={{ position: "absolute", top: 8, right: 8, fontSize: "0.6rem", background: "#3b82f6", color: "white", borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>⚖ 对比篮</div>}
+                        {inTray && <div style={{ position: "absolute", top: 8, right: 8, fontSize: "0.6rem", background: "#3b82f6", color: "white", borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>⚖ 验证篮</div>}
                         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.4rem" }}>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.style_name}</div>
@@ -2910,7 +2981,7 @@ export default function StyleGalleryPage() {
                         )}
                         <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
                           <button onClick={() => handleAddToTray(s.id)} disabled={inTray || compareTray.length >= 4} style={{ background: inTray ? "#bfdbfe" : "#eff6ff", color: inTray ? "#3b82f6" : "#1d4ed8", border: "1px solid", borderColor: inTray ? "#bfdbfe" : "#93c5fd", borderRadius: 5, padding: "0.2rem 0.5rem", fontSize: "0.65rem", cursor: inTray ? "default" : "pointer" }}>
-                            {inTray ? "✓ 已加入" : "⚖ 加入对比篮"}
+                            {inTray ? "✓ 已在验证篮" : "⚖ 加入验证篮"}
                           </button>
                           <button onClick={() => handleUpdateReview(s.id, s.status === "approved" ? "candidate" : "approved")} style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: 5, padding: "0.2rem 0.5rem", fontSize: "0.65rem", cursor: "pointer" }}>
                             {s.status === "approved" ? "取消确认" : "✓ 通过"}
@@ -2934,7 +3005,7 @@ export default function StyleGalleryPage() {
                 const inTray = compareTray.includes(s.id);
                 return (
                   <div key={s.id} style={{ background: "white", border: `1px solid ${inTray ? "#3b82f6" : "#e2e8f0"}`, borderRadius: 12, padding: "0.85rem", display: "flex", flexDirection: "column", gap: "0.5rem", position: "relative" }}>
-                    {inTray && <div style={{ position: "absolute", top: 8, right: 8, fontSize: "0.6rem", background: "#3b82f6", color: "white", borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>⚖ 对比篮</div>}
+                    {inTray && <div style={{ position: "absolute", top: 8, right: 8, fontSize: "0.6rem", background: "#3b82f6", color: "white", borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>⚖ 验证篮</div>}
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.4rem" }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.style_name}</div>
@@ -2962,7 +3033,7 @@ export default function StyleGalleryPage() {
                     )}
                     <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
                       <button onClick={() => handleAddToTray(s.id)} disabled={inTray || compareTray.length >= 4} style={{ background: inTray ? "#bfdbfe" : "#eff6ff", color: inTray ? "#3b82f6" : "#1d4ed8", border: "1px solid", borderColor: inTray ? "#bfdbfe" : "#93c5fd", borderRadius: 5, padding: "0.2rem 0.5rem", fontSize: "0.65rem", cursor: inTray ? "default" : "pointer" }}>
-                        {inTray ? "✓ 已加入" : "⚖ 加入对比篮"}
+                        {inTray ? "✓ 已在验证篮" : "⚖ 加入验证篮"}
                       </button>
                       <button onClick={() => handleUpdateReview(s.id, s.status === "approved" ? "candidate" : "approved")} style={{ background: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0", borderRadius: 5, padding: "0.2rem 0.5rem", fontSize: "0.65rem", cursor: "pointer" }}>
                         {s.status === "approved" ? "取消确认" : "✓ 通过"}
@@ -2979,21 +3050,37 @@ export default function StyleGalleryPage() {
         </div>
       )}
 
-      {/* V1.2.3: 对比视图浮层 */}
+      {/* V1.2.3: 验证视图浮层 */}
       {showCompareView && traySamples.length >= 2 && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
           <div style={{ background: "white", borderRadius: 16, width: "100%", maxWidth: 1200, maxHeight: "95vh", overflowY: "auto", display: "flex", flexDirection: "column" }}>
             {/* 浮层头部 */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1px solid #e2e8f0", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "1rem 1.25rem", borderBottom: "1px solid #e2e8f0", flexShrink: 0, gap: "1rem" }}>
               <div>
-                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>对比视图</h2>
-                <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: "2px 0 0" }}>对比 {traySamples.length} 条样片的参数差异</p>
+                <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>验证视图</h2>
+                <p style={{ fontSize: "0.72rem", color: "#64748b", margin: "2px 0 4px" }}>
+                  本视图用于比较同一内容在不同路线 / 比例 / 风格参数下的实际效果。建议选择 2-4 条同类样片。
+                </p>
+                {/* V1.2.3: 验证篮样片摘要 */}
+                {(() => {
+                  const trayTags = traySamples.map(getValidationTags);
+                  const routes = Array.from(new Set(trayTags.map((t) => t.route))).join(" / ");
+                  const aspects = Array.from(new Set(trayTags.map((t) => t.aspectRatio))).join(" / ");
+                  const modes = Array.from(new Set(trayTags.map((t) => t.generationMode))).join(" / ");
+                  return (
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "0.65rem", background: "#ede9fe", color: "#7c3aed", borderRadius: 4, padding: "1px 6px" }}>路线：{routes}</span>
+                      <span style={{ fontSize: "0.65rem", background: "#dbeafe", color: "#1d4ed8", borderRadius: 4, padding: "1px 6px" }}>比例：{aspects}</span>
+                      <span style={{ fontSize: "0.65rem", background: "#f0fdf4", color: "#16a34a", borderRadius: 4, padding: "1px 6px" }}>模式：{modes}</span>
+                    </div>
+                  );
+                })()}
               </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
                 <button onClick={() => {
                   try {
                     navigator.clipboard.writeText(buildValidationReport(traySamples));
-                    setSuccessMsg("已复制验证报告");
+                    setSuccessMsg("已复制 Markdown 验证报告，可直接发给 ChatGPT 分析。");
                     setTimeout(() => setSuccessMsg(""), 3000);
                   } catch (e) {
                     setError("复制验证报告失败：" + String(e));
@@ -3043,7 +3130,12 @@ export default function StyleGalleryPage() {
 
             {/* 差异参数表 */}
             <div style={{ padding: "0 1.25rem 1rem", overflowX: "auto" }}>
-              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.5rem" }}>差异参数表</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#1e293b" }}>差异参数表</div>
+                <span style={{ fontSize: "0.65rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 4, padding: "1px 6px" }}>
+                  不同样片的参数值不一致时会自动高亮（橙色行）
+                </span>
+              </div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.72rem" }}>
                 <thead>
                   <tr style={{ background: "#f8fafc" }}>
