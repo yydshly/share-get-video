@@ -1121,16 +1121,29 @@ export default function VideoGenerationWorkbenchPage() {
     setCompareLoading(true);
     setCompareError("");
 
+    // V1.2.1.5: encode sampleId to handle special characters; build URL before try so catch can reference it
+    const compareUrl = `${API_BASE}/style-samples/${encodeURIComponent(sampleId)}/compare`;
+
     try {
-      const resp = await fetch(`${API_BASE}/style-samples/${sampleId}/compare`, { method: "POST" });
+      const resp = await fetch(compareUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
-        throw new Error(data.detail || `HTTP ${resp.status}`);
+        throw new Error(data.detail || data.message || `HTTP ${resp.status}`);
       }
+      const data = await resp.json().catch(() => ({}));
       setCompareSuccess(true);
       setCompareError("");
+      // V1.2.1.5: update savedSampleId to the canonical id returned by the backend
+      setSavedSampleId(data.id || sampleId);
     } catch (e) {
-      setCompareError(`加入对比失败：${String(e)}`);
+      // V1.2.1.5: enrich TypeError (Failed to fetch) with request diagnostics
+      const hint = e instanceof TypeError
+        ? `；请求未到达后端，API_BASE=${API_BASE}，sampleId=${sampleId}，url=${compareUrl}`
+        : "";
+      setCompareError(`加入对比失败：${String(e)}${hint}`);
     } finally {
       setCompareLoading(false);
     }

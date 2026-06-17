@@ -366,6 +366,54 @@ class TestListSamplesFiltering:
         assert all(r.source.source_type == "workbench" for r in results2)
 
 
+# ─── Compare Endpoint Tests ─────────────────────────────────────────────────
+
+class TestMarkSampleForCompare:
+    """V1.2.1.5: POST /style-samples/{sample_id}/compare marks sample as comparing."""
+
+    def test_mark_sample_for_compare_returns_comparing(self, temp_records_dir):
+        """Marking a saved sample for compare should return status=comparing."""
+        from app.video_lab.router import mark_sample_for_compare
+
+        # First save a sample via the store
+        sample = make_base_sample(
+            "s_compare_001",
+            status=SampleStatus.APPROVED,
+            tags=["workbench", "approved"],
+        )
+        sg_store.save_sample(sample)
+
+        # Call the router handler directly (mimics POST /style-samples/{id}/compare)
+        result = mark_sample_for_compare("s_compare_001")
+
+        assert result["status"] == SampleStatus.COMPARING.value
+        assert result["id"] == "s_compare_001"
+
+    def test_mark_sample_for_compare_404_when_missing(self, temp_records_dir):
+        """Marking a non-existent sample should raise 404."""
+        from app.video_lab.router import mark_sample_for_compare
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            mark_sample_for_compare("nonexistent_sample_id")
+        assert exc_info.value.status_code == 404
+
+    def test_mark_sample_for_compare_idempotent(self, temp_records_dir):
+        """Calling compare twice on the same sample should not raise."""
+        from app.video_lab.router import mark_sample_for_compare
+
+        sample = make_base_sample("s_compare_002", status=SampleStatus.CANDIDATE)
+        sg_store.save_sample(sample)
+
+        # First call
+        r1 = mark_sample_for_compare("s_compare_002")
+        assert r1["status"] == SampleStatus.COMPARING.value
+
+        # Second call — should still succeed (idempotent)
+        r2 = mark_sample_for_compare("s_compare_002")
+        assert r2["status"] == SampleStatus.COMPARING.value
+
+
 # ─── Router Integration Tests ────────────────────────────────────────────────
 
 class TestSaveStyleSampleRouter:
