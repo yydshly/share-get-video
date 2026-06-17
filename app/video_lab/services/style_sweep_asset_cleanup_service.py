@@ -228,18 +228,19 @@ def scan_style_sweep_assets(
 
     for fpath, size, mtime in files:
         rel = fpath.relative_to(RUNTIME_DIR)
-        norm = str(rel).replace("\\", "/")
+        rel_posix = str(rel).replace("\\", "/")
+        # Prepend "runtime/" to match the format used in Style Gallery sample references
+        norm = f"runtime/{rel_posix}"
 
         # Check if protected
-        if norm in referenced_paths or fpath.name in referenced_paths:
+        if norm in referenced_paths:
             protected_count += 1
             if include_protected and len(protected_items) < limit:
-                sample_ids = list(referenced_map.get(norm, set()) | referenced_paths.difference(referenced_map).intersection({fpath.name}))
                 protected_items.append({
-                    "path": str(rel),
+                    "path": f"runtime/{rel_posix}",
                     "sizeBytes": size,
                     "reason": "referenced_by_style_gallery",
-                    "sampleIds": list(referenced_map.get(norm, set())),
+                    "sampleIds": sorted(referenced_map.get(norm, set())),
                 })
         else:
             age = now_ts - mtime
@@ -247,7 +248,7 @@ def scan_style_sweep_assets(
                 skipped_count += 1
                 if len(skipped_items) < limit:
                     skipped_items.append({
-                        "path": str(rel),
+                        "path": f"runtime/{rel_posix}",
                         "sizeBytes": size,
                         "lastModified": datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
                         "reason": "unreferenced_but_too_new",
@@ -257,7 +258,7 @@ def scan_style_sweep_assets(
                 estimated_deletable_bytes += size
                 if len(deletable_items) < limit:
                     deletable_items.append({
-                        "path": str(rel),
+                        "path": f"runtime/{rel_posix}",
                         "sizeBytes": size,
                         "lastModified": datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
                         "reason": "unreferenced_older_than_min_age",

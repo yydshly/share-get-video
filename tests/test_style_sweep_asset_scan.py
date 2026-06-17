@@ -272,7 +272,7 @@ class TestScanStyleSweepAssets:
         store._JSONL_PATH = self._sg_jsonl
         store._ensure_dirs()
 
-        # Write a sample that references the protected file
+        # Write a sample that references the protected file (with runtime/ prefix to match real Style Gallery format)
         protected_rel = str(self._protected_file.relative_to(self._runtime_root)).replace("\\", "/")
         with open(self._sg_jsonl, "w", encoding="utf-8") as f:
             f.write(json.dumps({
@@ -282,7 +282,7 @@ class TestScanStyleSweepAssets:
                 "style_name": "Protected",
                 "status": "candidate",
                 "params": {},
-                "output": {"type": "mp4", "path": protected_rel},
+                "output": {"type": "mp4", "path": f"runtime/{protected_rel}"},
                 "evaluation": {},
                 "tags": [],
                 "created_at": "2026-06-01T10:00:00+00:00",
@@ -304,23 +304,24 @@ class TestScanStyleSweepAssets:
     def test_protected_file_in_protected_items(self):
         """File referenced by a Style Gallery sample goes to protectedItems."""
         result = scan_style_sweep_assets(min_age_days=7, include_protected=True)
-        protected_paths = [p["path"].replace("\\", "/") for p in result["protectedItems"]]
+        protected_paths = [p["path"] for p in result["protectedItems"]]
+        # API returns runtime/video_lab/... format (matching Style Gallery references)
         protected_rel = str(self._protected_file.relative_to(self._runtime_root)).replace("\\", "/")
-        assert protected_rel in protected_paths
+        assert f"runtime/{protected_rel}" in protected_paths
 
     def test_old_unreferenced_file_in_deletable_items(self):
         """Unreferenced file older than min_age goes to deletableItems."""
         result = scan_style_sweep_assets(min_age_days=7)
-        deletable_paths = [p["path"].replace("\\", "/") for p in result["deletableItems"]]
+        deletable_paths = [p["path"] for p in result["deletableItems"]]
         old_rel = str(self._old_file.relative_to(self._runtime_root)).replace("\\", "/")
-        assert old_rel in deletable_paths
+        assert f"runtime/{old_rel}" in deletable_paths
 
     def test_new_unreferenced_file_in_skipped_items(self):
         """Unreferenced file newer than min_age goes to skippedItems."""
         result = scan_style_sweep_assets(min_age_days=7)
-        skipped_paths = [p["path"].replace("\\", "/") for p in result["skippedItems"]]
+        skipped_paths = [p["path"] for p in result["skippedItems"]]
         new_rel = str(self._new_file.relative_to(self._runtime_root)).replace("\\", "/")
-        assert new_rel in skipped_paths
+        assert f"runtime/{new_rel}" in skipped_paths
 
     def test_job_json_not_in_results(self):
         """Files under style_sweep/jobs are skipped entirely."""
@@ -330,8 +331,9 @@ class TestScanStyleSweepAssets:
             [p["path"] for p in result["deletableItems"]] +
             [p["path"] for p in result["skippedItems"]]
         )
+        # API returns runtime/video_lab/... format
         job_rel = str(self._job_json.relative_to(self._runtime_root)).replace("\\", "/")
-        assert job_rel not in all_paths
+        assert f"runtime/{job_rel}" not in all_paths
 
     def test_no_files_are_deleted(self):
         """After scan, all files still exist on disk."""
@@ -346,6 +348,23 @@ class TestScanStyleSweepAssets:
         result = scan_style_sweep_assets(min_age_days=7)
         total_classified = result["protectedCount"] + result["deletableCount"] + result["skippedCount"]
         assert total_classified == result["totalAssetFiles"]
+
+    def test_scan_protects_runtime_prefixed_sample_asset(self):
+        """A file whose Style Gallery reference uses runtime/video_lab/... is correctly protected.
+
+        Regression test: previously the scan used fpath.relative_to(RUNTIME_DIR) giving
+        video_lab/... while sample references use runtime/video_lab/..., causing
+        protected assets to be mis-classified as deletable.
+        """
+        result = scan_style_sweep_assets(min_age_days=0)
+        # The protected file has a matching sample reference with runtime/ prefix
+        assert result["protectedCount"] >= 1
+        protected_paths = [p["path"] for p in result["protectedItems"]]
+        protected_rel = str(self._protected_file.relative_to(self._runtime_root)).replace("\\", "/")
+        assert f"runtime/{protected_rel}" in protected_paths
+        # Must NOT appear in deletableItems
+        deletable_paths = [p["path"] for p in result["deletableItems"]]
+        assert f"runtime/{protected_rel}" not in deletable_paths
 
     def test_estimated_bytes_accumulates_deletable(self):
         """estimatedDeletableBytes is sum of sizeBytes of deletableItems."""
