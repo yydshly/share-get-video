@@ -1463,6 +1463,8 @@ export default function StyleGalleryPage() {
   const [bundleGoal, setBundleGoal] = useState<string>("");
   const [bundleTags, setBundleTags] = useState<string>("");
   const [savingBundle, setSavingBundle] = useState(false);
+  // V1.2.3: 防止对比包删除重复点击
+  const [deletingBundleId, setDeletingBundleId] = useState<string | null>(null);
 
   // V1.2.3: 验证中心 — 当前验证篮（本地暂存，不影响后端状态）
   const [compareTray, setCompareTray] = useState<string[]>(() => {
@@ -1584,19 +1586,28 @@ export default function StyleGalleryPage() {
     setTimeout(() => setSuccessMsg(""), 3000);
   };
 
-  // V1.0.7: Delete bundle (V1.0.8 fix: check resp.ok)
+  // V1.0.7: Delete bundle (V1.0.8 fix: check resp.ok; V1.2.3: add deleting state + optimistic update)
   const handleDeleteBundle = async (bundleId: string) => {
     if (!confirm("确认删除该对比包？")) return;
+    if (deletingBundleId) return; // 防止重复点击
+    setDeletingBundleId(bundleId);
+    setError("");
+    setSuccessMsg("");
     try {
       const resp = await fetch(`${API_BASE}/style-compare-bundles/${bundleId}`, { method: "DELETE" });
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data.detail || `HTTP ${resp.status}`);
       }
+      // V1.2.3: 乐观更新 — 先从本地 state 移除，再 reload 确保一致
+      setBundles((prev) => prev.filter((b) => b.id !== bundleId));
       setSuccessMsg(`已删除对比包：${bundleId}`);
-      loadBundles();
+      await loadBundles();
     } catch (e) {
       setError("删除对比包失败: " + String(e));
+      loadBundles(); // 失败时重新加载确保状态一致
+    } finally {
+      setDeletingBundleId(null);
     }
   };
 
@@ -1709,6 +1720,7 @@ export default function StyleGalleryPage() {
     }
   };
 
+  // V1.2.3: 风格预置生成时写入来源追溯字段
   const handleGenerate = (preset: PresetStyle) =>
     generateAndSaveSample({
       key: preset.style_id,
@@ -1716,11 +1728,19 @@ export default function StyleGalleryPage() {
       route_name: preset.route_name,
       style_name: preset.style_name,
       description: preset.description,
-      params: preset.params,
-      tags: preset.tags,
+      // V1.2.3: 写入 preset 追溯字段，不改后端 schema
+      params: {
+        ...preset.params,
+        presetStyleId: preset.style_id,
+        presetStyleName: preset.style_name,
+        presetSource: "style_gallery_preset",
+      },
+      // V1.2.3: tags 追加 preset 标记
+      tags: [...preset.tags, "preset", preset.style_id],
     });
 
   // V0.4.3: 用模板一键生成新样片 → 形成「样片 → 模板 → 新样片」闭环
+  // V1.2.3: 增加 templateId / templateSource 追溯字段
   const handleUseTemplate = (t: StyleTemplate) =>
     generateAndSaveSample({
       key: t.id,
@@ -1728,42 +1748,74 @@ export default function StyleGalleryPage() {
       route_name: t.route_name,
       style_name: t.style_name || t.name,
       description: t.description || "",
-      params: t.params,
-      tags: t.tags,
+      params: {
+        ...t.params,
+        templateId: t.id,
+        templateSource: "style_template",
+      },
+      tags: [...t.tags, "template", t.id],
       successMsg: `已用模板「${t.name}」生成新样片`,
     });
 
   const handleDelete = async (id: string) => {
     if (!confirm("确认删除该记录？文件不受影响。")) return;
+    setError("");
     try {
-      await fetch(`${API_BASE}/style-samples/${id}`, { method: "DELETE" });
+      const resp = await fetch(`${API_BASE}/style-samples/${id}`, { method: "DELETE" });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.detail || `HTTP ${resp.status}`);
+      }
+      // V1.2.3: 删除成功后清理验证篮和 compareSet
+      setCompareTray((prev) => prev.filter((sid) => sid !== id));
+      setCompareSet((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setSuccessMsg(`已删除样片记录：${id}`);
       loadSamples();
     } catch (e) {
       setError("删除失败: " + String(e));
     }
   };
 
+  // V1.2.3: 加入对比 / 取消对比 — 必须检查 resp.ok，失败时回滚本地状态
   const handleCompare = async (id: string) => {
+    const isCurrentlyInCompare = compareSet.has(id);
     const next = new Set(compareSet);
-    if (next.has(id)) {
-      // 取消对比：调用 status 接口改回 candidate
+    if (isCurrentlyInCompare) {
       next.delete(id);
-      try {
-        await fetch(`${API_BASE}/style-samples/${id}/status`, {
+    } else {
+      next.add(id);
+    }
+    // 乐观更新本地状态
+    setCompareSet(next);
+    setError("");
+    try {
+      let resp: Response;
+      if (isCurrentlyInCompare) {
+        // 取消对比：调用 status 接口改回 candidate
+        resp = await fetch(`${API_BASE}/style-samples/${id}/status`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "candidate" }),
         });
-      } catch { /* ignore */ }
-    } else {
-      // 加入对比
-      next.add(id);
-      try {
-        await fetch(`${API_BASE}/style-samples/${id}/compare`, { method: "POST" });
-      } catch { /* ignore */ }
+      } else {
+        // 加入对比
+        resp = await fetch(`${API_BASE}/style-samples/${id}/compare`, { method: "POST" });
+      }
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.detail || `HTTP ${resp.status}`);
+      }
+      loadSamples();
+    } catch (e) {
+      // 失败时回滚本地状态
+      setCompareSet(compareSet);
+      setError("对比操作失败: " + String(e));
+      loadSamples();
     }
-    setCompareSet(next);
-    loadSamples();
   };
 
   // V1.2.3: 当前验证篮操作（本地暂存，最多 4 条）
@@ -1874,15 +1926,18 @@ export default function StyleGalleryPage() {
     }
   };
 
-  // V0.4.2: 删除模板（V1.2.3: 检查 resp.ok）
+  // V0.4.2: 删除模板（V1.2.3: 检查 resp.ok + 成功提示）
   const handleDeleteTemplate = async (templateId: string) => {
     if (!confirm("确认删除该模板？原样片不受影响。")) return;
+    setError("");
+    setSuccessMsg("");
     try {
       const resp = await fetch(`${API_BASE}/style-templates/${templateId}`, { method: "DELETE" });
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
         throw new Error(data.detail || `HTTP ${resp.status}`);
       }
+      setSuccessMsg(`已删除模板：${templateId}`);
       loadTemplates();
     } catch (e) {
       setError("删除模板失败: " + String(e));
@@ -2235,7 +2290,7 @@ export default function StyleGalleryPage() {
             cursor: "pointer",
           }}
         >
-          对比包 ({compareSet.size})
+          对比包 ({bundles.length})
         </button>
       </div>
 
