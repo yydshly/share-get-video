@@ -904,7 +904,7 @@ const CoverPage: React.FC<{
         }}
       >
         {/* V1.2.1.4: Background layer + existing glow layers for cinematic depth */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
         {/* Supplementary cinematic glow layers */}
         <div style={{ position: "absolute", top: "5%", left: "20%", width: 700, height: 700, borderRadius: "50%", background: `radial-gradient(circle, ${accent}22 0%, transparent 70%)`, filter: "blur(120px)" }} />
         <div style={{ position: "absolute", bottom: "10%", right: "10%", width: 600, height: 600, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent2}18 0%, transparent 70%)`, filter: "blur(100px)" }} />
@@ -963,7 +963,7 @@ const CoverPage: React.FC<{
         }}
       >
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 800, textAlign: "center" }}>
           {/* Title - clean and large */}
           <h1 style={{ fontSize: 72, fontWeight: 800, color: C.textPrimary, margin: 0, lineHeight: 1.15, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
@@ -1002,7 +1002,7 @@ const CoverPage: React.FC<{
       }}
     >
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
       {/* Glow accent */}
       <div
         style={{
@@ -1268,7 +1268,7 @@ const KeyPointCard: React.FC<{
       }}
     >
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
       {/* Card container - 82% width, compact height driven by layout config */}
       <div
         style={{
@@ -1848,7 +1848,7 @@ const CardStackLayout: React.FC<{
   return (
     <AbsoluteFill style={{ background: "transparent", justifyContent: "center", alignItems: "center", padding: "60px 40px" }}>
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={vstyle?.accentColor} highlight={vstyle?.highlightColor} visualStylePreset={vstyle?.visualStylePreset} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={vstyle?.accentColor} highlight={vstyle?.highlightColor} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
       {keyPoints.map((kp, i) => {
         const totalFrames = cardFramesArr[i] + transitionOverlap;
         // V1.2.1.4: visualPeekFrames is independent of transitionOverlap / safeOverlap.
@@ -1975,7 +1975,7 @@ const TimelineNewsLayout: React.FC<{
     return (
       <AbsoluteFill style={{ background: "transparent", padding: "72px 58px", justifyContent: "center" }}>
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 42 }}>Route Map</div>
           <div style={{ position: "relative", height: 720 }}>
@@ -2013,7 +2013,7 @@ const TimelineNewsLayout: React.FC<{
       }}
     >
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
       {/* V0.8.9: 顶部小标题 — 标识 Timeline News 范式 */}
       <div
         style={{
@@ -2295,7 +2295,7 @@ const DashboardBriefLayout: React.FC<{
     return (
       <AbsoluteFill style={{ background: "transparent", padding: "70px 58px", justifyContent: "center" }}>
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 22 }}>Ranking Strip</div>
           <h2 style={{ color: C.textPrimary, fontSize: 52, fontWeight: 900, lineHeight: 1.15, margin: 0, marginBottom: 34 }}>Top signals by impact</h2>
@@ -2331,7 +2331,7 @@ const DashboardBriefLayout: React.FC<{
     return (
       <AbsoluteFill style={{ background: "transparent", padding: "66px 56px" }}>
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
         <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column" }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase" }}>Chart Story</div>
           <h2 style={{ color: C.textPrimary, fontSize: 48, fontWeight: 900, margin: "14px 0 26px", lineHeight: 1.15 }}>{active?.title}</h2>
@@ -2356,7 +2356,7 @@ const DashboardBriefLayout: React.FC<{
   return (
     <AbsoluteFill style={{ background: "transparent", padding: "58px 50px" }}>
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
       <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", gap: 22 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -2504,7 +2504,7 @@ const CaptionStoryLayout: React.FC<{
     return (
       <AbsoluteFill style={{ background: "transparent", padding: "88px 66px", justifyContent: "center", alignItems: "center" }}>
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
         <div style={{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 930 }}>
           <div style={{ display: "inline-flex", border: `1px solid ${accent}66`, color: accent, borderRadius: 999, padding: "8px 18px", fontSize: 18, fontWeight: 800, letterSpacing: 4, textTransform: "uppercase", marginBottom: 34 }}>Cinematic Intro</div>
           <h2 style={{ color: C.textPrimary, fontSize: Math.round(82 * fs), lineHeight: 1.05, margin: 0, opacity: titleOpacityFx, transform: titleTransform, filter: titleFilter, clipPath: titleClipPath, textShadow: `0 0 86px ${accent}55` }}>
@@ -2520,7 +2520,7 @@ const CaptionStoryLayout: React.FC<{
     return (
       <AbsoluteFill style={{ background: "transparent", padding: "72px 58px", justifyContent: "center" }}>
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 900 }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 32 }}>CTA Overlay</div>
           <h2 style={{ color: C.textPrimary, fontSize: Math.round(68 * fs), lineHeight: 1.08, margin: 0, opacity: titleOpacityFx, transform: titleTransform, filter: titleFilter, clipPath: titleClipPath }}>
@@ -2539,7 +2539,7 @@ const CaptionStoryLayout: React.FC<{
   return (
     <AbsoluteFill style={{ background: "transparent", padding: "72px 58px", justifyContent: "center" }}>
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 38 }}>
           Caption Story · {String(activeIndex + 1).padStart(2, "0")} / {keyPoints.length}
@@ -2593,7 +2593,7 @@ const SummaryPage: React.FC<{
         }}
       >
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 950, width: "100%" }}>
           <h2 style={{ fontSize: 48, fontWeight: 800, color: C.textPrimary, margin: 0, marginBottom: 32, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
             今日回顾
@@ -2636,7 +2636,7 @@ const SummaryPage: React.FC<{
         }}
       >
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 800, width: "100%" }}>
           <h2 style={{ fontSize: 48, fontWeight: 800, color: C.textPrimary, margin: 0, marginBottom: 40, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
             今日回顾
@@ -2672,7 +2672,7 @@ const SummaryPage: React.FC<{
       }}
     >
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
       {/* Glow */}
       <div
         style={{
@@ -2787,7 +2787,7 @@ const ReportOpeningPage: React.FC<{
   return (
     <AbsoluteFill style={{ background: "transparent", padding: 72, color: C.textPrimary, fontFamily: "sans-serif" }}>
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
       <div style={{
         position: "relative",
         height: "100%",
