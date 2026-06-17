@@ -5,12 +5,20 @@ V0.3.7: Style Sample Gallery — no database, just JSONL files
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from app.video_lab.style_gallery.models import StyleSample
 from app.video_lab.config import RUNTIME_DIR, PUBLIC_RUNTIME_URL_PREFIX
+
+
+def _created_at_sort_key(sample: StyleSample) -> float:
+    """Sort key that handles both naive (UTC) and aware datetimes safely."""
+    dt = sample.created_at
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
 
 
 # ─── 路径常量 ────────────────────────────────────────────────────────────────
@@ -79,7 +87,7 @@ def list_samples(
                 continue
         results.append(StyleSample.from_dict(r))
     # 按时间倒序
-    results.sort(key=lambda s: s.created_at, reverse=True)
+    results.sort(key=_created_at_sort_key, reverse=True)
     return results[:limit]
 
 

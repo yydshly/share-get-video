@@ -4,7 +4,7 @@ V0.3.7: Style Sample Gallery — lightweight JSONL-backed style experiment recor
 V1.0.5: Asset formalization — source/generation/asset_meta/quality_meta/review_meta/job_run fields
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -131,7 +131,12 @@ class StyleSample(BaseModel):
     @classmethod
     def from_dict(cls, d: dict) -> "StyleSample":
         if isinstance(d.get("created_at"), str):
-            d["created_at"] = datetime.fromisoformat(d["created_at"])
+            dt = datetime.fromisoformat(d["created_at"])
+            # Normalize naive datetime to UTC-aware so it compares safely with
+            # timezone-aware datetimes from newer samples.
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            d["created_at"] = dt
         # V0.4.0: visual_judgement is optional - pass through if missing (backward compat)
         if "visual_judgement" not in d:
             d["visual_judgement"] = None
