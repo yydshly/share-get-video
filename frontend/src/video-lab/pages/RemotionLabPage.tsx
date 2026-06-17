@@ -46,6 +46,7 @@ const TABS = [
   { id: "visual-style", label: "视觉风格" },
   { id: "candidate", label: "候选模板" },
   { id: "acceptance", label: "验收记录" },
+  { id: "effect-prototype", label: "效果样机库" },
 ] as const;
 
 const BACKGROUNDS = [
@@ -192,7 +193,370 @@ function resolveUrl(u: string): string {
     : u || "";
 }
 
+// ─── Effect Prototype Gallery Data ────────────────────────────────────────────
+
+const EFFECT_PROTOTYPES = [
+  {
+    id: "academic_sketch",
+    name: "学术手绘草稿流",
+    source: "remotion.html / academic",
+    summary: "模拟手绘网格纸、动态墨水晕开、手写公式与手绘图表风格。",
+    visualKeywords: ["网格纸", "手写公式", "手绘图表", "墨水晕开", "纸张质感", "粗糙线条", "研究笔记"],
+    suitableFor: ["论文解读", "AI 原理解释", "技术概念拆解", "研究报告摘要", "知识类短视频"],
+    remotionTechniques: ["SVG filter", "Rough.js 风格", "frame wobble", "spring", "handwritten typography", "paper grid background"],
+    futureParameter: "visualTechnique: academic_sketch",
+    priority: "P0" as const,
+    implementationLevel: "prototype_reference" as const,
+    nextStep: "优先转为真实 Remotion visualTechnique，适合第一批实现。",
+  },
+  {
+    id: "agent_sandbox_25d",
+    name: "2.5D 智能体沙盒模拟",
+    source: "remotion.html / sandbox",
+    summary: "使用等距视图展示 Agent 节点、通讯路径、数据包流动和系统逻辑流向。",
+    visualKeywords: ["等距视图", "Agent 节点", "通讯路径", "拓扑图", "数据包流动", "多智能体协作", "系统模拟"],
+    suitableFor: ["Agent 工作流", "AI 自动化流程", "多模型协作", "软件系统架构", "Video Lab 自身能力展示"],
+    remotionTechniques: ["isometric projection", "spring connectors", "animated packet", "node graph", "CSS 3D / Canvas"],
+    futureParameter: "visualTechnique: agent_sandbox_25d",
+    priority: "P1" as const,
+    implementationLevel: "prototype_reference" as const,
+    nextStep: "适合第二批实现，复杂度高于 academic_sketch 和 data_viz_dashboard。",
+  },
+  {
+    id: "data_viz_dashboard",
+    name: "科技感数据动态可视化",
+    source: "remotion.html / dataviz",
+    summary: "展示动态图表、指标增长、圆环图、频谱波形和仪表盘式数据解读。",
+    visualKeywords: ["数据增长", "折线图", "圆环图", "仪表盘", "动态指标", "频谱波形", "Benchmark"],
+    suitableFor: ["AI Benchmark", "模型能力对比", "产品数据", "GitHub Star 增长", "成本变化", "性能报告"],
+    remotionTechniques: ["D3/Recharts", "interpolate path", "animated counter", "radial progress", "audio reactive spectrum"],
+    futureParameter: "visualTechnique: data_viz_dashboard",
+    priority: "P0" as const,
+    implementationLevel: "prototype_reference" as const,
+    nextStep: "优先转为真实 Remotion visualTechnique，适合 AI 数据和模型评测视频。",
+  },
+  {
+    id: "kinetic_code_typography",
+    name: "动态代码排版与高亮",
+    source: "remotion.html / typography",
+    summary: "模拟 IDE 代码书写、逐字高亮、终端日志和技术金句排版。",
+    visualKeywords: ["代码编辑器", "打字机", "语法高亮", "终端日志", "逐字入场", "技术金句", "开发者风格"],
+    suitableFor: ["API 讲解", "开发教程", "代码片段解释", "技术产品介绍", "开源项目摘要"],
+    remotionTechniques: ["character-level typewriter", "syntax highlight", "terminal log animation", "AST span split", "kinetic typography"],
+    futureParameter: "visualTechnique: kinetic_code_typography",
+    priority: "P1" as const,
+    implementationLevel: "prototype_reference" as const,
+    nextStep: "适合第二批实现，可和技术教程、API 文档、开发者内容结合。",
+  },
+];
+
+const FUTURE_EFFECT_DIRECTIONS = [
+  {
+    id: "whiteboard_explainer",
+    name: "白板解释",
+    priority: "P0" as const,
+    visualKeywords: ["白板", "手绘箭头", "图解", "逐步揭示"],
+    suitableFor: ["概念解释", "教学视频", "商业解释"],
+    futureParameter: "visualTechnique: whiteboard_explainer",
+    complexity: "low" as const,
+  },
+  {
+    id: "benchmark_ranking",
+    name: "Benchmark 排行榜",
+    priority: "P0" as const,
+    visualKeywords: ["排名", "分数对比", "柱状图", "竞争态势"],
+    suitableFor: ["AI 模型对比", "产品横评", "性能报告"],
+    futureParameter: "visualTechnique: benchmark_ranking",
+    complexity: "medium" as const,
+  },
+  {
+    id: "architecture_diagram",
+    name: "系统架构拆解",
+    priority: "P0" as const,
+    visualKeywords: ["架构图", "模块", "连线", "层次结构"],
+    suitableFor: ["系统设计", "技术分享", "架构演进"],
+    futureParameter: "visualTechnique: architecture_diagram",
+    complexity: "high" as const,
+  },
+  {
+    id: "product_demo_flow",
+    name: "产品演示流程",
+    priority: "P1" as const,
+    visualKeywords: ["产品界面", "操作流程", "引导高亮", "点击效果"],
+    suitableFor: ["产品介绍", "功能演示", "使用教程"],
+    futureParameter: "visualTechnique: product_demo_flow",
+    complexity: "medium" as const,
+  },
+  {
+    id: "launch_countdown",
+    name: "发布倒计时",
+    priority: "P1" as const,
+    visualKeywords: ["倒计时", "数字跳动", "发射", "紧张感"],
+    suitableFor: ["产品发布", "活动预告", "事件揭幕"],
+    futureParameter: "visualTechnique: launch_countdown",
+    complexity: "low" as const,
+  },
+  {
+    id: "map_timeline",
+    name: "地图时间线",
+    priority: "P1" as const,
+    visualKeywords: ["地图", "路径", "时间线", "地点标记"],
+    suitableFor: ["旅行回顾", "事件演进", "地理叙事"],
+    futureParameter: "visualTechnique: map_timeline",
+    complexity: "medium" as const,
+  },
+  {
+    id: "audio_visualizer",
+    name: "音频波形可视化",
+    priority: "P1" as const,
+    visualKeywords: ["波形", "频谱", "音频反应", "音乐可视化"],
+    suitableFor: ["音乐视频", "播客摘要", "声音叙事"],
+    futureParameter: "visualTechnique: audio_visualizer",
+    complexity: "medium" as const,
+  },
+  {
+    id: "tiktok_caption_story",
+    name: "逐词字幕短视频",
+    priority: "P1" as const,
+    visualKeywords: ["逐词高亮", "字幕同步", "口播节奏", "快节奏"],
+    suitableFor: ["社交媒体", "观点短评", "资讯摘要"],
+    futureParameter: "visualTechnique: tiktok_caption_story",
+    complexity: "low" as const,
+  },
+  {
+    id: "magazine_headline",
+    name: "杂志标题冲击",
+    priority: "P1" as const,
+    visualKeywords: ["大标题", "杂志排版", "高对比", "视觉冲击"],
+    suitableFor: ["新闻爆点", "观点表达", "品牌宣传"],
+    futureParameter: "visualTechnique: magazine_headline",
+    complexity: "low" as const,
+  },
+  {
+    id: "capability_radar",
+    name: "能力雷达图",
+    priority: "P1" as const,
+    visualKeywords: ["雷达图", "多维能力", "面积填充", "对比"],
+    suitableFor: ["AI 模型能力", "产品功能对比", "人才评估"],
+    futureParameter: "visualTechnique: capability_radar",
+    complexity: "medium" as const,
+  },
+  {
+    id: "timeline_recap",
+    name: "事件时间线复盘",
+    priority: "P1" as const,
+    visualKeywords: ["时间线", "里程碑", "复盘", "因果关系"],
+    suitableFor: ["年度总结", "项目回顾", "事件梳理"],
+    futureParameter: "visualTechnique: timeline_recap",
+    complexity: "medium" as const,
+  },
+  {
+    id: "lottie_icon_story",
+    name: "图标动画叙事",
+    priority: "P2" as const,
+    visualKeywords: ["Lottie", "图标动画", "叙事逻辑", "精炼表达"],
+    suitableFor: ["品牌视频", "产品介绍", "概念解释"],
+    futureParameter: "visualTechnique: lottie_icon_story",
+    complexity: "high" as const,
+  },
+];
+
 // ─── Tab Components ────────────────────────────────────────────────────────────
+
+function TabEffectPrototype() {
+  const priorityColor: Record<string, string> = {
+    P0: "#16a34a",
+    P1: "#2563eb",
+    P2: "#94a3b8",
+  };
+  const levelBg: Record<string, { bg: string; color: string }> = {
+    prototype_reference: { bg: "#fffbeb", color: "#b45309" },
+    planned: { bg: "#eff6ff", color: "#2563eb" },
+    implemented: { bg: "#f0fdf4", color: "#15803d" },
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+      {/* Parameter system explainer */}
+      <div
+        style={{
+          background: "linear-gradient(135deg, #1e3a5f 0%, #0f766e 100%)",
+          color: "white",
+          borderRadius: 12,
+          padding: "1.25rem 1.5rem",
+        }}
+      >
+        <h2 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "0.6rem", marginTop: 0 }}>
+          未来 Remotion 视频生成参数体系
+        </h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.5rem", marginBottom: "0.85rem" }}>
+          {[
+            { param: "remotionFamily", desc: "版式结构" },
+            { param: "visualStylePreset", desc: "整体视觉气质" },
+            { param: "backgroundPreset", desc: "背景材质" },
+            { param: "transitionStyle", desc: "转场方式" },
+            { param: "visualTechnique", desc: "特色表现技法" },
+          ].map((p) => (
+            <div key={p.param} style={{ background: "rgba(255,255,255,0.12)", borderRadius: 8, padding: "0.5rem 0.75rem" }}>
+              <div style={{ fontSize: "0.78rem", fontWeight: 700, fontFamily: "monospace" }}>{p.param}</div>
+              <div style={{ fontSize: "0.72rem", opacity: 0.8 }}>{p.desc}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "0.6rem 0.85rem", fontSize: "0.8rem", lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>未来接入路径：</div>
+          <div style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+            Effect Prototype Gallery → visualTechnique → remotion-style-family 生成样片 → 人工观察 → 候选进入 Style Sweep → 稳定后进入 Style Gallery
+          </div>
+        </div>
+        <div style={{ marginTop: "0.75rem", padding: "0.6rem 0.85rem", background: "rgba(0,0,0,0.18)", borderRadius: 8, fontSize: "0.78rem" }}>
+          <div style={{ fontWeight: 600, marginBottom: "0.3rem" }}>效果样机库定位</div>
+          <div style={{ lineHeight: 1.55, opacity: 0.9 }}>
+            效果样机库<strong>不是正式渲染模板</strong>。它用于收集 Remotion 可实现的视觉技法、动态效果和表现方向。
+            后续经过人工筛选后，才会转成 <code style={{ background: "rgba(255,255,255,0.15)", padding: "1px 5px", borderRadius: 3 }}>visualTechnique</code> 参数，再进入 remotion-style-family 做真实视频渲染。
+          </div>
+        </div>
+      </div>
+
+      {/* Area 1: 4 prototypes from remotion.html */}
+      <div>
+        <div style={{ marginBottom: "0.75rem" }}>
+          <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+            来自 remotion.html 的效果原型
+          </h2>
+          <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.3rem 0 0" }}>
+            这些是已经有视觉样机参考的效果方向，目前作为 prototype_reference 收录，尚未接入真实 Remotion 渲染。
+          </p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
+          {EFFECT_PROTOTYPES.map((proto) => {
+            const lv = levelBg[proto.implementationLevel] ?? levelBg.prototype_reference;
+            return (
+              <div
+                key={proto.id}
+                style={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  background: "white",
+                }}
+              >
+                <div style={{ padding: "0.9rem 1rem", borderBottom: "1px solid #f1f5f9" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.35rem" }}>
+                    <span style={{ fontSize: "1rem" }}>🎯</span>
+                    <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#1e293b" }}>{proto.name}</span>
+                    <span style={{
+                      marginLeft: "auto",
+                      background: priorityColor[proto.priority],
+                      color: "white",
+                      borderRadius: 999,
+                      padding: "0.1rem 0.45rem",
+                      fontSize: "0.68rem",
+                      fontWeight: 700,
+                    }}>
+                      {proto.priority}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.72rem", color: "#94a3b8", fontStyle: "italic" }}>source: {proto.source}</div>
+                  <p style={{ fontSize: "0.8rem", color: "#475569", margin: "0.5rem 0 0", lineHeight: 1.5 }}>{proto.summary}</p>
+                </div>
+
+                <div style={{ padding: "0.75rem 1rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                  <div>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>视觉关键词</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                      {proto.visualKeywords.map((kw) => (
+                        <span key={kw} style={{ background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 4, padding: "0.1rem 0.4rem", fontSize: "0.7rem" }}>{kw}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>适合内容</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                      {proto.suitableFor.map((s) => (
+                        <span key={s} style={{ background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: 4, padding: "0.1rem 0.4rem", fontSize: "0.7rem" }}>{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem" }}>Remotion 技法</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                      {proto.remotionTechniques.map((t) => (
+                        <span key={t} style={{ background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ddd6fe", borderRadius: 4, padding: "0.1rem 0.4rem", fontSize: "0.7rem", fontFamily: "monospace" }}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ background: lv.bg, borderRadius: 6, padding: "0.4rem 0.6rem", fontSize: "0.72rem" }}>
+                    <span style={{ fontWeight: 600, color: lv.color }}>futureParameter: </span>
+                    <code style={{ color: lv.color, fontFamily: "monospace", fontSize: "0.7rem" }}>{proto.futureParameter}</code>
+                  </div>
+                  <div style={{ background: "#f8fafc", borderRadius: 6, padding: "0.4rem 0.6rem", fontSize: "0.72rem", color: "#475569", lineHeight: 1.5 }}>
+                    <span style={{ fontWeight: 600, color: "#1e293b" }}>下一步：</span>{proto.nextStep}
+                  </div>
+                </div>
+
+                <div style={{ padding: "0.5rem 1rem", borderTop: "1px solid #f1f5f9", background: "#fefce8" }}>
+                  <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "#b45309" }}>
+                    ⚠ 当前状态：{proto.implementationLevel === "prototype_reference" ? "prototype_reference — 尚未接入真实 Remotion 渲染" : proto.implementationLevel}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Area 2: Future directions map */}
+      <div>
+        <div style={{ marginBottom: "0.75rem" }}>
+          <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+            更多 Remotion 效果方向地图
+          </h2>
+          <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.3rem 0 0" }}>
+            这些方向用于后续扩展 visualTechnique，不在本阶段实现。
+          </p>
+        </div>
+        {(["P0", "P1", "P2"] as const).map((p) => {
+          const groupLabel = p === "P0" ? "近期优先" : p === "P1" ? "下一轮" : "高级探索";
+          const items = FUTURE_EFFECT_DIRECTIONS.filter((d) => d.priority === p);
+          if (!items.length) return null;
+          return (
+            <div key={p} style={{ marginBottom: "1.25rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.6rem" }}>
+                <span style={{ background: priorityColor[p], color: "white", borderRadius: 999, padding: "0.15rem 0.55rem", fontSize: "0.72rem", fontWeight: 700 }}>{p}</span>
+                <span style={{ fontSize: "0.88rem", fontWeight: 600, color: "#334155" }}>{groupLabel}</span>
+                <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>（{items.length} 个方向）</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.65rem" }}>
+                {items.map((dir) => (
+                  <div
+                    key={dir.id}
+                    style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: "0.75rem", background: "white" }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#1e293b", marginBottom: "0.3rem" }}>{dir.name}</div>
+                    <div style={{ fontSize: "0.7rem", fontFamily: "monospace", color: "#7c3aed", marginBottom: "0.35rem" }}>{dir.futureParameter}</div>
+                    <div style={{ display: "flex", gap: "0.35rem", marginBottom: "0.3rem", flexWrap: "wrap" }}>
+                      <span style={{ background: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0", borderRadius: 4, padding: "0.05rem 0.35rem", fontSize: "0.65rem" }}>
+                        {dir.complexity}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem" }}>
+                      {dir.visualKeywords.slice(0, 3).map((kw) => (
+                        <span key={kw} style={{ background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ddd6fe", borderRadius: 3, padding: "0.05rem 0.3rem", fontSize: "0.65rem" }}>{kw}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 
 function TabParadigm() {
   return (
@@ -854,6 +1218,8 @@ export default function RemotionLabPage() {
         return <TabCandidate />;
       case "acceptance":
         return <TabAcceptance />;
+      case "effect-prototype":
+        return <TabEffectPrototype />;
       default:
         return null;
     }
