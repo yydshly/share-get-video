@@ -539,6 +539,26 @@ def list_style_sweep_jobs(limit: int = 20) -> dict[str, Any]:
     return {"jobs": jobs}
 
 
+@router.delete("/style-sweep-jobs/{job_id}")
+def delete_style_sweep_job(job_id: str) -> dict[str, Any]:
+    """Delete a sweep job record (JSON only; does NOT delete any video/audio/subtitle assets).
+
+    Asset cleanup is intentionally deferred — promoted samples in Style Gallery may still
+    reference the job's output files. Use Stage 3A-2 for safe asset cleanup.
+    """
+    from app.video_lab.style_sweep_jobs import delete_sweep_job as _delete
+
+    deleted = _delete(job_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    return {
+        "jobId": job_id,
+        "deleted": True,
+        "deletedAssets": False,
+        "message": "Style Sweep job record deleted",
+    }
+
+
 class UpdateSweepJobMarksRequest(BaseModel):
     manualMarks: dict[str, Any] = Field(default_factory=dict)
 

@@ -18,6 +18,9 @@ from app.video_lab.style_sweep_jobs import (
     StyleResultEntry,
     list_sweep_jobs,
     update_sweep_job_marks,
+    delete_sweep_job,
+    _get_jobs_dir,
+    _save_job,
 )
 
 
@@ -164,6 +167,147 @@ class TestSweepJobToDict:
             assert "results" not in j, "Summary should not contain full results"
             assert "contentPreview" in j
             assert "params" in j
+
+
+class TestDeleteSweepJob:
+    """delete_sweep_job removes only the job JSON, not any assets."""
+
+    def setup_method(self):
+        import tempfile
+        from pathlib import Path
+        import app.video_lab.style_sweep_jobs as ssj
+
+        self._tmp = tempfile.mkdtemp()
+        self._jobs_dir = Path(self._tmp) / "jobs"
+        self._jobs_dir.mkdir(parents=True)
+        self._orig = ssj._RUNTIME_DIR
+        ssj._RUNTIME_DIR = self._jobs_dir
+
+    def teardown_method(self):
+        import app.video_lab.style_sweep_jobs as ssj
+        ssj._RUNTIME_DIR = self._orig
+
+    def test_delete_existing_job_returns_true(self):
+        """Deleting a job that exists returns True."""
+        job_id = "sweep_deletetest001"
+        job = SweepJob(
+            jobId=job_id,
+            status="completed",
+            routeId="local_frame_compose",
+            routeName="Pillow",
+            total=2,
+        )
+        _save_job(job)
+
+        result = delete_sweep_job(job_id)
+        assert result is True
+
+    def test_delete_nonexistent_job_returns_false(self):
+        """Deleting a job that does not exist returns False."""
+        result = delete_sweep_job("sweep_does_not_exist_xyz")
+        assert result is False
+
+    def test_deleted_job_no_longer_in_list(self):
+        """After deletion, the job does not appear in list_sweep_jobs."""
+        job_id = "sweep_deletetest002"
+        job = SweepJob(
+            jobId=job_id,
+            status="completed",
+            routeId="local_frame_compose",
+            routeName="Pillow",
+            total=1,
+        )
+        _save_job(job)
+
+        # Verify it appears in list
+        jobs = list_sweep_jobs()
+        assert any(j["jobId"] == job_id for j in jobs)
+
+        # Delete it
+        deleted = delete_sweep_job(job_id)
+        assert deleted is True
+
+        # Verify it's gone
+        jobs_after = list_sweep_jobs()
+        assert not any(j["jobId"] == job_id for j in jobs_after)
+
+    def test_delete_does_not_affect_other_jobs(self):
+        """Deleting one job does not remove other jobs."""
+        job_a = SweepJob(
+            jobId="sweep_del_other_a",
+            status="completed",
+            routeId="local_frame_compose",
+            routeName="Pillow",
+            total=1,
+        )
+        job_b = SweepJob(
+            jobId="sweep_del_other_b",
+            status="completed",
+            routeId="template_programmatic_render",
+            routeName="Remotion",
+            total=1,
+        )
+        _save_job(job_a)
+        _save_job(job_b)
+
+        delete_sweep_job("sweep_del_other_a")
+
+        jobs_after = list_sweep_jobs()
+        assert any(j["jobId"] == "sweep_del_other_b" for j in jobs_after)
+        assert not any(j["jobId"] == "sweep_del_other_a" for j in jobs_after)
+
+
+class TestDeleteRouter:
+    """DELETE /style-sweep-jobs/{job_id} endpoint."""
+
+    def setup_method(self):
+        import tempfile
+        from pathlib import Path
+        import app.video_lab.style_sweep_jobs as ssj
+
+        self._tmp = tempfile.mkdtemp()
+        self._jobs_dir = Path(self._tmp) / "jobs"
+        self._jobs_dir.mkdir(parents=True)
+        self._orig = ssj._RUNTIME_DIR
+        ssj._RUNTIME_DIR = self._jobs_dir
+
+    def teardown_method(self):
+        import app.video_lab.style_sweep_jobs as ssj
+        ssj._RUNTIME_DIR = self._orig
+
+    def test_delete_existing_job_returns_deleted_true(self):
+        """DELETE existing job returns deleted=true."""
+        from fastapi.testclient import TestClient
+        from app.main import app
+
+        job_id = "sweep_del_router001"
+        job = SweepJob(
+            jobId=job_id,
+            status="completed",
+            routeId="local_frame_compose",
+            routeName="Pillow",
+            total=1,
+        )
+        _get_jobs_dir().mkdir(parents=True, exist_ok=True)
+        _save_job(job)
+
+        client = TestClient(app)
+        response = client.delete(f"/video-lab/style-sweep-jobs/{job_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["deleted"] is True
+        assert data["deletedAssets"] is False
+        assert data["jobId"] == job_id
+
+    def test_delete_nonexistent_job_returns_404(self):
+        """DELETE non-existent job returns 404."""
+        from fastapi.testclient import TestClient
+        from app.main import app
+
+        client = TestClient(app)
+        response = client.delete("/video-lab/style-sweep-jobs/sweep_does_not_exist_xyz")
+        assert response.status_code == 404
+        assert "Job not found" in response.json()["detail"]
 
 
 if __name__ == "__main__":

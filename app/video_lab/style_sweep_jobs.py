@@ -152,6 +152,21 @@ def get_sweep_job(job_id: str) -> SweepJob | None:
     return _load_job(job_id)
 
 
+def delete_sweep_job(job_id: str) -> bool:
+    """Delete a sweep job JSON record.
+
+    NOTE: This only deletes the job JSON file under runtime/video_lab/style_sweep/jobs/.
+    It does NOT delete any video, audio, subtitle, manifest, or image assets — those may
+    still be referenced by Style Gallery samples that were promoted from this job.
+    Asset cleanup is deferred to a later phase (Stage 3A-2).
+    """
+    path = _job_path(job_id)
+    if not path.exists():
+        return False
+    path.unlink()
+    return True
+
+
 def list_sweep_jobs(limit: int = 20) -> list[dict[str, Any]]:
     """Return recent sweep jobs as summary dicts (no full results), sorted by updatedAt desc."""
     jobs_dir = _get_jobs_dir()
