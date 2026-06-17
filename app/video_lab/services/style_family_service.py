@@ -119,6 +119,8 @@ VALID_TRANSITION_STYLES = [
     "glitch",
 ]
 
+MAX_MATRIX_ITEMS = 9
+
 
 def run_background_variant_matrix(request) -> dict[str, Any]:
     """
@@ -162,6 +164,25 @@ def run_background_variant_matrix(request) -> dict[str, Any]:
     # Filter to valid entries only
     families = [f for f in families if f in VALID_MATRIX_FAMILIES]
     background_presets = [bp for bp in background_presets if bp in VALID_BACKGROUND_PRESETS]
+
+    # V1.2.4: Reject invalid / over-limit requests with clear error messages
+    if not families:
+        raise ValueError(
+            f"families filter resulted in empty set. "
+            f"Allowed values: {VALID_MATRIX_FAMILIES}"
+        )
+    if not background_presets:
+        raise ValueError(
+            f"backgroundPresets filter resulted in empty set. "
+            f"Allowed values: {VALID_BACKGROUND_PRESETS}"
+        )
+    total = len(families) * len(background_presets)
+    if total > MAX_MATRIX_ITEMS:
+        raise ValueError(
+            f"background matrix is limited to {MAX_MATRIX_ITEMS} clips per request, "
+            f"but {total} requested ({len(families)} families × {len(background_presets)} presets). "
+            f"Reduce families or presets."
+        )
 
     items: list[dict[str, Any]] = []
 
@@ -219,6 +240,25 @@ def run_transition_variant_matrix(request) -> dict[str, Any]:
 
     families = [f for f in families if f in VALID_TRANSITION_MATRIX_FAMILIES]
     transition_styles = [ts for ts in transition_styles if ts in VALID_TRANSITION_STYLES]
+
+    # V1.2.4: Reject invalid / over-limit requests with clear error messages
+    if not families:
+        raise ValueError(
+            f"families filter resulted in empty set. "
+            f"Allowed values: {VALID_TRANSITION_MATRIX_FAMILIES}"
+        )
+    if not transition_styles:
+        raise ValueError(
+            f"transitionStyles filter resulted in empty set. "
+            f"Allowed values: {VALID_TRANSITION_STYLES}"
+        )
+    total = len(families) * len(transition_styles)
+    if total > MAX_MATRIX_ITEMS:
+        raise ValueError(
+            f"transition matrix is limited to {MAX_MATRIX_ITEMS} clips per request, "
+            f"but {total} requested ({len(families)} families × {len(transition_styles)} transitions). "
+            f"Reduce families or transitions."
+        )
 
     items: list[dict[str, Any]] = []
 

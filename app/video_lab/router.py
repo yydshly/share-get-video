@@ -399,7 +399,10 @@ def style_family_background_matrix(request: BackgroundVariantMatrixRequest) -> d
 
     Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
     """
-    return run_background_variant_matrix(request)
+    try:
+        return run_background_variant_matrix(request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/style-family/transition-matrix")
@@ -408,7 +411,10 @@ def style_family_transition_matrix(request: TransitionVariantMatrixRequest) -> d
 
     Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
     """
-    return run_transition_variant_matrix(request)
+    try:
+        return run_transition_variant_matrix(request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ─────────────────────────────────────────────
