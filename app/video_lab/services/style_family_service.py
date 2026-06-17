@@ -121,6 +121,19 @@ VALID_TRANSITION_STYLES = [
 
 MAX_MATRIX_ITEMS = 9
 
+# V1.2.4: Visual Style Preset Matrix
+VALID_VISUAL_STYLE_MATRIX_FAMILIES = [
+    "data_news",
+    "dashboard_brief",
+    "caption_story",
+]
+
+VALID_VISUAL_STYLE_PRESETS = [
+    "light_editorial",
+    "warm_paper",
+    "bold_magazine",
+]
+
 
 def run_background_variant_matrix(request) -> dict[str, Any]:
     """
@@ -279,6 +292,106 @@ def run_transition_variant_matrix(request) -> dict[str, Any]:
             items.append({
                 "family": family_id,
                 "transitionStyle": transition_style,
+                "success": result.get("success", False),
+                "videoUrl": result.get("clipUrl", ""),
+                "experimentId": result.get("experimentId", ""),
+                "clipSeconds": result.get("clipSeconds", clip_seconds),
+                "elapsedMs": result.get("elapsedMs", 0),
+                "message": result.get("message", ""),
+                "warnings": result.get("warnings", []),
+            })
+
+    elapsed = int((time.time() - t0) * 1000)
+
+    return {
+        "items": items,
+        "totalElapsedMs": elapsed,
+    }
+
+
+def run_visual_style_matrix(request) -> dict[str, Any]:
+    """
+    V1.2.4: Visual Style Preset Matrix — family × visualStylePreset clips.
+
+    Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
+    All clips are temporary lab assets.
+
+    Args:
+        request: VisualStyleMatrixRequest object
+
+    Returns:
+        {
+            "items": [
+                {
+                    "family": "data_news",
+                    "visualStylePreset": "light_editorial",
+                    "success": true,
+                    "videoUrl": "/runtime/video_lab/experiments/clip_xxx/clip.mp4",
+                    "experimentId": "...",
+                    "clipSeconds": 2,
+                    "elapsedMs": 12345,
+                    "message": "",
+                    "warnings": []
+                },
+                ...
+            ],
+            "totalElapsedMs": 123456
+        }
+    """
+    t0 = time.time()
+
+    content = request.content.strip() or STYLE_FAMILY_DEFAULT_CONTENT
+    params = dict(request.params or {})
+    params["visualRoute"] = "template_programmatic_render"
+    clip_seconds = int(params.get("clipSeconds", 3))
+    key_point_count = int(params.get("keyPointCount", 3))
+
+    matrix_config = dict(request.matrix or {})
+    families = matrix_config.get("families", VALID_VISUAL_STYLE_MATRIX_FAMILIES)
+    visual_style_presets = matrix_config.get("visualStylePresets", VALID_VISUAL_STYLE_PRESETS)
+
+    # Filter to valid entries only
+    families = [f for f in families if f in VALID_VISUAL_STYLE_MATRIX_FAMILIES]
+    visual_style_presets = [p for p in visual_style_presets if p in VALID_VISUAL_STYLE_PRESETS]
+
+    # V1.2.4: Reject invalid / over-limit requests with clear error messages
+    if not families:
+        raise ValueError(
+            f"families filter resulted in empty set. "
+            f"Allowed values: {VALID_VISUAL_STYLE_MATRIX_FAMILIES}"
+        )
+    if not visual_style_presets:
+        raise ValueError(
+            f"visualStylePresets filter resulted in empty set. "
+            f"Allowed values: {VALID_VISUAL_STYLE_PRESETS}"
+        )
+    total = len(families) * len(visual_style_presets)
+    if total > MAX_MATRIX_ITEMS:
+        raise ValueError(
+            f"visual style matrix is limited to {MAX_MATRIX_ITEMS} clips per request, "
+            f"but {total} requested ({len(families)} families × {len(visual_style_presets)} presets). "
+            f"Reduce families or presets."
+        )
+
+    items: list[dict[str, Any]] = []
+
+    for family_id in families:
+        for preset in visual_style_presets:
+            family_params = {
+                **params,
+                "remotionFamily": family_id,
+                "keyPointCount": key_point_count,
+                "visualStylePreset": preset,
+            }
+            result = render_clip_preview(
+                content=content,
+                visual_route="template_programmatic_render",
+                params=family_params,
+                clip_seconds=clip_seconds,
+            )
+            items.append({
+                "family": family_id,
+                "visualStylePreset": preset,
                 "success": result.get("success", False),
                 "videoUrl": result.get("clipUrl", ""),
                 "experimentId": result.get("experimentId", ""),

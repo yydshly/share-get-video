@@ -29,6 +29,7 @@ from app.video_lab.schemas import (
     StyleFamilyCompareRequest,
     BackgroundVariantMatrixRequest,
     TransitionVariantMatrixRequest,
+    VisualStyleMatrixRequest,
     TechniqueProbeRequest,
     StyleSweepRequest,
 )
@@ -45,6 +46,7 @@ from app.video_lab.services import (
     run_style_family_compare,
     run_background_variant_matrix,
     run_transition_variant_matrix,
+    run_visual_style_matrix,
     run_technique_probe_endpoint,
     run_style_sweep_endpoint,
     extract_style_sample_assets,
@@ -413,6 +415,19 @@ def style_family_transition_matrix(request: TransitionVariantMatrixRequest) -> d
     """
     try:
         return run_transition_variant_matrix(request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# V1.2.4: Lab-only visual style preset matrix
+@router.post("/style-family/visual-style-matrix")
+def style_family_visual_style_matrix(request: VisualStyleMatrixRequest) -> dict[str, Any]:
+    """Visual Style Preset Matrix: family x visualStylePreset clips.
+
+    Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
+    """
+    try:
+        return run_visual_style_matrix(request)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

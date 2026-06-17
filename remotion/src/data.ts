@@ -58,6 +58,9 @@ export type BackgroundPreset =
   | "neon_circuit"      // neon circuit grid + pulse nodes + scan sweep
   | "deep_space";       // deep starfield + orbital arcs + drifting nebula
 
+// V1.2.4: Visual style preset — overall visual tone overrides
+export type VisualStylePreset = "light_editorial" | "warm_paper" | "bold_magazine";
+
 export type RemotionStyle = {
   accentColor?: string;     // 主题强调色（标号/分隔线/数据条/图标）
   highlightColor?: string;  // 关键词/数字高亮色
@@ -78,6 +81,8 @@ export type RemotionStyle = {
   aspectRatioLayoutMode?: AspectRatioLayoutMode;
   // V1.2.x: Debug switch — show PREV/NEXT stack labels on card layers
   debugStackLabels?: boolean;
+  // V1.2.4: Visual style preset — overall visual tone (light/warm/bold)
+  visualStylePreset?: VisualStylePreset;
 };
 
 // V0.6.2: Remotion family — selects visual presentation paradigm

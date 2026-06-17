@@ -165,6 +165,11 @@ def build_remotion_props(
     if background_preset in ("tech_grid_dark", "aurora_blue", "glass_dashboard", "warm_cinematic", "neon_circuit", "deep_space"):
         style["backgroundPreset"] = background_preset
     card_stack_peek_frames = rstyle.get("cardStackPeekFrames") or params.get("cardStackPeekFrames")
+
+    # V1.2.4: Visual style preset — overrides overall visual tone (light/warm/bold)
+    visual_style_preset = rstyle.get("visualStylePreset") or params.get("visualStylePreset")
+    if visual_style_preset in ("light_editorial", "warm_paper", "bold_magazine"):
+        style["visualStylePreset"] = visual_style_preset
     if card_stack_peek_frames is not None:
         try:
             style["cardStackPeekFrames"] = max(0, min(45, int(card_stack_peek_frames)))

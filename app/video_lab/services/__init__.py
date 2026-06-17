@@ -14,6 +14,7 @@ from app.video_lab.services.style_family_service import (
     run_style_family_compare,
     run_background_variant_matrix,
     run_transition_variant_matrix,
+    run_visual_style_matrix,
 )
 from app.video_lab.services.probe_service import run_technique_probe_endpoint
 from app.video_lab.services.style_sweep_service import run_style_sweep_endpoint
@@ -26,6 +27,7 @@ __all__ = [
     "run_style_family_compare",
     "run_background_variant_matrix",
     "run_transition_variant_matrix",
+    "run_visual_style_matrix",
     "run_technique_probe_endpoint",
     "run_style_sweep_endpoint",
     "extract_style_sample_assets",

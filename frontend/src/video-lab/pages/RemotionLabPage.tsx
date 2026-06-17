@@ -643,6 +643,25 @@ function TabVisualStyle() {
           </div>
         ))}
       </div>
+
+      <Link
+        to="/video-lab/remotion-style-family#visual-style-matrix"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          background: "#7c3aed",
+          color: "white",
+          textDecoration: "none",
+          borderRadius: 10,
+          padding: "0.75rem 1.25rem",
+          fontSize: "0.9rem",
+          fontWeight: 700,
+          alignSelf: "flex-start",
+        }}
+      >
+        前往生成视觉风格矩阵 →
+      </Link>
     </div>
   );
 }

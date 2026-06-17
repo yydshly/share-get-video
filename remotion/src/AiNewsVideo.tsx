@@ -260,12 +260,19 @@ const FloatingParticles: React.FC<{ count: number; color: string; maxSize?: numb
 //   aurora_blue      → 缓慢漂移的蓝紫极光（呼吸）
 //   glass_dashboard  → 玻璃面板（frosted glass + 蓝紫高光层）
 //   warm_cinematic   → 暖色电影感（琥珀/金色光晕 + 暗角）
+//   neon_circuit     → neon circuit grid + pulse nodes + scan sweep
+//   deep_space       → deep starfield + orbital arcs + drifting nebula
+// V1.2.4: visualStylePreset overrides surface background (light_editorial → white)
 const BackgroundLayer: React.FC<{
   preset?: BackgroundPreset;
   accent?: string;
   highlight?: string;
-}> = ({ preset = "tech_grid_dark", accent = C.accent, highlight = C.highlight }) => {
+  visualStylePreset?: string;
+}> = ({ preset = "tech_grid_dark", accent = C.accent, highlight = C.highlight, visualStylePreset }) => {
+  const tokens = resolveVisualStyleTokens(visualStylePreset);
   const frame = useCurrentFrame();
+  // Use visual style surface background when set, otherwise preset background
+  const baseBg = tokens.surfaceBackground;
   if (preset === "glass_dashboard") {
     // ── glass_dashboard: frosted glass panels + layered blue-purple glows ──
     // Key differentiator: backdrop-blur glass panels, NOT just glows
@@ -275,7 +282,7 @@ const BackgroundLayer: React.FC<{
           position: "absolute",
           inset: 0,
           zIndex: 0,
-          background: "#080c18",
+          background: baseBg,
           overflow: "hidden",
         }}
       >
@@ -352,12 +359,12 @@ const BackgroundLayer: React.FC<{
         {/* Top gradient mask */}
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, height: "18%",
-          background: `linear-gradient(180deg, #080c18dd 0%, transparent 100%)`,
+          background: `linear-gradient(180deg, ${baseBg}dd 0%, transparent 100%)`,
         }} />
         {/* Bottom gradient mask */}
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0, height: "20%",
-          background: "linear-gradient(0deg, #080c18aa 0%, transparent 100%)",
+          background: `linear-gradient(0deg, ${baseBg}aa 0%, transparent 100%)`,
         }} />
       </div>
     );
@@ -369,7 +376,7 @@ const BackgroundLayer: React.FC<{
     const auroraOp = 0.6 + 0.4 * Math.sin(frame / 55);
     const aura2X = Math.cos(frame / 60) * 6;
     return (
-      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: C.bg, overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: baseBg, overflow: "hidden" }}>
         {/* 中央大极光 — 横向漂移 + 呼吸 */}
         <div style={{
           position: "absolute", top: "-30%", left: "-20%", width: "140%", height: "100%",
@@ -408,7 +415,7 @@ const BackgroundLayer: React.FC<{
     const bloomScale = 1 + 0.06 * Math.sin(frame / 55);
     const sideOp = 0.6 + 0.4 * Math.sin(frame / 38 + 1);
     return (
-      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: "#0c0a14", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: baseBg, overflow: "hidden" }}>
         {/* Wide amber light streak from top — breathing */}
         <div style={{
           position: "absolute", top: "-20%", left: "10%", width: "80%", height: "55%",
@@ -434,21 +441,21 @@ const BackgroundLayer: React.FC<{
         {/* Top vignette */}
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, height: "30%",
-          background: "linear-gradient(180deg, #0c0a14ee 0%, transparent 100%)",
+          background: `linear-gradient(180deg, ${baseBg}ee 0%, transparent 100%)`,
         }} />
         {/* Bottom vignette — strong */}
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0, height: "35%",
-          background: "linear-gradient(0deg, #0c0a14ff 0%, transparent 100%)",
+          background: `linear-gradient(0deg, ${baseBg}ff 0%, transparent 100%)`,
         }} />
         {/* Left/right vignette */}
         <div style={{
           position: "absolute", top: 0, bottom: 0, left: 0, width: "15%",
-          background: "linear-gradient(90deg, #0c0a14 0%, transparent 100%)",
+          background: `linear-gradient(90deg, ${baseBg} 0%, transparent 100%)`,
         }} />
         <div style={{
           position: "absolute", top: 0, bottom: 0, right: 0, width: "15%",
-          background: "linear-gradient(270deg, #0c0a14 0%, transparent 100%)",
+          background: `linear-gradient(270deg, ${baseBg} 0%, transparent 100%)`,
         }} />
       </div>
     );
@@ -459,7 +466,7 @@ const BackgroundLayer: React.FC<{
     const pulse = 0.55 + 0.45 * Math.sin(frame / 18);
     const gridPan = -((frame * 0.3) % 48);
     return (
-      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: "#050716", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: baseBg, overflow: "hidden" }}>
         <div style={{
           position: "absolute", inset: "-10%",
           transform: `translateY(${gridPan}px)`,
@@ -498,7 +505,7 @@ const BackgroundLayer: React.FC<{
         <FloatingParticles count={16} color={highlight} maxSize={3} />
         <div style={{
           position: "absolute", inset: 0,
-          background: "radial-gradient(ellipse at center, transparent 0%, transparent 56%, #050716d8 100%)",
+          background: `radial-gradient(ellipse at center, transparent 0%, transparent 56%, ${baseBg}d8 100%)`,
         }} />
       </div>
     );
@@ -509,7 +516,7 @@ const BackgroundLayer: React.FC<{
     const driftY = Math.cos(frame / 110) * 4;
     const orbit = frame * 0.08;
     return (
-      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: "#030612", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: baseBg, overflow: "hidden" }}>
         <div style={{
           position: "absolute", inset: "-18%",
           transform: `translate(${driftX}%, ${driftY}%) scale(1.05)`,
@@ -542,7 +549,7 @@ const BackgroundLayer: React.FC<{
         }} />
         <div style={{
           position: "absolute", inset: 0,
-          background: "linear-gradient(180deg, #030612cc 0%, transparent 38%, #030612dd 100%)",
+          background: `linear-gradient(180deg, ${baseBg}cc 0%, transparent 38%, ${baseBg}dd 100%)`,
         }} />
       </div>
     );
@@ -745,7 +752,7 @@ const CoverPage: React.FC<{
         }}
       >
         {/* V1.2.1.4: Background layer + existing glow layers for cinematic depth */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
         {/* Supplementary cinematic glow layers */}
         <div style={{ position: "absolute", top: "5%", left: "20%", width: 700, height: 700, borderRadius: "50%", background: `radial-gradient(circle, ${accent}22 0%, transparent 70%)`, filter: "blur(120px)" }} />
         <div style={{ position: "absolute", bottom: "10%", right: "10%", width: 600, height: 600, borderRadius: "50%", background: `radial-gradient(circle, ${C.accent2}18 0%, transparent 70%)`, filter: "blur(100px)" }} />
@@ -804,7 +811,7 @@ const CoverPage: React.FC<{
         }}
       >
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 800, textAlign: "center" }}>
           {/* Title - clean and large */}
           <h1 style={{ fontSize: 72, fontWeight: 800, color: C.textPrimary, margin: 0, lineHeight: 1.15, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
@@ -1689,7 +1696,7 @@ const CardStackLayout: React.FC<{
   return (
     <AbsoluteFill style={{ background: "transparent", justifyContent: "center", alignItems: "center", padding: "60px 40px" }}>
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={vstyle?.accentColor} highlight={vstyle?.highlightColor} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={vstyle?.accentColor} highlight={vstyle?.highlightColor} visualStylePreset={vstyle?.visualStylePreset} />
       {keyPoints.map((kp, i) => {
         const totalFrames = cardFramesArr[i] + transitionOverlap;
         // V1.2.1.4: visualPeekFrames is independent of transitionOverlap / safeOverlap.
@@ -1816,7 +1823,7 @@ const TimelineNewsLayout: React.FC<{
     return (
       <AbsoluteFill style={{ background: "transparent", padding: "72px 58px", justifyContent: "center" }}>
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 42 }}>Route Map</div>
           <div style={{ position: "relative", height: 720 }}>
@@ -2136,7 +2143,7 @@ const DashboardBriefLayout: React.FC<{
     return (
       <AbsoluteFill style={{ background: "transparent", padding: "70px 58px", justifyContent: "center" }}>
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 22 }}>Ranking Strip</div>
           <h2 style={{ color: C.textPrimary, fontSize: 52, fontWeight: 900, lineHeight: 1.15, margin: 0, marginBottom: 34 }}>Top signals by impact</h2>
@@ -2172,7 +2179,7 @@ const DashboardBriefLayout: React.FC<{
     return (
       <AbsoluteFill style={{ background: "transparent", padding: "66px 56px" }}>
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
         <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column" }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase" }}>Chart Story</div>
           <h2 style={{ color: C.textPrimary, fontSize: 48, fontWeight: 900, margin: "14px 0 26px", lineHeight: 1.15 }}>{active?.title}</h2>
@@ -2345,7 +2352,7 @@ const CaptionStoryLayout: React.FC<{
     return (
       <AbsoluteFill style={{ background: "transparent", padding: "88px 66px", justifyContent: "center", alignItems: "center" }}>
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
         <div style={{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 930 }}>
           <div style={{ display: "inline-flex", border: `1px solid ${accent}66`, color: accent, borderRadius: 999, padding: "8px 18px", fontSize: 18, fontWeight: 800, letterSpacing: 4, textTransform: "uppercase", marginBottom: 34 }}>Cinematic Intro</div>
           <h2 style={{ color: C.textPrimary, fontSize: Math.round(82 * fs), lineHeight: 1.05, margin: 0, opacity: titleOpacityFx, transform: titleTransform, filter: titleFilter, clipPath: titleClipPath, textShadow: `0 0 86px ${accent}55` }}>
@@ -2361,7 +2368,7 @@ const CaptionStoryLayout: React.FC<{
     return (
       <AbsoluteFill style={{ background: "transparent", padding: "72px 58px", justifyContent: "center" }}>
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 900 }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 32 }}>CTA Overlay</div>
           <h2 style={{ color: C.textPrimary, fontSize: Math.round(68 * fs), lineHeight: 1.08, margin: 0, opacity: titleOpacityFx, transform: titleTransform, filter: titleFilter, clipPath: titleClipPath }}>
@@ -2434,7 +2441,7 @@ const SummaryPage: React.FC<{
         }}
       >
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 950, width: "100%" }}>
           <h2 style={{ fontSize: 48, fontWeight: 800, color: C.textPrimary, margin: 0, marginBottom: 32, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
             今日回顾
@@ -2477,7 +2484,7 @@ const SummaryPage: React.FC<{
         }}
       >
         {/* V1.2.1.4: Background layer */}
-        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
+        <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 800, width: "100%" }}>
           <h2 style={{ fontSize: 48, fontWeight: 800, color: C.textPrimary, margin: 0, marginBottom: 40, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
             今日回顾
@@ -2806,6 +2813,64 @@ const SceneTransitionOverlay: React.FC<{
   return null;
 };
 
+// V1.2.4: Visual Style Preset — resolves visual tone tokens for the overall page aesthetic.
+// Returns overrides for surface colors, text, accent, and motion character.
+// light_editorial: white/light gray background + dark text + blue accent — clean editorial feel
+// warm_paper: warm beige background + warm text — cozy consulting-report feel
+// bold_magazine: high-contrast dark/white + red accent — punchy magazine-cover feel
+function resolveVisualStyleTokens(preset?: string): {
+  surfaceBackground: string;
+  surfaceTextPrimary: string;
+  surfaceTextSecondary: string;
+  surfaceAccent: string;
+  surfaceHighlight: string;
+  surfaceBorder: string;
+  motionTone: "gentle" | "restrained" | "energetic";
+} {
+  switch (preset) {
+    case "light_editorial":
+      return {
+        surfaceBackground: "#ffffff",
+        surfaceTextPrimary: "#0f172a",
+        surfaceTextSecondary: "#334155",
+        surfaceAccent: "#3b82f6",
+        surfaceHighlight: "#0ea5e9",
+        surfaceBorder: "#e2e8f0",
+        motionTone: "gentle",
+      };
+    case "warm_paper":
+      return {
+        surfaceBackground: "#faf8f5",
+        surfaceTextPrimary: "#292524",
+        surfaceTextSecondary: "#44403c",
+        surfaceAccent: "#b45309",
+        surfaceHighlight: "#d97706",
+        surfaceBorder: "#e7e5e4",
+        motionTone: "restrained",
+      };
+    case "bold_magazine":
+      return {
+        surfaceBackground: "#0a0a0a",
+        surfaceTextPrimary: "#fafafa",
+        surfaceTextSecondary: "#e4e4e7",
+        surfaceAccent: "#ef4444",
+        surfaceHighlight: "#f97316",
+        surfaceBorder: "#27272a",
+        motionTone: "energetic",
+      };
+    default:
+      return {
+        surfaceBackground: "#0a0e1a",
+        surfaceTextPrimary: "#f8fafc",
+        surfaceTextSecondary: "#94a3b8",
+        surfaceAccent: "#3b82f6",
+        surfaceHighlight: "#f59e0b",
+        surfaceBorder: "#1e293b",
+        motionTone: "restrained",
+      };
+  }
+}
+
 // V0.3.9: Main Video Component with transitionStyle and style variant support
 // V0.6.2: Card Stack support via remotionFamily prop
 export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
@@ -2918,7 +2983,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   return (
     <AbsoluteFill style={{ background: "transparent" }}>
       {/* V1.2.1.4: Programmatic background layer at root — individual pages can override */}
-      <BackgroundLayer preset={style?.backgroundPreset} accent={style?.accentColor} highlight={style?.highlightColor} />
+      <BackgroundLayer preset={style?.backgroundPreset} accent={style?.accentColor} highlight={style?.highlightColor} visualStylePreset={style?.visualStylePreset} />
       {/* Cover / report opening */}
       <Sequence from={0} durationInFrames={coverFrames + safeOverlap}>
         {isReportSourceBound ? (

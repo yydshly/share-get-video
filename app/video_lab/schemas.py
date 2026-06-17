@@ -226,6 +226,24 @@ class TransitionVariantMatrixRequest(BaseModel):
     )
 
 
+class VisualStyleMatrixRequest(BaseModel):
+    """JSON body for POST /video-lab/style-family/visual-style-matrix
+    V1.2.4: Lab-only visual style preset matrix — family × visualStylePreset."""
+
+    content: str = Field(
+        default="OpenAI 发布新一代多模态模型，重点提升语音、图像和视频理解能力。",
+        description="Source content for lab clips",
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Render params such as keyPointCount, clipSeconds",
+    )
+    matrix: dict[str, Any] = Field(
+        ...,
+        description="Matrix config with families and visualStylePresets",
+    )
+
+
 class CreateChainBenchmarkRequest(BaseModel):
     """JSON body for POST /video-lab/chain-benchmarks"""
 

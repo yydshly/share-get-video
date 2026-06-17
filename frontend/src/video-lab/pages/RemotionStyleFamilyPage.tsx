@@ -68,6 +68,24 @@ interface TransitionMatrixResponse {
   totalElapsedMs: number;
 }
 
+// V1.2.4: Visual Style Preset Matrix
+interface VisualStyleMatrixItem {
+  family: string;
+  visualStylePreset: string;
+  success: boolean;
+  videoUrl: string;
+  experimentId: string;
+  clipSeconds: number;
+  elapsedMs: number;
+  message: string;
+  warnings: string[];
+}
+
+interface VisualStyleMatrixResponse {
+  items: VisualStyleMatrixItem[];
+  totalElapsedMs: number;
+}
+
 // ─── Style Family Definition ───────────────────────────────────────────────────
 
 interface StyleFamily {
@@ -1004,6 +1022,19 @@ const MATRIX_TRANSITIONS = [
   { id: "glitch", label: "glitch" },
 ];
 
+// V1.2.4: Visual Style Preset Matrix constants
+const VISUAL_STYLE_MATRIX_FAMILIES = [
+  { id: "data_news", name: "Data News", color: "#7c3aed" },
+  { id: "dashboard_brief", name: "Dashboard", color: "#f59e0b" },
+  { id: "caption_story", name: "Caption Story", color: "#ec4899" },
+];
+
+const VISUAL_STYLE_PRESETS = [
+  { id: "light_editorial", label: "light_editorial", desc: "浅色科技媒体" },
+  { id: "warm_paper", label: "warm_paper", desc: "稳妥纸张报告" },
+  { id: "bold_magazine", label: "bold_magazine", desc: "惊艳杂志爆点" },
+];
+
 const CAPABILITY_SUMMARY = [
   { label: "表现范式", value: "5", detail: "Data / Stack / Timeline / Dashboard / Caption" },
   { label: "动态背景", value: "6", detail: "含极光、玻璃、深空、霓虹电路" },
@@ -1887,6 +1918,210 @@ function TransitionVariantMatrix({
   );
 }
 
+// V1.2.4: Visual Style Preset Matrix Component
+function VisualStyleVariantMatrix({
+  result,
+  onReload,
+  loading,
+}: {
+  result: VisualStyleMatrixResponse | null;
+  onReload: () => void;
+  loading: boolean;
+}) {
+  const resolveUrl = (u: string) =>
+    u && u.startsWith("/runtime/")
+      ? `${import.meta.env.VITE_API_BASE?.replace(/\/video-lab$/, "") ?? ""}${u}`
+      : u || "";
+
+  const grid = VISUAL_STYLE_MATRIX_FAMILIES.map((fam) => ({
+    family: fam,
+    cells: VISUAL_STYLE_PRESETS.map((preset) => ({
+      preset,
+      item: result?.items.find(
+        (it) => it.family === fam.id && it.visualStylePreset === preset.id
+      ),
+    })),
+  }));
+
+  const totalSuccess = result?.items.filter((it) => it.success).length ?? 0;
+  const totalItems = result?.items.length ?? 0;
+
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1.25rem",
+        marginBottom: "2.5rem",
+        overflow: "hidden",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.85rem", flexWrap: "wrap" }}>
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+          视觉风格矩阵 · V1.2.4
+        </h2>
+        <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
+          3 family × 3 visual styles = 9 clips
+        </span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {result && (
+            <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+              {totalSuccess}/{totalItems} 成功 · {result.totalElapsedMs}ms
+            </span>
+          )}
+          <button
+            onClick={onReload}
+            disabled={loading}
+            style={{
+              background: loading ? "#94a3b8" : "#7c3aed",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              padding: "0.45rem 1rem",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              cursor: loading ? "wait" : "pointer",
+            }}
+          >
+            {loading ? "渲染中..." : "运行视觉风格矩阵"}
+          </button>
+        </div>
+      </div>
+
+      <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.85rem" }}>
+        同一内容（Data News / Dashboard / Caption Story）× 3 种视觉风格（浅色编辑 / 暖色纸张 / 杂志爆点），
+        观察整体色调、卡片、边框、文字颜色的变化。Lab-only，不写 Style Sweep job 或 Style Gallery sample。
+      </p>
+
+      {/* 3×3 Responsive Grid */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${VISUAL_STYLE_PRESETS.length}, minmax(150px, 1fr))`,
+          gap: "0.65rem",
+        }}
+      >
+        {grid.map((row) =>
+          row.cells.map((cell) => {
+            const item = cell.item;
+            const success = item?.success ?? false;
+            const hasVideo = success && Boolean(item?.videoUrl);
+
+            return (
+              <div
+                key={`${row.family.id}-${cell.preset.id}`}
+                style={{
+                  border: `1px solid ${row.family.color}30`,
+                  borderRadius: "10px",
+                  overflow: "hidden",
+                  background: "white",
+                }}
+              >
+                {/* Card header */}
+                <div
+                  style={{
+                    background: `linear-gradient(135deg, ${row.family.color}15 0%, ${row.family.color}06 100%)`,
+                    borderBottom: `1px solid ${row.family.color}25`,
+                    padding: "0.4rem 0.65rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                  }}
+                >
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, color: row.family.color }}>
+                    {row.family.name}
+                  </span>
+                  <span style={{ color: "#e2e8f0", fontSize: "0.65rem" }}>×</span>
+                  <span style={{ fontSize: "0.7rem", color: "#64748b" }}>
+                    {cell.preset.label}
+                  </span>
+                </div>
+
+                {/* Video or status */}
+                <div style={{ padding: "0.4rem", background: "#0f172a" }}>
+                  {hasVideo && item ? (
+                    <video
+                      controls
+                      src={resolveUrl(item.videoUrl)}
+                      style={{
+                        width: "100%",
+                        height: "220px",
+                        objectFit: "contain",
+                        display: "block",
+                        borderRadius: "6px",
+                        background: "#0a0e1a",
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        height: "220px",
+                        background: "#1e293b",
+                        borderRadius: "6px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "0.72rem",
+                        color: "#ef4444",
+                      }}
+                    >
+                      {item ? `失败：${item.message}` : "待渲染"}
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div style={{
+                  padding: "0.3rem 0.65rem",
+                  borderTop: `1px solid ${row.family.color}15`,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}>
+                  {item?.success ? (
+                    <span style={{ fontSize: "0.65rem", color: "#16a34a" }}>✓ 成功</span>
+                  ) : item ? (
+                    <span style={{ fontSize: "0.65rem", color: "#ef4444" }}>✗ 失败</span>
+                  ) : (
+                    <span style={{ fontSize: "0.65rem", color: "#94a3b8" }}>—</span>
+                  )}
+                  <span style={{ fontSize: "0.62rem", color: "#94a3b8" }}>
+                    {item ? `${item.elapsedMs}ms` : ""}
+                  </span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Observation hints */}
+      {result && (
+        <div
+          style={{
+            marginTop: "1rem",
+            padding: "0.85rem 1rem",
+            background: "#f8fafc",
+            borderRadius: "8px",
+            fontSize: "0.78rem",
+            color: "#475569",
+            lineHeight: 1.6,
+          }}
+        >
+          <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: "0.3rem" }}>观察提示：</div>
+          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+            <li>light_editorial 是否明显更白/浅色，bold_magazine 是否明显更黑/高对比。</li>
+            <li>warm_paper 是否呈现暖色米白基调，与其他两者明显不同。</li>
+            <li>同一 family 在 3 种视觉风格下是否仍保持版式可辨识性。</li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function RemotionStyleFamilyPage() {
@@ -1901,6 +2136,10 @@ export default function RemotionStyleFamilyPage() {
   const [transitionMatrixLoading, setTransitionMatrixLoading] = useState(false);
   const [transitionMatrixResult, setTransitionMatrixResult] = useState<TransitionMatrixResponse | null>(null);
   const [transitionMatrixError, setTransitionMatrixError] = useState("");
+  // V1.2.4: Visual Style Preset Matrix state
+  const [visualStyleMatrixLoading, setVisualStyleMatrixLoading] = useState(false);
+  const [visualStyleMatrixResult, setVisualStyleMatrixResult] = useState<VisualStyleMatrixResponse | null>(null);
+  const [visualStyleMatrixError, setVisualStyleMatrixError] = useState("");
 
   const runCompare = async () => {
     setCompareLoading(true);
@@ -1978,6 +2217,34 @@ export default function RemotionStyleFamilyPage() {
       setTransitionMatrixError(String(e));
     } finally {
       setTransitionMatrixLoading(false);
+    }
+  };
+
+  // V1.2.4: Visual Style Preset Matrix
+  const runVisualStyleMatrix = async () => {
+    setVisualStyleMatrixLoading(true);
+    setVisualStyleMatrixError("");
+    setVisualStyleMatrixResult(null);
+    try {
+      const resp = await fetch(`${API_BASE}/style-family/visual-style-matrix`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "OpenAI 发布新一代多模态模型，重点提升语音、图像和视频理解能力。",
+          params: { clipSeconds: 2, keyPointCount: 2 },
+          matrix: {
+            families: VISUAL_STYLE_MATRIX_FAMILIES.map((f) => f.id),
+            visualStylePresets: VISUAL_STYLE_PRESETS.map((p) => p.id),
+          },
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+      setVisualStyleMatrixResult(data);
+    } catch (e) {
+      setVisualStyleMatrixError(String(e));
+    } finally {
+      setVisualStyleMatrixLoading(false);
     }
   };
 
@@ -2472,6 +2739,21 @@ export default function RemotionStyleFamilyPage() {
       {transitionMatrixError && (
         <div style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "1rem", padding: "0.75rem", background: "#fef2f2", borderRadius: "8px" }}>
           错误：{transitionMatrixError}
+        </div>
+      )}
+
+      {/* V1.2.4: Visual Style Preset Matrix */}
+      <div id="visual-style-matrix">
+        <VisualStyleVariantMatrix
+          result={visualStyleMatrixResult}
+          onReload={runVisualStyleMatrix}
+          loading={visualStyleMatrixLoading}
+        />
+      </div>
+
+      {visualStyleMatrixError && (
+        <div style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "1rem", padding: "0.75rem", background: "#fef2f2", borderRadius: "8px" }}>
+          错误：{visualStyleMatrixError}
         </div>
       )}
 
