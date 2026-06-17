@@ -87,13 +87,17 @@ def generate_srt_from_segments(
             "subtitles": [...],
             "format": "srt",
             "srtPath": "...",
-            "srtUrl": "..."
+            "srtUrl": "...",
+            "subtitleDiagnostics": {...}
         }
     """
     # 每段旁白拆成多条短字幕，时间按字数比例分配，与 TTS 同步、不截断
+    # V1.2.3 P1: use DEFAULT_ASS_STYLE limits for consistency
+    eff_max_chars = DEFAULT_ASS_STYLE["max_chars"]
+    eff_max_lines = DEFAULT_ASS_STYLE["max_lines"]
     subtitles = []
     for seg in segments:
-        subtitles.extend(_segment_to_entries(seg, max_chars=20, max_lines=2))
+        subtitles.extend(_segment_to_entries(seg, max_chars=eff_max_chars, max_lines=eff_max_lines))
 
     # Build SRT content
     srt_content = _build_srt_content(subtitles)
@@ -107,11 +111,19 @@ def generate_srt_from_segments(
         srt_path = str(output_path)
         srt_url = path_to_url(output_path)
 
+    diagnostics = analyze_subtitle_entries(
+        subtitles,
+        max_chars=eff_max_chars,
+        max_lines=eff_max_lines,
+        segment_count=len(segments),
+    )
+
     return {
         "subtitles": subtitles,
         "format": "srt",
         "srtPath": srt_path,
         "srtUrl": srt_url,
+        "subtitleDiagnostics": diagnostics,
     }
 
 
@@ -336,6 +348,13 @@ def generate_ass_from_segments(
         ass_path = str(output_path)
         ass_url = path_to_url(output_path)
 
+    diagnostics = analyze_subtitle_entries(
+        subtitles,
+        max_chars=eff_max_chars,
+        max_lines=eff_max_lines,
+        segment_count=len(segments),
+    )
+
     return {
         "subtitles": subtitles,
         "format": "ass",
@@ -344,6 +363,7 @@ def generate_ass_from_segments(
         "style": eff_style,
         "playResX": play_res_x,
         "playResY": play_res_y,
+        "subtitleDiagnostics": diagnostics,
     }
 
 
@@ -413,3 +433,201 @@ def _format_ass_time(seconds: float) -> str:
     secs = (total_cs % 6000) // 100
     cs = total_cs % 100
     return f"{hours:d}:{minutes:02d}:{secs:02d}.{cs:02d}"
+
+
+# ─────────────────────────────────────────────────────────────
+# V1.2.3 P1: ASS subtitle style resolution + diagnostics
+# ─────────────────────────────────────────────────────────────
+
+# Safe-range limits for user-supplied style overrides
+_STYLE_LIMITS = {
+    "font_size": (24, 56),
+    "margin_v": (80, 320),
+    "margin_lr": (40, 180),
+    "max_chars": (14, 30),
+    "max_lines": (1, 3),
+}
+
+# Known overrideable fields (anything else in params.subtitleStyle is ignored)
+_KNOWN_STYLE_FIELDS = {
+    "font_size", "margin_v", "margin_lr", "max_chars", "max_lines",
+    "outline", "shadow", "alignment",
+    "primary_colour", "outline_colour", "back_colour", "font_name",
+}
+
+
+def resolve_ass_subtitle_style(
+    *,
+    aspect_ratio: str = "9:16",
+    visual_route: str = "",
+    params: dict | None = None,
+) -> dict:
+    """
+    Resolve ASS subtitle style based on visual route and optional params override.
+
+    Returns a style dict derived from DEFAULT_ASS_STYLE, updated with route-specific
+    defaults, then overlaid with any valid fields from params["subtitleStyle"].
+
+    Args:
+        aspect_ratio: target video aspect ratio (e.g. "9:16", "16:9")
+        visual_route: identifies the rendering pipeline (e.g. "ai_asset_then_compose",
+                      "template_programmatic_render", "local_frame_compose")
+        params: optional dict that may contain a "subtitleStyle" key with override values
+
+    Returns:
+        dict with resolved style fields including max_chars and max_lines
+    """
+    # Start from defaults
+    style = dict(DEFAULT_ASS_STYLE)
+
+    # Route-specific safe-area defaults
+    if visual_route == "ai_asset_then_compose":
+        style.update({
+            "font_size": 34,
+            "margin_v": 190,
+            "margin_lr": 90,
+            "back_colour": "&HC0000000",
+            "max_chars": 20,
+            "max_lines": 2,
+        })
+    elif visual_route == "template_programmatic_render":
+        # Remotion — restrained bottom subtitle, avoids obscuring card content
+        style.update({
+            "font_size": 32,
+            "margin_v": 160,
+            "margin_lr": 90,
+            "max_chars": 20,
+            "max_lines": 2,
+        })
+    elif visual_route == "local_frame_compose":
+        # Pillow static card — stable bottom subtitle
+        style.update({
+            "font_size": 36,
+            "margin_v": 150,
+            "max_chars": 22,
+            "max_lines": 2,
+        })
+    # else: use DEFAULT_ASS_STYLE unchanged
+
+    # Apply user/params overrides from params["subtitleStyle"]
+    if params and isinstance(params, dict):
+        override = params.get("subtitleStyle")
+        if override and isinstance(override, dict):
+            for key, value in override.items():
+                if key not in _KNOWN_STYLE_FIELDS:
+                    continue  # ignore unknown keys silently
+                if key in _STYLE_LIMITS:
+                    lo, hi = _STYLE_LIMITS[key]
+                    if isinstance(value, (int, float)):
+                        value = int(value)
+                        value = max(lo, min(hi, value))  # clamp
+                # Only add if not None
+                if value is not None:
+                    style[key] = value
+
+    return style
+
+
+def analyze_subtitle_entries(
+    subtitles: list[dict],
+    *,
+    max_chars: int,
+    max_lines: int,
+    segment_count: int = 0,
+) -> dict:
+    """
+    Diagnose subtitle entries for common quality issues.
+
+    Args:
+        subtitles: list of subtitle entries from generate_*_from_segments
+        max_chars: per-line character limit used when generating
+        max_lines: per-entry line limit used when generating
+        segment_count: original number of voiceover segments (for context)
+
+    Returns:
+        dict with diagnostic flags and metrics:
+        {
+            "subtitleCount": int,
+            "maxLineLength": int,
+            "maxLinesPerEntry": int,
+            "avgDurationSec": float,
+            "minDurationSec": float,
+            "maxDurationSec": float,
+            "hasTooFastEntries": bool,
+            "tooFastCount": int,
+            "hasOverLineLimit": bool,
+            "overLineLimitCount": int,
+            "hasOverCharLimit": bool,
+            "overCharLimitCount": int,
+        }
+    """
+    if not subtitles:
+        return {
+            "subtitleCount": 0,
+            "maxLineLength": 0,
+            "maxLinesPerEntry": 0,
+            "avgDurationSec": 0.0,
+            "minDurationSec": 0.0,
+            "maxDurationSec": 0.0,
+            "hasTooFastEntries": False,
+            "tooFastCount": 0,
+            "hasOverLineLimit": False,
+            "overLineLimitCount": 0,
+            "hasOverCharLimit": False,
+            "overCharLimitCount": 0,
+            "segmentCount": segment_count,
+        }
+
+    durations = []
+    max_line_len = 0
+    max_lines_used = 0
+    too_fast = 0
+    over_line = 0
+    over_char = 0
+
+    for entry in subtitles:
+        lines = entry.get("subLines", [])
+        text = entry.get("text", "")
+
+        # Duration
+        start = float(entry.get("startSec", 0))
+        end = float(entry.get("endSec", 0))
+        dur = end - start
+        durations.append(dur)
+
+        # Per-line char length
+        for ln in lines:
+            max_line_len = max(max_line_len, len(ln))
+
+        # Lines per entry
+        max_lines_used = max(max_lines_used, len(lines))
+
+        # Too fast: < 0.6s
+        if dur < 0.6:
+            too_fast += 1
+
+        # Over line limit
+        if len(lines) > max_lines:
+            over_line += 1
+
+        # Over char limit (any line longer than max_chars)
+        for ln in lines:
+            if len(ln) > max_chars:
+                over_char += 1
+                break  # count per entry, not per line
+
+    return {
+        "subtitleCount": len(subtitles),
+        "maxLineLength": max_line_len,
+        "maxLinesPerEntry": max_lines_used,
+        "avgDurationSec": round(sum(durations) / len(durations), 3) if durations else 0.0,
+        "minDurationSec": round(min(durations), 3) if durations else 0.0,
+        "maxDurationSec": round(max(durations), 3) if durations else 0.0,
+        "hasTooFastEntries": too_fast > 0,
+        "tooFastCount": too_fast,
+        "hasOverLineLimit": over_line > 0,
+        "overLineLimitCount": over_line,
+        "hasOverCharLimit": over_char > 0,
+        "overCharLimitCount": over_char,
+        "segmentCount": segment_count,
+    }

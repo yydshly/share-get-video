@@ -31,7 +31,7 @@ from app.video_lab.models import (
 from app.video_lab.planners.content_structurer import structure_content
 from app.video_lab.planners.key_point_extractor import extract_key_points
 from app.video_lab.planners.voiceover_planner import generate_voiceover
-from app.video_lab.planners.subtitle_planner import generate_srt_from_segments, generate_ass_from_segments, DEFAULT_ASS_STYLE
+from app.video_lab.planners.subtitle_planner import generate_srt_from_segments, generate_ass_from_segments, DEFAULT_ASS_STYLE, resolve_ass_subtitle_style
 from app.video_lab.planners.source_bound_plan import (
     build_source_bound_plan_from_information_summary,
     build_structured_from_information_summary_plan,
@@ -613,13 +613,27 @@ def run_tts_subtitle_compose(
     srt_path = subtitle_dir / "subtitles.srt"
     ass_path = subtitle_dir / "subtitles.ass"
 
+    # V1.2.3 P1: resolve subtitle style based on visual route + params override
+    subtitle_style = resolve_ass_subtitle_style(
+        aspect_ratio=aspect_ratio,
+        visual_route=visual_route,
+        params=params,
+    )
+
     srt_result = generate_srt_from_segments(segments, output_path=srt_path)
     ass_result = generate_ass_from_segments(
         segments,
         output_path=ass_path,
         play_res_x=resolution[0],
         play_res_y=resolution[1],
+        style=subtitle_style,
+        max_chars=subtitle_style.get("max_chars"),
+        max_lines=subtitle_style.get("max_lines"),
     )
+
+    # Diagnostics from either SRT or ASS are equivalent
+    subtitle_diagnostics = ass_result.get("subtitleDiagnostics") or srt_result.get("subtitleDiagnostics") or {}
+
     artifact_srt = VideoProductionArtifact(
         artifact_id=f"{experiment_id}_art_srt",
         type=ArtifactType.SUBTITLE_FILE,
@@ -629,6 +643,7 @@ def run_tts_subtitle_compose(
             "path": srt_result.get("srtPath", ""),
             "url": srt_result.get("srtUrl", ""),
             "subtitleCount": len(srt_result.get("subtitles", [])),
+            "subtitleDiagnostics": srt_result.get("subtitleDiagnostics", {}),
         },
     )
     artifact_ass = VideoProductionArtifact(
@@ -643,6 +658,7 @@ def run_tts_subtitle_compose(
             "playResY": ass_result.get("playResY"),
             "style": ass_result.get("style", {}),
             "renderer": "ass",
+            "subtitleDiagnostics": ass_result.get("subtitleDiagnostics", {}),
         },
     )
     step6 = make_step(
@@ -652,11 +668,18 @@ def run_tts_subtitle_compose(
         status=ProductionStepStatus.SUCCEEDED,
         input_summary=f"{len(segments)} voiceover segments",
         output_summary=f"{len(srt_result.get('subtitles', []))} entries (SRT + ASS)",
-        key_data={"subtitleCount": len(srt_result.get("subtitles", []))},
+        key_data={
+            "subtitleCount": len(srt_result.get("subtitles", [])),
+            "subtitleDiagnostics": subtitle_diagnostics,
+        },
         logs=[
             "[6/9] Generate subtitles",
             f"  SRT: {srt_path.name}, ASS: {ass_path.name}",
             f"  ASS PlayRes: {ass_result.get('playResX')}x{ass_result.get('playResY')}, fontSize={ass_result.get('style', {}).get('font_size')}",
+            f"  Style route: {visual_route}",
+            f"  subtitleDiagnostics: tooFastCount={subtitle_diagnostics.get('tooFastCount', 0)}, "
+            f"overLineCount={subtitle_diagnostics.get('overLineLimitCount', 0)}, "
+            f"overCharCount={subtitle_diagnostics.get('overCharLimitCount', 0)}",
         ],
         artifacts=[artifact_srt, artifact_ass],
     )
@@ -871,7 +894,8 @@ def run_tts_subtitle_compose(
         "audioDurationSec": tts_result.get("durationSec", 0),
         "subtitleCount": len(srt_result.get("subtitles", [])),
         "subtitleRenderer": av_result.get("subtitle_renderer", "none"),
-        "subtitleStyle": av_result.get("subtitle_style", {}),
+        "subtitleStyle": subtitle_style,
+        "subtitleDiagnostics": subtitle_diagnostics,
         "subtitleBurned": subtitle_burned,
         "subtitleFallback": subtitle_fallback,
         "outputVideo": str(final_output),
@@ -1039,7 +1063,8 @@ def run_tts_subtitle_compose(
             "subtitleBurned": subtitle_burned,
             "subtitleFallback": subtitle_fallback,
             "subtitleRenderer": av_result.get("subtitle_renderer", "none"),
-            "subtitleStyle": av_result.get("subtitle_style", {}),
+            "subtitleStyle": subtitle_style,
+            "subtitleDiagnostics": subtitle_diagnostics,
             "bgmEnabled": av_result.get("bgm_enabled", False),
             "bgmMode": av_result.get("bgm_mode", "none"),
             "bgmVolume": av_result.get("bgm_volume", 0.0),
@@ -1060,6 +1085,8 @@ def run_tts_subtitle_compose(
             "subtitleCount": len(srt_result.get("subtitles", [])),
             "subtitleBurned": subtitle_burned,
             "subtitleFallback": subtitle_fallback,
+            "subtitleStyle": subtitle_style,
+            "subtitleDiagnostics": subtitle_diagnostics,
             "ttsSuccess": True,
             "warnings": all_warnings,
             "quality": quality_dict,
