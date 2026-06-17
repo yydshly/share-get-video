@@ -513,6 +513,7 @@ def create_style_sweep_job(request: StyleSweepRequest) -> dict[str, Any]:
         route_id=request.routeId,
         route_name=route_name,
         total=len(route_styles),
+        params=request.params,
         render_fn=_run_visual_compose,
         styles=route_styles,
     )

@@ -27,7 +27,8 @@ _RUNTIME_DIR: Path | None = None
 def _get_jobs_dir() -> Path:
     global _RUNTIME_DIR
     if _RUNTIME_DIR is None:
-        _RUNTIME_DIR = Path(__file__).parent.parent / "runtime" / "video_lab" / "style_sweep" / "jobs"
+        # __file__ = app/video_lab/style_sweep_jobs.py → 4 parents = project root
+        _RUNTIME_DIR = Path(__file__).parent.parent.parent.parent / "runtime" / "video_lab" / "style_sweep" / "jobs"
     _RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     return _RUNTIME_DIR
 
@@ -104,6 +105,7 @@ def create_sweep_job(
     route_id: str,
     route_name: str,
     total: int,
+    params: dict[str, Any] | None,
     render_fn: Callable[[str, str, dict], dict[str, Any]],
     styles: list[dict[str, Any]],
 ) -> SweepJob:
@@ -125,7 +127,7 @@ def create_sweep_job(
     # Start background execution — does NOT block the caller
     thread = threading.Thread(
         target=_run_job_background,
-        args=(job_id, content, route_id, render_fn, styles),
+        args=(job_id, content, route_id, params or {}, render_fn, styles),
         daemon=True,
     )
     thread.start()
@@ -144,6 +146,7 @@ def _run_job_background(
     job_id: str,
     content: str,
     route_id: str,
+    params: dict[str, Any],
     render_fn: Callable[[str, str, dict], dict[str, Any]],
     styles: list[dict[str, Any]],
 ) -> None:
@@ -162,12 +165,9 @@ def _run_job_background(
         job = _load_job(job_id) or job
         style_id = st.get("style_id", "")
         style_name = st.get("style_name", "")
-        merged = {**({"content": content} if "content" not in route_id else {}), **st.get("params", {})}
-        # For remotion route, content is a separate field; for others it's part of params
-        if "content" in st.get("params", {}):
-            merged = {**merged, "content": content}
-        elif "content" not in merged:
-            merged["content"] = content
+
+        # Merge: base params first, style params override — mirrors old /style-sweep logic
+        merged = {**params, **(st.get("params") or {})}
 
         # Update current style tracking
         job.currentStyleId = style_id
@@ -178,6 +178,8 @@ def _run_job_background(
         # Render this single style
         try:
             result = render_fn(content, route_id, merged)
+            # Ensure merged params are preserved in result for debugging
+            result.setdefault("params", merged)
         except Exception as e:
             result = {
                 "status": "failed",

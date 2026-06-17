@@ -843,3 +843,241 @@ class TestResolveUrlsUnchanged:
         assert urls["audio_url"] == "/runtime/video_lab/experiments/abc/audio.mp3"
         assert urls["srt_url"] == "/runtime/video_lab/experiments/abc/subs.srt"
         assert urls["manifest_url"] == "/runtime/video_lab/experiments/abc/manifest.json"
+
+
+# ─── Style Sweep Job Params Merge Tests ───────────────────────────────────────
+
+class TestStyleSweepJobParamsMerge:
+    """V1.2.3: Job runner must merge base params and style params correctly."""
+
+    def test_params_merge_style_overrides_base(self, monkeypatch, tmp_path):
+        """Style params must override base params; base params must be preserved."""
+        import json as _json
+        from app.video_lab import style_sweep_jobs as ssj
+
+        # Use a temp jobs dir
+        jobs_dir = tmp_path / "jobs"
+        jobs_dir.mkdir()
+        monkeypatch.setattr(ssj, "_RUNTIME_DIR", jobs_dir)
+
+        # Track what params were passed to render_fn
+        received_params: list[dict] = []
+
+        def fake_render(content: str, route_id: str, params: dict) -> dict:
+            received_params.append(dict(params))
+            return {
+                "status": "succeeded",
+                "finalVideoUrl": "/runtime/out.mp4",
+                "coverUrl": "",
+                "audioUrl": "",
+                "srtUrl": "",
+                "manifestUrl": "",
+                "warnings": [],
+                "steps": [],
+            }
+
+        # Two fake styles — style2 has overlapping keys to override base
+        styles = [
+            {
+                "style_id": "style_1",
+                "style_name": "Style One",
+                "description": "",
+                "params": {"fontScale": 1.0, "transitionStyle": "slide"},
+            },
+            {
+                "style_id": "style_2",
+                "style_name": "Style Two",
+                "description": "",
+                "params": {"fontScale": 1.2, "showDataViz": False},
+            },
+        ]
+
+        base_params = {
+            "targetDuration": 45,
+            "aspectRatio": "9:16",
+            "keyPointCount": 3,
+            "useLlmPlan": True,
+        }
+
+        job = ssj.create_sweep_job(
+            content="test content",
+            route_id="local_frame_compose",
+            route_name="Pillow",
+            total=2,
+            params=base_params,
+            render_fn=fake_render,
+            styles=styles,
+        )
+
+        # Wait for background job to complete (it's daemon but we poll)
+        import time
+        for _ in range(50):
+            j = ssj.get_sweep_job(job.jobId)
+            if j and j.status == "completed":
+                break
+            time.sleep(0.1)
+
+        # Verify both styles received correct merged params
+        assert len(received_params) == 2
+
+        # Style 1: base preserved + style params
+        p1 = received_params[0]
+        assert p1["targetDuration"] == 45
+        assert p1["aspectRatio"] == "9:16"
+        assert p1["keyPointCount"] == 3
+        assert p1["useLlmPlan"] is True
+        assert p1["fontScale"] == 1.0        # from style1
+        assert p1["transitionStyle"] == "slide"  # from style1
+        # No overlap from base with style1 on fontScale/transitionStyle
+
+        # Style 2: base preserved, fontScale overridden by style2
+        # Each style merges independently from base — no cross-style inheritance
+        p2 = received_params[1]
+        assert p2["targetDuration"] == 45
+        assert p2["aspectRatio"] == "9:16"
+        assert p2["keyPointCount"] == 3
+        assert p2["useLlmPlan"] is True
+        assert p2["fontScale"] == 1.2        # style2 overrides base fontScale
+        assert p2["showDataViz"] is False    # style2 adds its own
+        assert "transitionStyle" not in p2   # style1 params do NOT leak into style2
+
+    def test_params_none_base_params(self, monkeypatch, tmp_path):
+        """When base params is None, style params alone are used."""
+        import json as _json
+        from app.video_lab import style_sweep_jobs as ssj
+
+        jobs_dir = tmp_path / "jobs"
+        jobs_dir.mkdir()
+        monkeypatch.setattr(ssj, "_RUNTIME_DIR", jobs_dir)
+
+        received: list[dict] = []
+
+        def fake_render(content: str, route_id: str, params: dict) -> dict:
+            received.append(dict(params))
+            return {
+                "status": "succeeded",
+                "finalVideoUrl": "/runtime/out.mp4",
+                "coverUrl": "",
+                "audioUrl": "",
+                "srtUrl": "",
+                "manifestUrl": "",
+                "warnings": [],
+                "steps": [],
+            }
+
+        styles = [{"style_id": "s1", "style_name": "S1", "description": "", "params": {"fontScale": 1.5}}]
+
+        job = ssj.create_sweep_job(
+            content="test",
+            route_id="local_frame_compose",
+            route_name="Pillow",
+            total=1,
+            params=None,
+            render_fn=fake_render,
+            styles=styles,
+        )
+
+        import time
+        for _ in range(50):
+            j = ssj.get_sweep_job(job.jobId)
+            if j and j.status == "completed":
+                break
+            time.sleep(0.1)
+
+        assert len(received) == 1
+        assert received[0]["fontScale"] == 1.5
+        assert "targetDuration" not in received[0]
+
+    def test_job_persists_result_params_on_failure(self, monkeypatch, tmp_path):
+        """On render failure, result.params must contain the merged params."""
+        import json as _json
+        from app.video_lab import style_sweep_jobs as ssj
+
+        jobs_dir = tmp_path / "jobs"
+        jobs_dir.mkdir()
+        monkeypatch.setattr(ssj, "_RUNTIME_DIR", jobs_dir)
+
+        def failing_render(content: str, route_id: str, params: dict) -> dict:
+            raise RuntimeError("intentional failure")
+
+        styles = [{"style_id": "fail_1", "style_name": "Fail", "description": "", "params": {"fontScale": 2.0}}]
+        base_params = {"targetDuration": 30, "aspectRatio": "16:9"}
+
+        job = ssj.create_sweep_job(
+            content="test",
+            route_id="local_frame_compose",
+            route_name="Pillow",
+            total=1,
+            params=base_params,
+            render_fn=failing_render,
+            styles=styles,
+        )
+
+        import time
+        for _ in range(50):
+            j = ssj.get_sweep_job(job.jobId)
+            if j and j.status == "completed":
+                break
+            time.sleep(0.1)
+
+        j = ssj.get_sweep_job(job.jobId)
+        assert j is not None
+        assert len(j.results) == 1
+        r = j.results[0].result
+        assert r["status"] == "failed"
+        assert r["params"]["targetDuration"] == 30
+        assert r["params"]["aspectRatio"] == "16:9"
+        assert r["params"]["fontScale"] == 2.0
+
+    def test_job_persists_result_params_on_success(self, monkeypatch, tmp_path):
+        """On render success, result.params should contain merged params (via setdefault)."""
+        import json as _json
+        from app.video_lab import style_sweep_jobs as ssj
+
+        jobs_dir = tmp_path / "jobs"
+        jobs_dir.mkdir()
+        monkeypatch.setattr(ssj, "_RUNTIME_DIR", jobs_dir)
+
+        def fake_render(content: str, route_id: str, params: dict) -> dict:
+            # Simulate a render that doesn't include params in its return
+            return {
+                "status": "succeeded",
+                "finalVideoUrl": "/runtime/out.mp4",
+                "coverUrl": "",
+                "audioUrl": "",
+                "srtUrl": "",
+                "manifestUrl": "",
+                "warnings": [],
+                "steps": [],
+                # intentionally no "params" key
+            }
+
+        styles = [{"style_id": "ok_1", "style_name": "OK", "description": "", "params": {"keyPointCount": 5}}]
+        base_params = {"targetDuration": 60}
+
+        job = ssj.create_sweep_job(
+            content="test",
+            route_id="template_programmatic_render",
+            route_name="Remotion",
+            total=1,
+            params=base_params,
+            render_fn=fake_render,
+            styles=styles,
+        )
+
+        import time
+        for _ in range(50):
+            j = ssj.get_sweep_job(job.jobId)
+            if j and j.status == "completed":
+                break
+            time.sleep(0.1)
+
+        j = ssj.get_sweep_job(job.jobId)
+        assert j is not None
+        assert len(j.results) == 1
+        r = j.results[0].result
+        assert r["status"] == "succeeded"
+        # setdefault should have ensured params is present
+        assert r["params"]["targetDuration"] == 60
+        assert r["params"]["keyPointCount"] == 5
+
