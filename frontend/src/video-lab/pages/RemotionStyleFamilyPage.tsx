@@ -1022,6 +1022,14 @@ const MATRIX_TRANSITIONS = [
   { id: "glitch", label: "glitch" },
 ];
 
+// V1.2.4: Default transition matrix — limited to 1 family × 3 transitions = 3 clips (within MAX_MATRIX_ITEMS=9)
+const DEFAULT_TRANSITION_FAMILY = [{ id: "data_news", name: "Data News", color: "#7c3aed" }];
+const DEFAULT_TRANSITION_STYLES = [
+  { id: "push", label: "push" },
+  { id: "wipe", label: "wipe" },
+  { id: "glitch", label: "glitch" },
+];
+
 // V1.2.4: Visual Style Preset Matrix constants
 const VISUAL_STYLE_MATRIX_FAMILIES = [
   { id: "data_news", name: "Data News", color: "#7c3aed" },
@@ -1735,15 +1743,33 @@ function TransitionVariantMatrix({
       ? `${import.meta.env.VITE_API_BASE?.replace(/\/video-lab$/, "") ?? ""}${u}`
       : u || "";
 
-  const grid = TRANSITION_MATRIX_FAMILIES.map((fam) => ({
-    family: fam,
-    cells: MATRIX_TRANSITIONS.map((transition) => ({
-      transition,
-      item: result?.items.find(
-        (it) => it.family === fam.id && it.transitionStyle === transition.id
-      ),
-    })),
-  }));
+  // Grid derived from actual result items — avoids showing empty cells beyond what was submitted
+  const grid = result?.items
+    ? (() => {
+        const byFamily = new Map<string, typeof result.items>();
+        for (const it of result.items) {
+          if (!byFamily.has(it.family)) byFamily.set(it.family, []);
+          byFamily.get(it.family)!.push(it);
+        }
+        return Array.from(byFamily.entries()).map(([familyId, items]) => {
+          const fam = TRANSITION_MATRIX_FAMILIES.find((f) => f.id === familyId) ?? {
+            id: familyId,
+            name: familyId,
+            color: "#64748b",
+          };
+          return {
+            family: fam,
+            cells: items.map((it) => ({
+              transition: MATRIX_TRANSITIONS.find((t) => t.id === it.transitionStyle) ?? {
+                id: it.transitionStyle,
+                label: it.transitionStyle,
+              },
+              item: it,
+            })),
+          };
+        });
+      })()
+    : [];
 
   const totalSuccess = result?.items.filter((it) => it.success).length ?? 0;
   const totalItems = result?.items.length ?? 0;
@@ -1764,7 +1790,7 @@ function TransitionVariantMatrix({
           转场差异化实验 · V1.2.4
         </h2>
         <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
-          3 family x 6 transition = 18 clips
+          1 family × 3 transitions = 3 clips
         </span>
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {result && (
@@ -2205,8 +2231,8 @@ export default function RemotionStyleFamilyPage() {
             backgroundPreset: "tech_grid_dark",
           },
           matrix: {
-            families: TRANSITION_MATRIX_FAMILIES.map((family) => family.id),
-            transitionStyles: MATRIX_TRANSITIONS.map((transition) => transition.id),
+            families: DEFAULT_TRANSITION_FAMILY.map((family) => family.id),
+            transitionStyles: DEFAULT_TRANSITION_STYLES.map((transition) => transition.id),
           },
         }),
       });
