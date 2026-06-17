@@ -365,6 +365,34 @@ const AcademicSketchLayer: React.FC<{ accent?: string; highlight?: string }> = (
 //   neon_circuit     → neon circuit grid + pulse nodes + scan sweep
 //   deep_space       → deep starfield + orbital arcs + drifting nebula
 // V1.2.4: visualStylePreset overrides surface background (light_editorial → white)
+// V1.2.5: 技法表面配色 — 卡片/文字随 visualTechnique 自适应，与背景成体系。
+type TechniqueSurface = {
+  cardBg: string; cardBorder: string; cardShadow: string;
+  titleColor: string; bodyColor: string; mutedColor: string; titleShadow: string;
+};
+function getTechniqueSurface(visualTechnique?: string): TechniqueSurface {
+  if (visualTechnique === "academic_sketch") {
+    return {
+      cardBg: "rgba(255,253,247,0.93)",
+      cardBorder: "rgba(120,90,60,0.45)",
+      cardShadow: "0 10px 34px rgba(120,90,60,0.20)",
+      titleColor: "#3a2e22",
+      bodyColor: "#5c4b38",
+      mutedColor: "#8a7560",
+      titleShadow: "none",
+    };
+  }
+  return {
+    cardBg: C.card,
+    cardBorder: C.border,
+    cardShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
+    titleColor: C.textPrimary,
+    bodyColor: C.textSecondary,
+    mutedColor: C.textMuted,
+    titleShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
+  };
+}
+
 // V1.2.4: visualTechnique === "academic_sketch" uses paper background
 const BackgroundLayer: React.FC<{
   preset?: BackgroundPreset;
@@ -992,6 +1020,7 @@ const CoverPage: React.FC<{
   // V1.2.2: Now shows up to 6 keypoint previews with descriptions, using layout config for density
   const layout = getLayoutConfig(vstyle?.aspectRatioLayoutMode);
   const maxItems = Math.min(layout.coverMaxPreviewItems, keyPoints.length);
+  const surface = getTechniqueSurface(vstyle?.visualTechnique);
   return (
     <AbsoluteFill
       style={{
@@ -1037,14 +1066,14 @@ const CoverPage: React.FC<{
         style={{
           fontSize: layout.coverTitleFontSize,
           fontWeight: 800,
-          color: C.textPrimary,
+          color: surface.titleColor,
           textAlign: "left",
           margin: 0,
           marginBottom: 14,
           lineHeight: 1.15,
           opacity: titleOpacity,
           transform: `translateY(${titleY}px)`,
-          textShadow: `0 0 80px ${accent}66`,
+          textShadow: surface.titleShadow,
         }}
       >
         {title}
@@ -1055,7 +1084,7 @@ const CoverPage: React.FC<{
         <p
           style={{
             fontSize: layout.coverSubtitleFontSize,
-            color: C.textSecondary,
+            color: surface.bodyColor,
             textAlign: "left",
             marginTop: 0,
             marginBottom: 0,
@@ -1115,7 +1144,7 @@ const CoverPage: React.FC<{
                   style={{
                     fontSize: layout.coverPreviewTitleFontSize,
                     fontWeight: 700,
-                    color: C.textPrimary,
+                    color: surface.titleColor,
                     lineHeight: 1.25,
                     marginBottom: 4,
                     overflow: "hidden",
@@ -1129,7 +1158,7 @@ const CoverPage: React.FC<{
                   <div
                     style={{
                       fontSize: layout.coverPreviewDescFontSize,
-                      color: C.textMuted,
+                      color: surface.mutedColor,
                       lineHeight: 1.4,
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -1153,7 +1182,7 @@ const CoverPage: React.FC<{
           left: 50,
           right: 50,
           fontSize: 18,
-          color: C.textMuted,
+          color: surface.mutedColor,
           opacity: interpolate(frame, [30 / motionScale, 50 / motionScale], [0, 1], { extrapolateRight: "clamp" }),
           display: "flex",
           alignItems: "center",
@@ -1259,24 +1288,7 @@ const KeyPointCard: React.FC<{
   );
 
   // V1.2.5: 卡片表面随 visualTechnique 自适应（academic_sketch → 米纸/墨色，与纸张背景成体系）
-  const sketch = vstyle?.visualTechnique === "academic_sketch";
-  const surface = sketch
-    ? {
-        cardBg: "rgba(255,253,247,0.93)",
-        cardBorder: "rgba(120,90,60,0.45)",
-        cardShadow: "0 10px 34px rgba(120,90,60,0.20)",
-        titleColor: "#3a2e22",
-        bodyColor: "#5c4b38",
-        titleShadow: "none",
-      }
-    : {
-        cardBg: C.card,
-        cardBorder: C.border,
-        cardShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
-        titleColor: C.textPrimary,
-        bodyColor: C.textSecondary,
-        titleShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
-      };
+  const surface = getTechniqueSurface(vstyle?.visualTechnique);
 
   return (
     <AbsoluteFill
@@ -2681,6 +2693,7 @@ const SummaryPage: React.FC<{
   // Default: timeline style (original behavior)
   const [listFadeStart, listFadeEnd] = scaleFrames([10, 30]);
   const listOpacity = interpolate(frame, [listFadeStart, listFadeEnd], [0, 1], { extrapolateRight: "clamp" });
+  const surface = getTechniqueSurface(vstyle?.visualTechnique);
 
   return (
     <AbsoluteFill
@@ -2712,7 +2725,7 @@ const SummaryPage: React.FC<{
           style={{
             fontSize: 48,
             fontWeight: 800,
-            color: C.textPrimary,
+            color: surface.titleColor,
             margin: 0,
             marginBottom: 32,
             opacity: titleOpacity,
@@ -2765,13 +2778,13 @@ const SummaryPage: React.FC<{
                     style={{
                       fontSize: 26,
                       fontWeight: 700,
-                      color: C.textPrimary,
+                      color: surface.titleColor,
                       marginBottom: 6,
                     }}
                   >
                     {kp.title}
                   </div>
-                  <div style={{ fontSize: 22, color: C.textMuted, lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 22, color: surface.mutedColor, lineHeight: 1.5 }}>
                     {kp.body}
                   </div>
                 </div>
