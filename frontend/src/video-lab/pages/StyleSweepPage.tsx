@@ -93,6 +93,14 @@ interface IssueMark {
 // 复制反馈
 type CopyState = "" | "copied" | "failed";
 
+// 提升到样片库状态
+type PromoteStatus = "idle" | "promoting" | "promoted" | "reused" | "skipped" | "failed";
+interface PromoteState {
+  status: PromoteStatus;
+  sampleId?: string;
+  message?: string;
+}
+
 // V0.8.4: 备注关键词 → 建议问题标签。仅做提示，不自动写入用户标注。
 // 返回 id 数组（与 ISSUE_OPTIONS 中的 id 对齐），不含 "ok" / "render_failed"。
 function inferIssueHintsFromNote(note: string, status?: string): string[] {
@@ -154,6 +162,8 @@ export default function StyleSweepPage() {
   }>>([]);
   // 保存标注反馈
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "failed">("");
+  // Stage 2B: 提升到样片库状态
+  const [promoteStates, setPromoteStates] = useState<Record<string, PromoteState>>({});
 
   const activeRoute = ROUTES.find((r) => r.id === routeId)!;
 
@@ -200,6 +210,7 @@ export default function StyleSweepPage() {
       setExpanded({});
       setReportCopyState("");
       setJsonCopyState({});
+      setPromoteStates({});
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -229,6 +240,70 @@ export default function StyleSweepPage() {
     }
   };
 
+  // Stage 2B: 提升单个成功结果到样片库
+  const promoteStyle = async (styleId: string) => {
+    if (!jobId) return;
+    setPromoteStates((prev) => ({
+      ...prev,
+      [styleId]: { status: "promoting" },
+    }));
+    try {
+      const resp = await fetch(`${API_BASE}/style-sweep-jobs/${jobId}/promote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          styleIds: [styleId],
+          targetStatus: "candidate",
+          note: "从 Style Sweep 页面提升到样片库",
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setPromoteStates((prev) => ({
+          ...prev,
+          [styleId]: { status: "failed", message: data.detail ?? `HTTP ${resp.status}` },
+        }));
+        return;
+      }
+      const sample = data.samples?.[0];
+      const skipped = data.skipped?.[0];
+      if (sample?.reused) {
+        setPromoteStates((prev) => ({
+          ...prev,
+          [styleId]: { status: "reused", sampleId: sample.sampleId },
+        }));
+      } else if (sample) {
+        setPromoteStates((prev) => ({
+          ...prev,
+          [styleId]: { status: "promoted", sampleId: sample.sampleId },
+        }));
+      } else if (skipped) {
+        const reasonLabels: Record<string, string> = {
+          result_not_succeeded: "生成失败",
+          no_video_url: "无视频地址",
+          style_id_not_found: "样式不存在",
+        };
+        setPromoteStates((prev) => ({
+          ...prev,
+          [styleId]: {
+            status: "skipped",
+            message: `未提升：${reasonLabels[skipped.reason] ?? skipped.reason}`,
+          },
+        }));
+      } else {
+        setPromoteStates((prev) => ({
+          ...prev,
+          [styleId]: { status: "failed", message: "未知错误" },
+        }));
+      }
+    } catch {
+      setPromoteStates((prev) => ({
+        ...prev,
+        [styleId]: { status: "failed", message: "网络错误" },
+      }));
+    }
+  };
+
   const runSweep = async () => {
     setRunning(true);
     setError("");
@@ -240,6 +315,7 @@ export default function StyleSweepPage() {
     // 重置标注（新一轮排查从零开始）
     setIssueMarks({});
     setExpanded({});
+    setPromoteStates({});
     setReportCopyState("");
     setJsonCopyState({});
     try {
@@ -886,6 +962,69 @@ export default function StyleSweepPage() {
                         <a href={resolveUrl(r.finalVideoUrl)} download style={{ color: "#2563eb", textDecoration: "none" }}>⬇ 下载</a>
                         {r.srtUrl && <a href={resolveUrl(r.srtUrl)} target="_blank" rel="noopener noreferrer" style={{ color: "#f59e0b", textDecoration: "none" }}>📝 字幕</a>}
                       </div>
+
+                      {/* Stage 2B: 提升到样片库 */}
+                      {(() => {
+                        const ps = promoteStates[s.styleId];
+                        const isPromoting = ps?.status === "promoting";
+                        const isPromoted = ps?.status === "promoted";
+                        const isReused = ps?.status === "reused";
+                        const isSkipped = ps?.status === "skipped";
+                        const isFailed = ps?.status === "failed";
+                        const isIdle = !ps || ps.status === "idle";
+                        const canPromote = !!jobId && r.status === "succeeded" && !!r.finalVideoUrl;
+                        const sampleId = ps?.sampleId;
+
+                        return (
+                          <div style={{ marginTop: "0.6rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                            {isPromoted && sampleId && (
+                              <a
+                                href={`/video-lab/style-gallery?tab=gallery&sample_id=${sampleId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: "#16a34a", fontSize: "0.78rem", textDecoration: "none", fontWeight: 600 }}
+                              >
+                                ✅ 已提升到样片库 → 去样片库查看
+                              </a>
+                            )}
+                            {isReused && sampleId && (
+                              <a
+                                href={`/video-lab/style-gallery?tab=gallery&sample_id=${sampleId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: "#7c3aed", fontSize: "0.78rem", textDecoration: "none", fontWeight: 600 }}
+                              >
+                                🟣 已在样片库 → 去样片库查看
+                              </a>
+                            )}
+                            {isSkipped && (
+                              <span style={{ fontSize: "0.75rem", color: "#d97706" }}>{ps.message}</span>
+                            )}
+                            {isFailed && (
+                              <span style={{ fontSize: "0.75rem", color: "#dc2626" }}>❌ 提升失败：{ps.message}</span>
+                            )}
+                            <button
+                              onClick={() => promoteStyle(s.styleId)}
+                              disabled={!canPromote || isPromoting}
+                              title={!jobId ? "当前结果不是 job 模式，无法提升" : r.status !== "succeeded" ? "仅成功结果可提升" : ""}
+                              style={{
+                                padding: "0.3rem 0.75rem",
+                                borderRadius: 6,
+                                fontSize: "0.78rem",
+                                fontWeight: 600,
+                                border: "1px solid",
+                                cursor: !canPromote || isPromoting ? "not-allowed" : "pointer",
+                                opacity: !canPromote || isPromoting ? 0.5 : 1,
+                                borderColor: isPromoted ? "#16a34a" : isReused ? "#7c3aed" : "#2563eb",
+                                background: isPromoted ? "#f0fdf4" : isReused ? "#f5f3ff" : "white",
+                                color: isPromoted ? "#16a34a" : isReused ? "#7c3aed" : "#2563eb",
+                              }}
+                            >
+                              {isPromoting ? "提升中..." : isPromoted ? "已提升到样片库" : isReused ? "已在样片库" : "⬆ 提升到样片库"}
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </>
                   ) : (
                     <div style={{ background: "#fef2f2", border: "1px dashed #ef4444", borderRadius: 8, padding: "1.25rem", textAlign: "center", color: "#ef4444", fontSize: "0.8rem" }}>
