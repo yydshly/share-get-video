@@ -305,50 +305,58 @@ const BackgroundLayer: React.FC<{
           background: `radial-gradient(circle, ${C.accent2}1a 0%, transparent 65%)`,
           filter: "blur(70px)",
         }} />
+        {/* Shimmer streak — highlight sweeping across the glass (Remotion 动态) */}
+        <div style={{
+          position: "absolute", top: "6%", left: `${((frame * 0.7) % 135) - 30}%`, width: "30%", height: "42%",
+          background: `linear-gradient(105deg, transparent, ${accent}22 45%, ${highlight}26 50%, ${accent}22 55%, transparent)`,
+          filter: "blur(8px)", transform: "skewX(-12deg)",
+        }} />
+        {/* Drifting particles */}
+        <FloatingParticles count={12} color={accent} maxSize={3} />
         {/* Top gradient mask */}
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, height: "18%",
-          background: `linear-gradient(180deg, #080c18 dd 0%, transparent 100%)`,
+          background: `linear-gradient(180deg, #080c18dd 0%, transparent 100%)`,
         }} />
         {/* Bottom gradient mask */}
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0, height: "20%",
-          background: "linear-gradient(0deg, #080c18 aa 0%, transparent 100%)",
+          background: "linear-gradient(0deg, #080c18aa 0%, transparent 100%)",
         }} />
       </div>
     );
   }
 
   if (preset === "aurora_blue") {
-    // 蓝紫极光渐变：Card Stack 默认背景，空间感更强
+    // 蓝紫极光：缓慢横向漂移 + 呼吸 + 漂浮星点（Remotion 动态）
+    const auroraX = Math.sin(frame / 70) * 8;
+    const auroraOp = 0.6 + 0.4 * Math.sin(frame / 55);
+    const aura2X = Math.cos(frame / 60) * 6;
     return (
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 0,
-          background: C.bg,
-          overflow: "hidden",
-        }}
-      >
-        {/* 中央大 radial glow — 蓝紫极光 */}
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: C.bg, overflow: "hidden" }}>
+        {/* 中央大极光 — 横向漂移 + 呼吸 */}
         <div style={{
           position: "absolute", top: "-30%", left: "-20%", width: "140%", height: "100%",
-          background: `radial-gradient(ellipse at 30% 40%, ${accent}28 0%, ${C.accent2}14 35%, transparent 65%)`,
+          transform: `translateX(${auroraX}%)`, opacity: auroraOp,
+          background: `radial-gradient(ellipse at 30% 40%, ${accent}30 0%, ${C.accent2}18 35%, transparent 65%)`,
           filter: "blur(40px)",
         }} />
-        {/* 底部右上方暖色 glow */}
+        {/* 右下极光 — 反向漂移 */}
         <div style={{
           position: "absolute", bottom: "-20%", right: "-10%", width: "80%", height: "80%",
-          background: `radial-gradient(circle, ${C.accent2}1a 0%, transparent 60%)`,
+          transform: `translateX(${aura2X}%)`,
+          background: `radial-gradient(circle, ${C.accent2}22 0%, transparent 60%)`,
           filter: "blur(60px)",
         }} />
-        {/* 左上角点缀 */}
+        {/* 高光点缀 — 呼吸 */}
         <div style={{
           position: "absolute", top: "5%", right: "15%", width: "40%", height: "40%",
-          background: `radial-gradient(circle, ${highlight}12 0%, transparent 60%)`,
+          opacity: 0.5 + 0.5 * Math.sin(frame / 40 + 2),
+          background: `radial-gradient(circle, ${highlight}1a 0%, transparent 60%)`,
           filter: "blur(50px)",
         }} />
+        {/* 漂浮星点 */}
+        <FloatingParticles count={14} color={highlight} maxSize={4} />
         {/* 底部渐变 */}
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0, height: "30%",
@@ -359,47 +367,45 @@ const BackgroundLayer: React.FC<{
   }
 
   if (preset === "warm_cinematic") {
-    // ── warm_cinematic: amber/golden cinematic light + vignette ──
-    // Key differentiator: warm amber tones, cinematic light streak, strong vignette
+    // ── warm_cinematic: 呼吸的琥珀光晕 + 上升火星 + 电影暗角（Remotion 动态）──
+    const bloomOp = 0.7 + 0.3 * Math.sin(frame / 42);
+    const bloomScale = 1 + 0.06 * Math.sin(frame / 55);
+    const sideOp = 0.6 + 0.4 * Math.sin(frame / 38 + 1);
     return (
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 0,
-          background: "#0c0a14",
-          overflow: "hidden",
-        }}
-      >
-        {/* Wide amber light streak from top */}
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: "#0c0a14", overflow: "hidden" }}>
+        {/* Wide amber light streak from top — breathing */}
         <div style={{
           position: "absolute", top: "-20%", left: "10%", width: "80%", height: "55%",
-          background: `radial-gradient(ellipse at 50% 20%, rgba(251,191,36,0.18) 0%, rgba(249,115,22,0.10) 40%, transparent 70%)`,
+          transform: `scale(${bloomScale})`, transformOrigin: "50% 0%", opacity: bloomOp,
+          background: `radial-gradient(ellipse at 50% 20%, rgba(251,191,36,0.22) 0%, rgba(249,115,22,0.12) 40%, transparent 70%)`,
           filter: "blur(50px)",
         }} />
-        {/* Golden secondary glow — left side */}
+        {/* Golden secondary glow — left side, breathing */}
         <div style={{
           position: "absolute", top: "10%", left: "-15%", width: "55%", height: "70%",
-          background: `radial-gradient(circle, rgba(251,146,60,0.12) 0%, transparent 60%)`,
+          opacity: sideOp,
+          background: `radial-gradient(circle, rgba(251,146,60,0.14) 0%, transparent 60%)`,
           filter: "blur(60px)",
         }} />
         {/* Bottom warm bloom */}
         <div style={{
           position: "absolute", bottom: "-20%", right: "10%", width: "65%", height: "55%",
-          background: `radial-gradient(circle, rgba(249,115,22,0.14) 0%, transparent 60%)`,
+          background: `radial-gradient(circle, rgba(249,115,22,0.16) 0%, transparent 60%)`,
           filter: "blur(70px)",
         }} />
-        {/* Top vignette — cinematic darkening */}
+        {/* Rising embers — warm floating particles */}
+        <FloatingParticles count={16} color="rgba(251,191,36,0.9)" maxSize={4} />
+        {/* Top vignette */}
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, height: "30%",
-          background: "linear-gradient(180deg, #0c0a14 ee 0%, transparent 100%)",
+          background: "linear-gradient(180deg, #0c0a14ee 0%, transparent 100%)",
         }} />
-        {/* Bottom vignette — strong cinematic darkening */}
+        {/* Bottom vignette — strong */}
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0, height: "35%",
-          background: "linear-gradient(0deg, #0c0a14 ff 0%, transparent 100%)",
+          background: "linear-gradient(0deg, #0c0a14ff 0%, transparent 100%)",
         }} />
-        {/* Left/right subtle vignette */}
+        {/* Left/right vignette */}
         <div style={{
           position: "absolute", top: 0, bottom: 0, left: 0, width: "15%",
           background: "linear-gradient(90deg, #0c0a14 0%, transparent 100%)",
