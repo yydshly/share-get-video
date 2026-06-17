@@ -506,6 +506,181 @@ class TestPromoteService:
         assert saved.generation.route_preset == "remotion_src_test"
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Router-level tests using FastAPI TestClient
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestPromoteRouter:
+    """Router-level tests for POST /style-sweep-jobs/{job_id}/promote."""
+
+    def setup_method(self):
+        """Set up temp dirs and monkeypatch stores before each test."""
+        import tempfile
+        from pathlib import Path
+        import app.video_lab.style_sweep_jobs as ssj
+        import app.video_lab.style_gallery.store as store
+
+        self._tmp = tempfile.mkdtemp()
+        self._jobs_dir = Path(self._tmp) / "jobs"
+        self._jobs_dir.mkdir(parents=True)
+        self._records_dir = Path(self._tmp) / "records"
+        self._records_dir.mkdir(parents=True)
+        self._sg_runtime = Path(self._tmp) / "style_gallery"
+        self._sg_runtime.mkdir(parents=True)
+
+        self._orig_jobs_dir = ssj._RUNTIME_DIR
+        self._orig_sg_runtime = store._RUNTIME
+        self._orig_sg_records = store._RECORDS_DIR
+        self._orig_sg_jsonl = store._JSONL_PATH
+
+        ssj._RUNTIME_DIR = self._jobs_dir
+        store._RUNTIME = self._sg_runtime
+        store._RECORDS_DIR = self._records_dir
+        store._JSONL_PATH = self._records_dir / "style_samples.jsonl"
+        store._ensure_dirs()
+
+    def teardown_method(self):
+        """Restore original paths."""
+        import app.video_lab.style_sweep_jobs as ssj
+        import app.video_lab.style_gallery.store as store
+        ssj._RUNTIME_DIR = self._orig_jobs_dir
+        store._RUNTIME = self._orig_sg_runtime
+        store._RECORDS_DIR = self._orig_sg_records
+        store._JSONL_PATH = self._orig_sg_jsonl
+
+    # ─── 1. job not found → 404 ────────────────────────────────────────────
+
+    def test_promote_unknown_job_returns_404(self):
+        """POST /style-sweep-jobs/nonexistent/promote returns 404."""
+        from fastapi.testclient import TestClient
+        from app.main import app
+
+        client = TestClient(app)
+        response = client.post(
+            "/video-lab/style-sweep-jobs/sweep_does_not_exist_xyz/promote",
+            json={"styleIds": ["some_style"]},
+        )
+        assert response.status_code == 404
+        assert "Job not found" in response.json()["detail"]
+
+    # ─── 2. empty styleIds → 400 ──────────────────────────────────────────
+
+    def test_promote_empty_style_ids_returns_400(self):
+        """POST with empty styleIds returns 400."""
+        from fastapi.testclient import TestClient
+        from app.main import app
+
+        # First create a real job
+        job = SweepJob(
+            jobId="sweep_promo_empty_job",
+            status="completed",
+            routeId="local_frame_compose",
+            routeName="Pillow",
+            total=1,
+        )
+        entry = StyleResultEntry(
+            styleId="pillow_ok",
+            styleName="OK 样式",
+            description="",
+            tags=[],
+            result={
+                "status": "succeeded",
+                "finalVideoUrl": "runtime/x.mp4",
+            },
+        )
+        job.results.append(entry)
+        _save_job(job)
+
+        client = TestClient(app)
+        response = client.post(
+            "/video-lab/style-sweep-jobs/sweep_promo_empty_job/promote",
+            json={"styleIds": []},
+        )
+        assert response.status_code == 400
+        assert "styleIds must not be empty" in response.json()["detail"]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Additional service-level assertions
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAssUrlSaved:
+    """Verify ass_url is preserved in job_run["asset_refs"]."""
+
+    def setup_method(self):
+        import tempfile
+        from pathlib import Path
+        import app.video_lab.style_sweep_jobs as ssj
+        import app.video_lab.style_gallery.store as store
+
+        self._tmp = tempfile.mkdtemp()
+        self._jobs_dir = Path(self._tmp) / "jobs"
+        self._jobs_dir.mkdir(parents=True)
+        self._records_dir = Path(self._tmp) / "records"
+        self._records_dir.mkdir(parents=True)
+        self._sg_runtime = Path(self._tmp) / "style_gallery"
+        self._sg_runtime.mkdir(parents=True)
+
+        self._orig_jobs_dir = ssj._RUNTIME_DIR
+        self._orig_sg_runtime = store._RUNTIME
+        self._orig_sg_records = store._RECORDS_DIR
+        self._orig_sg_jsonl = store._JSONL_PATH
+
+        ssj._RUNTIME_DIR = self._jobs_dir
+        store._RUNTIME = self._sg_runtime
+        store._RECORDS_DIR = self._records_dir
+        store._JSONL_PATH = self._records_dir / "style_samples.jsonl"
+        store._ensure_dirs()
+
+    def teardown_method(self):
+        import app.video_lab.style_sweep_jobs as ssj
+        import app.video_lab.style_gallery.store as store
+        ssj._RUNTIME_DIR = self._orig_jobs_dir
+        store._RUNTIME = self._orig_sg_runtime
+        store._RECORDS_DIR = self._orig_sg_records
+        store._JSONL_PATH = self._orig_sg_jsonl
+
+    def test_ass_url_saved_in_job_run_asset_refs(self):
+        """assUrl from job result is stored in job_run.asset_refs.ass_url."""
+        job = SweepJob(
+            jobId="sweep_promo_ass",
+            status="completed",
+            routeId="template_programmatic_render",
+            routeName="Remotion",
+            total=1,
+        )
+        entry = StyleResultEntry(
+            styleId="remotion_ass_test",
+            styleName="ASS字幕样式",
+            description="",
+            tags=[],
+            result={
+                "status": "succeeded",
+                "finalVideoUrl": "runtime/video_lab/remotion/final.mp4",
+                "assUrl": "runtime/video_lab/remotion/subs.ass",
+                "srtUrl": "runtime/video_lab/remotion/subs.srt",
+                "audioUrl": "runtime/video_lab/remotion/audio.mp3",
+                "manifestUrl": "runtime/video_lab/remotion/manifest.json",
+            },
+        )
+        job.results.append(entry)
+        _save_job(job)
+
+        result = promote_sweep_results_to_gallery(
+            job_id="sweep_promo_ass",
+            style_ids=["remotion_ass_test"],
+        )
+
+        saved = sg_store.get_sample(result["samples"][0]["sampleId"])
+        # ass_url must not be dropped
+        assert saved.job_run["asset_refs"]["ass_url"] == "runtime/video_lab/remotion/subs.ass"
+        # other refs also preserved
+        assert saved.job_run["asset_refs"]["srt_url"] == "runtime/video_lab/remotion/subs.srt"
+        assert saved.job_run["asset_refs"]["audio_url"] == "runtime/video_lab/remotion/audio.mp3"
+        assert saved.job_run["asset_refs"]["manifest_url"] == "runtime/video_lab/remotion/manifest.json"
+        assert saved.job_run["asset_refs"]["video_url"] == "runtime/video_lab/remotion/final.mp4"
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

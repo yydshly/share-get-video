@@ -585,7 +585,10 @@ def promote_style_sweep_job(job_id: str, request: PromoteSweepJobRequest) -> dic
             note=request.note,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        msg = str(e)
+        if "Job not found" in msg:
+            raise HTTPException(status_code=404, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
     return result
 
 

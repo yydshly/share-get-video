@@ -220,13 +220,21 @@ def promote_sweep_results_to_gallery(
             generation=generation,
             asset_meta=asset_meta,
             quality_meta=quality_meta,
-            # job_run stores sweep job reference + manualMark
+            # job_run stores sweep job reference + manualMark + all asset refs
             job_run={
                 "sweep_job_id": job_id,
                 "style_id": style_id,
                 "manual_mark": manual_mark,
                 "subtitle_diagnostics": subtitle_diagnostics,
                 "note": note,
+                "asset_refs": {
+                    "video_url": video_url,
+                    "manifest_url": manifest_url,
+                    "audio_url": audio_url,
+                    "srt_url": srt_url,
+                    "ass_url": ass_url,
+                    "cover_url": cover_url,
+                },
             },
         )
 
