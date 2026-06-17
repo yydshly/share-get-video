@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { resolveUrl, stripRuntimeUrlPrefix, API_BASE } from "../utils/url";
+import { VideoAspectFrame } from "../components/VideoAspectFrame";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1017,6 +1018,10 @@ export default function VideoGenerationWorkbenchPage() {
             contentLength: generationContent.length,
             savePayloadKb,
             contentHash: "",
+            // V1.2.1.5: display metadata — preserves vertical video shape in gallery / compare UIs
+            outputAspectRatio: String(fullResult.params?.outputAspectRatio || fullResult.params?.aspectRatio || "9:16"),
+            displayAspectRatio: String(fullResult.params?.displayAspectRatio || fullResult.params?.aspectRatio || "9:16"),
+            fitMode: String(fullResult.params?.fitMode || "contain"),
           },
           output_type: "mp4",
           output_path: stripRuntimeUrlPrefix(fullResult.finalVideoUrl),
@@ -1050,6 +1055,10 @@ export default function VideoGenerationWorkbenchPage() {
             remotion_family: String(fullResult.params?.remotionFamily || ""),
             route_preset: selectedRoute,
             aspect_ratio: String(fullResult.params?.aspectRatio || "9:16"),
+            // V1.2.1.5: display metadata — preserves vertical video shape in gallery / compare UIs
+            output_aspect_ratio: String(fullResult.params?.outputAspectRatio || fullResult.params?.aspectRatio || "9:16"),
+            display_aspect_ratio: String(fullResult.params?.displayAspectRatio || fullResult.params?.aspectRatio || "9:16"),
+            fit_mode: String(fullResult.params?.fitMode || "contain"),
             target_duration: Number(fullResult.params?.targetDuration || 0),
             key_point_count: Number(fullResult.params?.keyPointCount || 0),
             content_hash: "",
@@ -1062,6 +1071,9 @@ export default function VideoGenerationWorkbenchPage() {
             manifest_url: fullResult.manifestUrl || "",
             runtime_prefix: "",
             artifact_count: stepSummaries.length,
+            // V1.2.1.5: display metadata — preserves vertical video shape in gallery / compare UIs
+            display_aspect_ratio: String(fullResult.params?.displayAspectRatio || fullResult.params?.aspectRatio || "9:16"),
+            fit_mode: String(fullResult.params?.fitMode || "contain"),
           },
           quality_meta: {
             structural_score: fullResult.quality?.overallScore ?? null,
@@ -1594,7 +1606,9 @@ export default function VideoGenerationWorkbenchPage() {
                 </div>
               )}
               {previewResult.videoUrl && (
-                <video controls src={resolveUrl(previewResult.videoUrl)} style={{ width: "100%", maxWidth: 400, borderRadius: 8, background: "#0f172a" }} />
+                <VideoAspectFrame aspectRatio="9:16" fitMode="contain" maxHeight={320}>
+                  <video controls src={resolveUrl(previewResult.videoUrl)} />
+                </VideoAspectFrame>
               )}
 
               <JobRunPanel jobRun={previewResult.jobRun} />
@@ -1696,7 +1710,9 @@ export default function VideoGenerationWorkbenchPage() {
                 </details>
               )}
 
-              <video controls src={resolveUrl(fullResult.finalVideoUrl)} style={{ width: "100%", maxWidth: 480, borderRadius: 8, background: "#0f172a" }} />
+              <VideoAspectFrame aspectRatio="9:16" fitMode="contain" maxHeight={480}>
+                <video controls src={resolveUrl(fullResult.finalVideoUrl)} />
+              </VideoAspectFrame>
 
               <JobRunPanel jobRun={fullResult.jobRun} />
             </div>

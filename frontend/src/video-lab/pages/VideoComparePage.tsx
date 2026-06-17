@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { SEED_TEST_CASES, getMethodById, METHOD_CATEGORY_LABELS } from "../seedData";
 import type { CreateExperimentResponse } from "../types";
+import { VideoAspectFrame } from "../components/VideoAspectFrame";
 
 const STATUS_COLORS: Record<string, string> = {
   succeeded: "#10b981",
@@ -425,11 +426,12 @@ export default function VideoComparePage() {
                           }}
                         >
                           {exp.result?.videoUrl ? (
-                            <video
-                              src={exp.result.videoUrl}
-                              style={{ maxHeight: "100%", maxWidth: "100%" }}
-                              controls
-                            />
+                            <VideoAspectFrame aspectRatio="9:16" fitMode="contain" maxHeight={400}>
+                              <video
+                                src={exp.result.videoUrl}
+                                controls
+                              />
+                            </VideoAspectFrame>
                           ) : (
                             <span>视频预览占位</span>
                           )}

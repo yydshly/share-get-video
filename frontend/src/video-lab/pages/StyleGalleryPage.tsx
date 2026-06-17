@@ -7,6 +7,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { resolveUrl } from "../utils/url";
+import { VideoAspectFrame } from "../components/VideoAspectFrame";
+import {
+  getSampleAspectRatio,
+  getSampleOutputAspectRatio,
+  getSampleFitMode,
+  getCroppingRisk,
+} from "../utils/aspectRatio";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -644,17 +651,36 @@ function SampleCard({
 
       {/* 预览 */}
       {videoSrc ? (
-        <div style={{ background: "#0f172a", borderRadius: 8, overflow: "hidden" }}>
-          <video
-            ref={videoRef}
-            controls
-            playsInline
-            muted
-            src={videoSrc}
-            poster={posterSrc}
-            style={{ width: "100%", display: "block", maxHeight: 200, objectFit: "cover" }}
-          />
-        </div>
+        <>
+          {/* V1.2.1.5: use aspect-ratio container so vertical video is never cropped */}
+          <VideoAspectFrame
+            aspectRatio={getSampleAspectRatio(sample as unknown as Record<string, unknown>)}
+            fitMode={getSampleFitMode(sample as unknown as Record<string, unknown>)}
+            maxHeight={260}
+          >
+            <video
+              ref={videoRef}
+              controls
+              playsInline
+              muted
+              src={videoSrc}
+              poster={posterSrc}
+            />
+          </VideoAspectFrame>
+          {/* V1.2.1.5: aspect ratio and cropping risk badge */}
+          {(getCroppingRisk(sample as unknown as Record<string, unknown>) || sample.params) && (
+            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginTop: "0.25rem" }}>
+              <span style={{ fontSize: "0.62rem", color: "#64748b" }}>
+                {getSampleOutputAspectRatio(sample as unknown as Record<string, unknown>)}
+              </span>
+              {getCroppingRisk(sample as unknown as Record<string, unknown>) ? (
+                <span style={{ fontSize: "0.62rem", color: "#dc2626", fontWeight: 600 }}>
+                  {getCroppingRisk(sample as unknown as Record<string, unknown>)}
+                </span>
+              ) : null}
+            </div>
+          )}
+        </>
       ) : posterSrc ? (
         <img src={posterSrc} alt={sample.style_name} style={{ width: "100%", borderRadius: 8 }} />
       ) : (
@@ -1194,16 +1220,32 @@ function CompareCard({
 
       {/* Preview */}
       {videoSrc ? (
-        <div style={{ background: "#0f172a", borderRadius: 8, overflow: "hidden" }}>
-          <video
-            controls
-            playsInline
-            muted
-            src={videoSrc}
-            poster={posterSrc}
-            style={{ width: "100%", display: "block", maxHeight: 180, objectFit: "cover" }}
-          />
-        </div>
+        <>
+          {/* V1.2.1.5: use aspect-ratio container so vertical video is never cropped */}
+          <VideoAspectFrame
+            aspectRatio={getSampleAspectRatio(sample as unknown as Record<string, unknown>)}
+            fitMode={getSampleFitMode(sample as unknown as Record<string, unknown>)}
+            maxHeight={220}
+          >
+            <video
+              controls
+              playsInline
+              muted
+              src={videoSrc}
+              poster={posterSrc}
+            />
+          </VideoAspectFrame>
+          {/* V1.2.1.5: aspect ratio and cropping risk badge */}
+          {getCroppingRisk(sample as unknown as Record<string, unknown>) ? (
+            <div style={{ fontSize: "0.62rem", color: "#dc2626", fontWeight: 600, marginTop: "0.2rem" }}>
+              {getCroppingRisk(sample as unknown as Record<string, unknown>)}
+            </div>
+          ) : (
+            <div style={{ fontSize: "0.62rem", color: "#64748b", marginTop: "0.2rem" }}>
+              {getSampleOutputAspectRatio(sample as unknown as Record<string, unknown>)} · contain
+            </div>
+          )}
+        </>
       ) : posterSrc ? (
         <img src={posterSrc} alt={sample.style_name} style={{ width: "100%", borderRadius: 8 }} />
       ) : (
