@@ -1003,10 +1003,11 @@ function BackgroundVariantMatrix({
         borderRadius: "16px",
         padding: "1.25rem",
         marginBottom: "2.5rem",
+        overflow: "hidden",
       }}
     >
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.85rem", flexWrap: "wrap" }}>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
           背景差异化实验 · V1.2.3
         </h2>
@@ -1038,13 +1039,19 @@ function BackgroundVariantMatrix({
         </div>
       </div>
 
-      <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "1rem" }}>
-        同一内容（Timeline / Dashboard / Caption Story）× 3 种背景（tech_grid_dark / glass_dashboard / warm_cinematic），
-        观察背景能否让同一种 family 呈现不同的视觉氛围。Lab-only，不写 Style Sweep job 或 Style Gallery sample。
+      <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.85rem" }}>
+        同一内容（Timeline / Dashboard / Caption Story）× 3 种背景，观察背景能否让同一种 family 呈现不同的视觉氛围。
+        Lab-only，不写 Style Sweep job 或 Style Gallery sample。
       </p>
 
-      {/* 3×3 Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem" }}>
+      {/* 3×3 Responsive Grid — each cell gets more space */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "0.65rem",
+        }}
+      >
         {grid.map((row) =>
           row.cells.map((cell) => {
             const item = cell.item;
@@ -1061,65 +1068,77 @@ function BackgroundVariantMatrix({
                   background: "white",
                 }}
               >
-                {/* Card header */}
+                {/* Card header — compact */}
                 <div
                   style={{
-                    background: `linear-gradient(135deg, ${row.family.color}18 0%, ${row.family.color}08 100%)`,
-                    borderBottom: `1px solid ${row.family.color}30`,
-                    padding: "0.5rem 0.75rem",
+                    background: `linear-gradient(135deg, ${row.family.color}15 0%, ${row.family.color}06 100%)`,
+                    borderBottom: `1px solid ${row.family.color}25`,
+                    padding: "0.4rem 0.65rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
                   }}
                 >
-                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: row.family.color }}>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, color: row.family.color }}>
                     {row.family.name}
-                  </div>
-                  <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "0.1rem" }}>
+                  </span>
+                  <span style={{ color: "#e2e8f0", fontSize: "0.65rem" }}>×</span>
+                  <span style={{ fontSize: "0.7rem", color: "#64748b" }}>
                     {cell.bg.label}
-                  </div>
+                  </span>
                 </div>
 
-                {/* Video or status */}
-                <div style={{ padding: "0.5rem" }}>
+                {/* Video or status — enlarged */}
+                <div style={{ padding: "0.4rem", background: "#0f172a" }}>
                   {hasVideo && item ? (
-                    <>
-                      <video
-                        controls
-                        src={resolveUrl(item.videoUrl)}
-                        style={{
-                          width: "100%",
-                          borderRadius: "6px",
-                          background: "#0f172a",
-                          maxHeight: "140px",
-                          objectFit: "contain",
-                        }}
-                      />
-                      <div style={{ fontSize: "0.65rem", color: "#64748b", marginTop: "0.3rem", textAlign: "center" }}>
-                        {item.clipSeconds}s · {item.elapsedMs}ms
-                      </div>
-                    </>
+                    <video
+                      controls
+                      src={resolveUrl(item.videoUrl)}
+                      style={{
+                        width: "100%",
+                        height: "220px",
+                        objectFit: "contain",
+                        display: "block",
+                        borderRadius: "6px",
+                        background: "#0a0e1a",
+                      }}
+                    />
                   ) : (
                     <div
                       style={{
-                        background: "#fef2f2",
-                        border: "1px solid #fecaca",
+                        height: "220px",
+                        background: "#1e293b",
                         borderRadius: "6px",
-                        padding: "0.5rem",
-                        fontSize: "0.72rem",
-                        color: "#ef4444",
-                        textAlign: "center",
-                        minHeight: "80px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
+                        fontSize: "0.72rem",
+                        color: "#ef4444",
                       }}
                     >
                       {item ? `失败：${item.message}` : "待渲染"}
                     </div>
                   )}
-                  {item?.warnings && item.warnings.length > 0 && (
-                    <div style={{ fontSize: "0.62rem", color: "#f59e0b", marginTop: "0.2rem" }}>
-                      ⚠ {item.warnings[0]}
-                    </div>
+                </div>
+
+                {/* Footer */}
+                <div style={{
+                  padding: "0.3rem 0.65rem",
+                  borderTop: `1px solid ${row.family.color}15`,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}>
+                  {item?.success ? (
+                    <span style={{ fontSize: "0.65rem", color: "#16a34a" }}>✓ 成功</span>
+                  ) : item ? (
+                    <span style={{ fontSize: "0.65rem", color: "#ef4444" }}>✗ 失败</span>
+                  ) : (
+                    <span style={{ fontSize: "0.65rem", color: "#94a3b8" }}>—</span>
                   )}
+                  <span style={{ fontSize: "0.62rem", color: "#94a3b8" }}>
+                    {item ? `${item.elapsedMs}ms` : ""}
+                  </span>
                 </div>
               </div>
             );

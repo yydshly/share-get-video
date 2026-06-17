@@ -195,54 +195,99 @@ function truncateText(text: string, maxChars: number): string {
 
 // V1.2.1.4: BackgroundLayer — programmatic CSS background (no image assets)
 // Supports 4 presets: tech_grid_dark, aurora_blue, glass_dashboard, warm_cinematic
-// Must be rendered at zIndex 0 inside each page's AbsoluteFill.
+// V1.2.3: Redesigned to make all three matrix backgrounds visually distinct:
+//   tech_grid_dark   → 科技网格（清晰网格线 + 亮蓝科技光）
+//   glass_dashboard  → 玻璃面板（frosted glass + 蓝紫高光层）
+//   warm_cinematic   → 暖色电影感（琥珀/金色光晕 + 暗角）
 const BackgroundLayer: React.FC<{
   preset?: BackgroundPreset;
   accent?: string;
   highlight?: string;
 }> = ({ preset = "tech_grid_dark", accent = C.accent, highlight = C.highlight }) => {
   if (preset === "glass_dashboard") {
-    // 深色 dashboard 感：微弱网格 + 半透明几何块 + 顶部/底部 glow
+    // ── glass_dashboard: frosted glass panels + layered blue-purple glows ──
+    // Key differentiator: backdrop-blur glass panels, NOT just glows
     return (
       <div
         style={{
           position: "absolute",
           inset: 0,
           zIndex: 0,
-          background: C.bg,
+          background: "#080c18",
           overflow: "hidden",
         }}
       >
-        {/* 顶部 glow */}
+        {/* Base ambient blue glow — wide and soft */}
         <div style={{
-          position: "absolute", top: "-20%", left: "10%", width: "80%", height: "60%",
-          background: `radial-gradient(ellipse, ${accent}1a 0%, transparent 70%)`,
+          position: "absolute", top: "-40%", left: "-20%", width: "140%", height: "120%",
+          background: `radial-gradient(ellipse at 40% 30%, ${accent}18 0%, ${C.accent2}10 40%, transparent 70%)`,
           filter: "blur(60px)",
         }} />
-        {/* 右下角 glow */}
+        {/* Glass panel — top left, frosted feel */}
         <div style={{
-          position: "absolute", bottom: "-10%", right: "-5%", width: "50%", height: "50%",
-          background: `radial-gradient(circle, ${C.accent2}14 0%, transparent 65%)`,
-          filter: "blur(80px)",
+          position: "absolute",
+          top: "8%",
+          left: "5%",
+          width: "45%",
+          height: "38%",
+          background: `linear-gradient(135deg, ${accent}0e 0%, ${C.accent2}0a 100%)`,
+          border: `1px solid ${accent}30`,
+          borderRadius: 16,
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
         }} />
-        {/* 微弱网格 */}
+        {/* Glass panel — bottom right, offset */}
         <div style={{
-          position: "absolute", inset: 0,
-          backgroundImage: `
-            repeating-linear-gradient(0deg, transparent, transparent 59px, ${C.border}22 59px, ${C.border}22 60px),
-            repeating-linear-gradient(90deg, transparent, transparent 59px, ${C.border}22 59px, ${C.border}22 60px)
-          `,
-          opacity: 0.6,
+          position: "absolute",
+          bottom: "12%",
+          right: "6%",
+          width: "38%",
+          height: "32%",
+          background: `linear-gradient(225deg, ${C.accent2}0c 0%, ${accent}08 100%)`,
+          border: `1px solid ${C.accent2}28`,
+          borderRadius: 14,
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
         }} />
-        {/* 顶部渐变遮罩 */}
+        {/* Bright glass highlight streak — top panel top edge */}
         <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: "25%",
-          background: `linear-gradient(180deg, ${C.bg}cc 0%, transparent 100%)`,
+          position: "absolute",
+          top: "8%",
+          left: "5%",
+          width: "45%",
+          height: 2,
+          background: `linear-gradient(90deg, transparent, ${accent}60, transparent)`,
+          borderRadius: 1,
+          filter: "blur(1px)",
         }} />
-        {/* 底部渐变遮罩 */}
+        {/* Secondary glass panel — center right, small */}
+        <div style={{
+          position: "absolute",
+          top: "22%",
+          right: "8%",
+          width: "28%",
+          height: "22%",
+          background: `${accent}0a`,
+          border: `1px solid ${accent}22`,
+          borderRadius: 10,
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+        }} />
+        {/* Purple accent glow — bottom left */}
+        <div style={{
+          position: "absolute", bottom: "-15%", left: "-10%", width: "60%", height: "60%",
+          background: `radial-gradient(circle, ${C.accent2}1a 0%, transparent 65%)`,
+          filter: "blur(70px)",
+        }} />
+        {/* Top gradient mask */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: "18%",
+          background: `linear-gradient(180deg, #080c18 dd 0%, transparent 100%)`,
+        }} />
+        {/* Bottom gradient mask */}
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0, height: "20%",
-          background: `linear-gradient(0deg, ${C.bg}99 0%, transparent 100%)`,
+          background: "linear-gradient(0deg, #080c18 aa 0%, transparent 100%)",
         }} />
       </div>
     );
@@ -288,39 +333,60 @@ const BackgroundLayer: React.FC<{
   }
 
   if (preset === "warm_cinematic") {
-    // 暖色暗背景 + 电影感
+    // ── warm_cinematic: amber/golden cinematic light + vignette ──
+    // Key differentiator: warm amber tones, cinematic light streak, strong vignette
     return (
       <div
         style={{
           position: "absolute",
           inset: 0,
           zIndex: 0,
-          background: "#0f0e1a",
+          background: "#0c0a14",
           overflow: "hidden",
         }}
       >
-        {/* 顶部柔光 */}
+        {/* Wide amber light streak from top */}
         <div style={{
-          position: "absolute", top: "-15%", left: "20%", width: "60%", height: "50%",
-          background: `radial-gradient(ellipse, rgba(251,191,36,0.10) 0%, transparent 70%)`,
+          position: "absolute", top: "-20%", left: "10%", width: "80%", height: "55%",
+          background: `radial-gradient(ellipse at 50% 20%, rgba(251,191,36,0.18) 0%, rgba(249,115,22,0.10) 40%, transparent 70%)`,
+          filter: "blur(50px)",
+        }} />
+        {/* Golden secondary glow — left side */}
+        <div style={{
+          position: "absolute", top: "10%", left: "-15%", width: "55%", height: "70%",
+          background: `radial-gradient(circle, rgba(251,146,60,0.12) 0%, transparent 60%)`,
+          filter: "blur(60px)",
+        }} />
+        {/* Bottom warm bloom */}
+        <div style={{
+          position: "absolute", bottom: "-20%", right: "10%", width: "65%", height: "55%",
+          background: `radial-gradient(circle, rgba(249,115,22,0.14) 0%, transparent 60%)`,
           filter: "blur(70px)",
         }} />
-        {/* 中央暖色 glow */}
+        {/* Top vignette — cinematic darkening */}
         <div style={{
-          position: "absolute", top: "20%", left: "-10%", width: "80%", height: "80%",
-          background: `radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 55%)`,
-          filter: "blur(80px)",
+          position: "absolute", top: 0, left: 0, right: 0, height: "30%",
+          background: "linear-gradient(180deg, #0c0a14 ee 0%, transparent 100%)",
         }} />
-        {/* 底部渐变 */}
+        {/* Bottom vignette — strong cinematic darkening */}
         <div style={{
-          position: "absolute", bottom: 0, left: 0, right: 0, height: "25%",
-          background: "linear-gradient(0deg, #0f0e1a ee 0%, transparent 100%)",
+          position: "absolute", bottom: 0, left: 0, right: 0, height: "35%",
+          background: "linear-gradient(0deg, #0c0a14 ff 0%, transparent 100%)",
+        }} />
+        {/* Left/right subtle vignette */}
+        <div style={{
+          position: "absolute", top: 0, bottom: 0, left: 0, width: "15%",
+          background: "linear-gradient(90deg, #0c0a14 0%, transparent 100%)",
+        }} />
+        <div style={{
+          position: "absolute", top: 0, bottom: 0, right: 0, width: "15%",
+          background: "linear-gradient(270deg, #0c0a14 0%, transparent 100%)",
         }} />
       </div>
     );
   }
 
-  // Default: tech_grid_dark — 深蓝黑底 + 细网格 + 蓝色柔光
+  // Default: tech_grid_dark — 深蓝黑底 + 清晰网格 + 蓝色科技光
   return (
     <div
       style={{
@@ -331,20 +397,31 @@ const BackgroundLayer: React.FC<{
         overflow: "hidden",
       }}
     >
-      {/* 顶部柔光 */}
+      {/* Primary blue tech glow — top center */}
       <div style={{
-        position: "absolute", top: "5%", left: "25%", width: "55%", height: "50%",
-        background: `radial-gradient(ellipse, ${C.glow} 0%, transparent 70%)`,
-        filter: "blur(80px)",
+        position: "absolute", top: "5%", left: "20%", width: "60%", height: "55%",
+        background: `radial-gradient(ellipse, ${accent}22 0%, transparent 70%)`,
+        filter: "blur(60px)",
       }} />
-      {/* 网格 */}
+      {/* Secondary blue glow — bottom right */}
+      <div style={{
+        position: "absolute", bottom: "5%", right: "5%", width: "45%", height: "45%",
+        background: `radial-gradient(circle, ${accent}14 0%, transparent 65%)`,
+        filter: "blur(50px)",
+      }} />
+      {/* Grid — prominent 60px grid lines */}
       <div style={{
         position: "absolute", inset: 0,
         backgroundImage: `
-          repeating-linear-gradient(0deg, transparent, transparent 59px, ${C.border}1a 59px, ${C.border}1a 60px),
-          repeating-linear-gradient(90deg, transparent, transparent 59px, ${C.border}1a 59px, ${C.border}1a 60px)
+          repeating-linear-gradient(0deg, transparent, transparent 59px, ${C.border}28 59px, ${C.border}28 60px),
+          repeating-linear-gradient(90deg, transparent, transparent 59px, ${C.border}28 59px, ${C.border}28 60px)
         `,
-        opacity: 0.5,
+        opacity: 0.9,
+      }} />
+      {/* Top gradient mask */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: "15%",
+        background: `linear-gradient(180deg, ${C.bg} dd 0%, transparent 100%)`,
       }} />
     </div>
   );
