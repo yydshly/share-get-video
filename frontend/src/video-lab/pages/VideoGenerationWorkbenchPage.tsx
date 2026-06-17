@@ -672,6 +672,14 @@ export default function VideoGenerationWorkbenchPage() {
 
     const isInfoSummaryMode = generationMode === "information_summary" && infoSummaryPlan;
 
+    // V1.2.2: Derive aspect-ratio layout mode from the selected output ratio
+    const aspectRatioLayoutMode: "vertical_compact" | "horizontal_balanced" | "square_compact" =
+      outputAspectRatio === "16:9"
+        ? "horizontal_balanced"
+        : outputAspectRatio === "1:1" || outputAspectRatio === "4:5"
+        ? "square_compact"
+        : "vertical_compact";
+
     const base: Record<string, unknown> = {
       targetDuration,
       aspectRatio: outputAspectRatio,
@@ -712,6 +720,7 @@ export default function VideoGenerationWorkbenchPage() {
           backgroundPreset: "glass_dashboard",
           accentColor: "#38bdf8",
           highlightColor: "#f59e0b",
+          aspectRatioLayoutMode,
         },
       };
     }
@@ -726,6 +735,7 @@ export default function VideoGenerationWorkbenchPage() {
           cardStackPeekFrames: 18,
           accentColor: "#8b5cf6",
           highlightColor: "#22d3ee",
+          aspectRatioLayoutMode,
         },
       };
     }

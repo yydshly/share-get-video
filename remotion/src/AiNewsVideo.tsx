@@ -101,6 +101,91 @@ const TONE_STYLES: Record<string, { accent: string; highlight: string; glyph: st
   neutral: { accent: "#3b82f6", highlight: "#60a5fa", glyph: "✦" },
 };
 
+// V1.2.2: Aspect-ratio-aware layout configuration
+// Drives density, font sizes, spacing, and content quantity per output ratio.
+const LAYOUT_CONFIGS: Record<string, {
+  /** Max keypoint previews shown on the cover/report-opening page */
+  coverMaxPreviewItems: number;
+  /** Font size for the main title on the cover page */
+  coverTitleFontSize: number;
+  /** Font size for the subtitle/summary on the cover page */
+  coverSubtitleFontSize: number;
+  /** Font size for each keypoint title in cover previews */
+  coverPreviewTitleFontSize: number;
+  /** Font size for each keypoint description in cover previews */
+  coverPreviewDescFontSize: number;
+  /** Gap between keypoint preview items on the cover page */
+  coverPreviewGap: number;
+  /** Font size for card title in keypoint pages */
+  cardTitleFontSize: number;
+  /** Font size for card body/description in keypoint pages */
+  cardDescFontSize: number;
+  /** Min height of the keypoint card container */
+  cardMinHeight: number;
+  /** Bottom padding of the keypoint card container */
+  cardPadding: number;
+  /** Margin bottom between keypoint card elements */
+  cardElementGap: number;
+  /** Max characters shown for body/description text */
+  descMaxChars: number;
+}> = {
+  vertical_compact: {
+    coverMaxPreviewItems: 6,
+    coverTitleFontSize: 54,
+    coverSubtitleFontSize: 22,
+    coverPreviewTitleFontSize: 22,
+    coverPreviewDescFontSize: 17,
+    coverPreviewGap: 14,
+    cardTitleFontSize: 38,
+    cardDescFontSize: 26,
+    cardMinHeight: 620,
+    cardPadding: 40,
+    cardElementGap: 20,
+    descMaxChars: 56,
+  },
+  horizontal_balanced: {
+    coverMaxPreviewItems: 6,
+    coverTitleFontSize: 46,
+    coverSubtitleFontSize: 20,
+    coverPreviewTitleFontSize: 20,
+    coverPreviewDescFontSize: 16,
+    coverPreviewGap: 12,
+    cardTitleFontSize: 32,
+    cardDescFontSize: 22,
+    cardMinHeight: 480,
+    cardPadding: 36,
+    cardElementGap: 16,
+    descMaxChars: 72,
+  },
+  square_compact: {
+    coverMaxPreviewItems: 5,
+    coverTitleFontSize: 44,
+    coverSubtitleFontSize: 19,
+    coverPreviewTitleFontSize: 20,
+    coverPreviewDescFontSize: 15,
+    coverPreviewGap: 12,
+    cardTitleFontSize: 30,
+    cardDescFontSize: 21,
+    cardMinHeight: 520,
+    cardPadding: 36,
+    cardElementGap: 16,
+    descMaxChars: 52,
+  },
+};
+
+/** Get effective layout config, falling back to vertical_compact. */
+function getLayoutConfig(layoutMode?: string) {
+  return LAYOUT_CONFIGS[layoutMode || "vertical_compact"] || LAYOUT_CONFIGS.vertical_compact;
+}
+
+/** Truncate text to maxChars, adding ellipsis if truncated. */
+function truncateText(text: string, maxChars: number): string {
+  if (!text) return "";
+  const clean = text.trim();
+  if (clean.length <= maxChars) return clean;
+  return clean.slice(0, maxChars - 1) + "…";
+}
+
 // V1.2.1.4: BackgroundLayer — programmatic CSS background (no image assets)
 // Supports 4 presets: tech_grid_dark, aurora_blue, glass_dashboard, warm_cinematic
 // Must be rendered at zIndex 0 inside each page's AbsoluteFill.
@@ -488,13 +573,16 @@ const CoverPage: React.FC<{
   // Default: editorial style (original behavior)
   // editorial: current default news cover style with clear title, subtitle, and preview list
   // V0.5.6: 竖屏垂直居中内容块（原 flex-start 把标题/列表钉在顶部，下方大片空白）
+  // V1.2.2: Now shows up to 6 keypoint previews with descriptions, using layout config for density
+  const layout = getLayoutConfig(vstyle?.aspectRatioLayoutMode);
+  const maxItems = Math.min(layout.coverMaxPreviewItems, keyPoints.length);
   return (
     <AbsoluteFill
       style={{
         background: "transparent",
         justifyContent: "center",
         alignItems: "stretch",
-        padding: "60px 50px",
+        padding: "48px 50px",
       }}
     >
       {/* V1.2.1.4: Background layer */}
@@ -503,10 +591,10 @@ const CoverPage: React.FC<{
       <div
         style={{
           position: "absolute",
-          top: "10%",
+          top: "8%",
           left: "30%",
           width: 500,
-          height: 500,
+          height: 400,
           borderRadius: "50%",
           background: C.glow,
           filter: "blur(100px)",
@@ -516,12 +604,13 @@ const CoverPage: React.FC<{
       {/* Top label */}
       <div
         style={{
-          fontSize: 20,
+          fontSize: 18,
           color: accent,
           fontWeight: 700,
           letterSpacing: 4,
           textTransform: "uppercase",
           opacity: subtitleOpacity,
+          marginBottom: 16,
         }}
       >
         AI 前沿 · 速览
@@ -530,12 +619,12 @@ const CoverPage: React.FC<{
       {/* Title */}
       <h1
         style={{
-          fontSize: 64,
+          fontSize: layout.coverTitleFontSize,
           fontWeight: 800,
           color: C.textPrimary,
           textAlign: "left",
           margin: 0,
-          marginTop: 24,
+          marginBottom: 14,
           lineHeight: 1.15,
           opacity: titleOpacity,
           transform: `translateY(${titleY}px)`,
@@ -549,10 +638,10 @@ const CoverPage: React.FC<{
       {subtitle && (
         <p
           style={{
-            fontSize: 30,
+            fontSize: layout.coverSubtitleFontSize,
             color: C.textSecondary,
             textAlign: "left",
-            marginTop: 16,
+            marginTop: 0,
             marginBottom: 0,
             opacity: subtitleOpacity,
             lineHeight: 1.4,
@@ -562,14 +651,17 @@ const CoverPage: React.FC<{
         </p>
       )}
 
-      {/* Timeline preview of 3 keypoints */}
-      <div style={{ marginTop: 60, opacity: listOpacity }}>
-        {keyPoints.slice(0, 3).map((kp, i) => {
-          const [itemFadeStart, itemFadeEnd] = scaleFrames([25 + i * 5, 35 + i * 5]);
+      {/* V1.2.2: Keypoint preview list — now with descriptions, up to coverMaxPreviewItems */}
+      <div style={{ marginTop: 36, opacity: listOpacity }}>
+        <div style={{ fontSize: 13, color: accent, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, opacity: subtitleOpacity }}>
+          本期重点
+        </div>
+        {keyPoints.slice(0, maxItems).map((kp, i) => {
+          const [itemFadeStart, itemFadeEnd] = scaleFrames([20 + i * 4, 30 + i * 4]);
           const itemOpacity = interpolate(frame, [itemFadeStart, itemFadeEnd], [0, 1], {
             extrapolateRight: "clamp",
           });
-          const itemX = interpolate(frame, [itemFadeStart, itemFadeEnd], [-20, 0], {
+          const itemY = interpolate(frame, [itemFadeStart, itemFadeEnd], [12, 0], {
             extrapolateRight: "clamp",
           });
           return (
@@ -577,41 +669,60 @@ const CoverPage: React.FC<{
               key={i}
               style={{
                 display: "flex",
-                alignItems: "center",
-                gap: 16,
-                marginBottom: 20,
+                alignItems: "flex-start",
+                gap: 14,
+                marginBottom: layout.coverPreviewGap,
                 opacity: itemOpacity,
-                transform: `translateX(${itemX}px)`,
+                transform: `translateY(${itemY}px)`,
               }}
             >
               <div
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 12,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
                   background: `linear-gradient(135deg, ${accent}, ${C.accent2})`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: 18,
+                  fontSize: 15,
                   fontWeight: 800,
                   color: C.textPrimary,
                   flexShrink: 0,
+                  marginTop: 1,
                 }}
               >
                 {String(i + 1).padStart(2, "0")}
               </div>
-              <div
-                style={{
-                  fontSize: 26,
-                  fontWeight: 600,
-                  color: C.textPrimary,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {kp.title}
+              <div style={{ flex: 1, overflow: "hidden" }}>
+                <div
+                  style={{
+                    fontSize: layout.coverPreviewTitleFontSize,
+                    fontWeight: 700,
+                    color: C.textPrimary,
+                    lineHeight: 1.25,
+                    marginBottom: 4,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {kp.title}
+                </div>
+                {kp.body && (
+                  <div
+                    style={{
+                      fontSize: layout.coverPreviewDescFontSize,
+                      color: C.textMuted,
+                      lineHeight: 1.4,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {truncateText(kp.body, 60)}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -622,10 +733,10 @@ const CoverPage: React.FC<{
       <div
         style={{
           position: "absolute",
-          bottom: 40,
+          bottom: 36,
           left: 50,
           right: 50,
-          fontSize: 20,
+          fontSize: 18,
           color: C.textMuted,
           opacity: interpolate(frame, [30 / motionScale, 50 / motionScale], [0, 1], { extrapolateRight: "clamp" }),
           display: "flex",
@@ -649,6 +760,7 @@ const CoverPage: React.FC<{
 };
 
 // V0.3.9: Key Point Card with motionIntensity and metricAnimation support
+// V1.2.2: Uses layout config for compact sizing; always shows description.
 const KeyPointCard: React.FC<{
   kp: KeyPoint;
   index: number;
@@ -664,6 +776,9 @@ const KeyPointCard: React.FC<{
   // V0.3.9: Motion scaling
   const motionScale = getMotionScale(vstyle);
   const scaleFrames = (frames: number[]) => frames.map(f => f / motionScale);
+
+  // V1.2.2: Layout config for aspect-ratio-aware compactness
+  const layout = getLayoutConfig(vstyle?.aspectRatioLayoutMode);
 
   // 主题自适应 + 可调样式（显式 vstyle 优先，否则按该条 tone 配色/图标）
   const tonePreset = TONE_STYLES[(kp.tone || "neutral")] || TONE_STYLES.neutral;
@@ -708,7 +823,7 @@ const KeyPointCard: React.FC<{
     >
       {/* V1.2.1.4: Background layer */}
       <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
-      {/* Card container - 80% width of 1080 = 864px */}
+      {/* Card container - 82% width, compact height driven by layout config */}
       <div
         style={{
           width: "82%",
@@ -716,16 +831,17 @@ const KeyPointCard: React.FC<{
           background: C.card,
           borderRadius: 24,
           border: `2px solid ${C.border}`,
-          padding: "56px 44px",
+          padding: layout.cardPadding,
           position: "relative",
           opacity: cardOpacity,
           transform: `translateY(${cardY}px)`,
           boxShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
           // V0.5.5: 内容垂直居中 + 贴合内容的高度下限，消除卡片下半固定留白
+          // V1.2.2: Uses layout config for compact minHeight
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          minHeight: 760,
+          minHeight: layout.cardMinHeight,
         }}
       >
         {/* Accent glow */}
@@ -742,34 +858,35 @@ const KeyPointCard: React.FC<{
         />
 
         {/* Header row: big index + category tag + optional icon */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 36 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
           <div
             style={{
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 72,
-              height: 72,
-              borderRadius: 18,
+              width: 56,
+              height: 56,
+              borderRadius: 14,
               background: `linear-gradient(135deg, ${accent}, ${C.accent2})`,
-              fontSize: 32,
+              fontSize: 24,
               fontWeight: 800,
               color: C.textPrimary,
               opacity: indexOpacity,
-              boxShadow: `0 0 30px ${accent}60`,
+              boxShadow: `0 0 24px ${accent}60`,
+              flexShrink: 0,
             }}
           >
             {String(index + 1).padStart(2, "0")}
           </div>
           <div
             style={{
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: 700,
               color: accent,
               background: `${accent}26`,
               border: `1px solid ${accent}66`,
               borderRadius: 999,
-              padding: "6px 16px",
+              padding: "5px 14px",
               letterSpacing: 1.5,
               textTransform: "uppercase",
               opacity: indexOpacity,
@@ -781,16 +898,16 @@ const KeyPointCard: React.FC<{
             <div
               style={{
                 marginLeft: "auto",
-                width: 48,
-                height: 48,
-                borderRadius: 12,
+                width: 40,
+                height: 40,
+                borderRadius: 10,
                 background: `${accent}22`,
                 border: `2px solid ${accent}`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 color: accent,
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: 900,
                 opacity: indexOpacity,
               }}
@@ -803,12 +920,12 @@ const KeyPointCard: React.FC<{
         {/* Title */}
         <h2
           style={{
-            fontSize: Math.round(44 * fs),
+            fontSize: Math.round(layout.cardTitleFontSize * fs),
             fontWeight: 800,
             color: C.textPrimary,
             margin: 0,
-            marginBottom: 28,
-            lineHeight: 1.3,
+            marginBottom: layout.cardElementGap,
+            lineHeight: 1.25,
             opacity: titleOpacity,
             textShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
           }}
@@ -819,27 +936,27 @@ const KeyPointCard: React.FC<{
         {/* Decorative separator */}
         <div
           style={{
-            width: 80,
+            width: 64,
             height: 3,
             background: `linear-gradient(90deg, ${accent}, ${C.accent2})`,
             borderRadius: 2,
-            marginBottom: 28,
+            marginBottom: layout.cardElementGap,
             opacity: titleOpacity,
           }}
         />
 
-        {/* Body */}
+        {/* Body — always visible, truncated to descMaxChars */}
         <p
           style={{
-            fontSize: Math.round(32 * fs),
+            fontSize: Math.round(layout.cardDescFontSize * fs),
             color: C.textSecondary,
             margin: 0,
-            marginBottom: 28,
-            lineHeight: 1.7,
+            marginBottom: layout.cardElementGap,
+            lineHeight: 1.65,
             opacity: bodyOpacity,
           }}
         >
-          <HighlightedText text={kp.body} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
+          <HighlightedText text={truncateText(kp.body, layout.descMaxChars)} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
         </p>
 
         {/* Data animation: count-up + growing bar for the primary percentage */}
@@ -966,6 +1083,7 @@ const KeyPointCard: React.FC<{
 };
 
 // V0.6.2: Card Stack — renders a single card layer within the card-stack layout
+// V1.2.2: Uses layout config for compact sizing
 const CardStackLayer: React.FC<{
   kp: KeyPoint;
   index: number;
@@ -980,6 +1098,9 @@ const CardStackLayer: React.FC<{
 }> = ({ kp, index, stackPosition, startFrame, exitFrame, totalFrames, fps, vstyle, showDataViz = true }) => {
   const frame = useCurrentFrame();
   const localFrame = Math.max(0, frame - startFrame);
+
+  // V1.2.2: Layout config for aspect-ratio-aware compactness
+  const layout = getLayoutConfig(vstyle?.aspectRatioLayoutMode);
 
   const tonePreset = TONE_STYLES[(kp.tone || "neutral")] || TONE_STYLES.neutral;
   const accent = vstyle?.accentColor || tonePreset.accent;
@@ -1053,13 +1174,13 @@ const CardStackLayer: React.FC<{
         background: C.card,
         borderRadius: 24,
         border: `2px solid ${layerBorderColor}`,
-        padding: "56px 44px",
+        padding: layout.cardPadding,
         position: "relative",
         boxShadow: `0 0 80px ${layerGlow}, 0 24px 60px rgba(0,0,0,0.6)`,
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        minHeight: 760,
+        minHeight: layout.cardMinHeight,
       }}
     >
       {/* V0.6.5.2: Small verification label for prev layer — top-right corner */}
@@ -1100,29 +1221,30 @@ const CardStackLayer: React.FC<{
           NEXT
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 36 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
         <div style={{
           display: "inline-flex", alignItems: "center", justifyContent: "center",
-          width: 72, height: 72, borderRadius: 18,
+          width: 56, height: 56, borderRadius: 14,
           background: `linear-gradient(135deg, ${accent}, ${C.accent2})`,
-          fontSize: 32, fontWeight: 800, color: C.textPrimary,
-          boxShadow: `0 0 30px ${accent}60`,
+          fontSize: 24, fontWeight: 800, color: C.textPrimary,
+          boxShadow: `0 0 24px ${accent}60`,
+          flexShrink: 0,
         }}>
           {String(index + 1).padStart(2, "0")}
         </div>
         <div style={{
-          fontSize: 16, fontWeight: 700, color: accent,
+          fontSize: 14, fontWeight: 700, color: accent,
           background: `${accent}26`, border: `1px solid ${accent}66`,
-          borderRadius: 999, padding: "6px 16px", letterSpacing: 1.5, textTransform: "uppercase" as const,
+          borderRadius: 999, padding: "5px 14px", letterSpacing: 1.5, textTransform: "uppercase" as const,
         }}>
           KEY POINT
         </div>
         {showIcon && (
           <div style={{
-            marginLeft: "auto", width: 48, height: 48, borderRadius: 12,
+            marginLeft: "auto", width: 40, height: 40, borderRadius: 10,
             background: `${accent}22`, border: `2px solid ${accent}`,
             display: "flex", alignItems: "center", justifyContent: "center",
-            color: accent, fontSize: 24, fontWeight: 900,
+            color: accent, fontSize: 20, fontWeight: 900,
           }}>
             {iconGlyph}
           </div>
@@ -1130,21 +1252,21 @@ const CardStackLayer: React.FC<{
       </div>
 
       <h2 style={{
-        fontSize: Math.round(44 * fs), fontWeight: 800, color: C.textPrimary,
-        margin: 0, marginBottom: 28, lineHeight: 1.3,
+        fontSize: Math.round(layout.cardTitleFontSize * fs), fontWeight: 800, color: C.textPrimary,
+        margin: 0, marginBottom: layout.cardElementGap, lineHeight: 1.25,
         textShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
       }}>
         <HighlightedText text={kp.title} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
       </h2>
 
       <div style={{
-        width: 80, height: 3, background: `linear-gradient(90deg, ${accent}, ${C.accent2})`,
-        borderRadius: 2, marginBottom: 28,
+        width: 64, height: 3, background: `linear-gradient(90deg, ${accent}, ${C.accent2})`,
+        borderRadius: 2, marginBottom: layout.cardElementGap,
       }} />
 
       <p style={{
-        fontSize: Math.round(32 * fs), color: C.textSecondary,
-        margin: 0, marginBottom: 28, lineHeight: 1.7,
+        fontSize: Math.round(layout.cardDescFontSize * fs), color: C.textSecondary,
+        margin: 0, marginBottom: layout.cardElementGap, lineHeight: 1.65,
       }}>
         <HighlightedText text={kp.body} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
       </p>
@@ -2156,6 +2278,10 @@ const ReportOpeningPage: React.FC<{
   const summary = overview?.summary || "";
   const openingTitle = overview?.title || title || "内容概览";
 
+  // V1.2.2: Use layout config for aspect-ratio-aware density
+  const layout = getLayoutConfig(vstyle?.aspectRatioLayoutMode);
+  const maxItems = Math.min(layout.coverMaxPreviewItems, keyPoints.length);
+
   return (
     <AbsoluteFill style={{ background: "transparent", padding: 72, color: C.textPrimary, fontFamily: "sans-serif" }}>
       {/* V1.2.1.4: Background layer */}
@@ -2165,32 +2291,51 @@ const ReportOpeningPage: React.FC<{
         height: "100%",
         border: `2px solid ${accent}66`,
         borderRadius: 28,
-        padding: 54,
+        padding: 48,
         background: "rgba(15, 23, 42, 0.72)",
         boxShadow: `0 0 120px ${accent}22`,
         opacity,
         transform: `translateY(${y}px)`,
         overflow: "hidden",
         zIndex: 1,
+        display: "flex",
+        flexDirection: "column",
+        gap: 0,
       }}>
-        <div style={{ color: accent, fontSize: Math.round(26 * fs), fontWeight: 800, marginBottom: 22 }}>
+        <div style={{ color: accent, fontSize: Math.round(22 * fs), fontWeight: 800, marginBottom: 14 }}>
           首页总览
         </div>
-        <h1 style={{ fontSize: Math.round(58 * fs), lineHeight: 1.12, margin: 0, fontWeight: 900 }}>
+        <h1 style={{ fontSize: Math.round(layout.coverTitleFontSize * fs), lineHeight: 1.12, margin: 0, marginBottom: 10, fontWeight: 900 }}>
           {openingTitle}
         </h1>
-        <div style={{ width: 150, height: 6, borderRadius: 999, background: `linear-gradient(90deg, ${accent}, ${hl})`, margin: "30px 0" }} />
-        <p style={{ fontSize: Math.round(29 * fs), lineHeight: 1.62, color: C.textSecondary, margin: 0 }}>
-          {summary}
-        </p>
-        <div style={{ marginTop: 38, color: hl, fontSize: Math.round(24 * fs), fontWeight: 800 }}>
+        {summary && (
+          <>
+            <div style={{ width: 120, height: 4, borderRadius: 999, background: `linear-gradient(90deg, ${accent}, ${hl})`, margin: "12px 0" }} />
+            <p style={{ fontSize: Math.round(layout.coverSubtitleFontSize * fs), lineHeight: 1.55, color: C.textSecondary, margin: 0, marginBottom: 18 }}>
+              {truncateText(summary, 80)}
+            </p>
+          </>
+        )}
+        <div style={{ color: hl, fontSize: Math.round(20 * fs), fontWeight: 800, marginBottom: 12 }}>
           本期信息点
         </div>
-        <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
-          {keyPoints.slice(0, 8).map((kp, i) => (
-            <div key={i} style={{ display: "flex", gap: 16, alignItems: "baseline", color: C.textPrimary }}>
-              <span style={{ color: accent, fontSize: Math.round(22 * fs), fontWeight: 900 }}>{String(i + 1).padStart(2, "0")}</span>
-              <span style={{ fontSize: Math.round(24 * fs), lineHeight: 1.25, fontWeight: 700 }}>{kp.title}</span>
+        {/* V1.2.2: Show previews with descriptions using layout config */}
+        <div style={{ display: "grid", gap: layout.coverPreviewGap, flex: 1, alignContent: "flex-start" }}>
+          {keyPoints.slice(0, maxItems).map((kp, i) => (
+            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", color: C.textPrimary }}>
+              <span style={{ color: accent, fontSize: Math.round(layout.coverPreviewTitleFontSize * fs), fontWeight: 900, flexShrink: 0, marginTop: 1 }}>
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <div style={{ flex: 1, overflow: "hidden" }}>
+                <div style={{ fontSize: Math.round(layout.coverPreviewTitleFontSize * fs), lineHeight: 1.25, fontWeight: 700, marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {kp.title}
+                </div>
+                {kp.body && (
+                  <div style={{ fontSize: Math.round(layout.coverPreviewDescFontSize * fs), color: C.textMuted, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {truncateText(kp.body, 56)}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

@@ -171,6 +171,20 @@ def build_remotion_props(
         except (TypeError, ValueError):
             pass
 
+    # V1.2.2: Aspect-ratio-aware layout mode — maps output ratio to layout density
+    aspect_ratio_layout_mode = rstyle.get("aspectRatioLayoutMode") or params.get("aspectRatioLayoutMode")
+    if aspect_ratio_layout_mode in ("vertical_compact", "horizontal_balanced", "square_compact"):
+        style["aspectRatioLayoutMode"] = aspect_ratio_layout_mode
+    else:
+        # Derive from outputAspectRatio if not explicitly set
+        output_ratio = params.get("outputAspectRatio") or params.get("aspectRatio") or "9:16"
+        if output_ratio == "16:9":
+            style["aspectRatioLayoutMode"] = "horizontal_balanced"
+        elif output_ratio in ("1:1", "4:5"):
+            style["aspectRatioLayoutMode"] = "square_compact"
+        else:
+            style["aspectRatioLayoutMode"] = "vertical_compact"
+
     if style:
         props["style"] = style
 

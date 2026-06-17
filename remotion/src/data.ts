@@ -46,6 +46,9 @@ export type FamilyVariant =
   | "caption_intro"
   | "cta_overlay";
 
+// V1.2.2: Aspect-ratio-aware layout mode — drives density and sizing per canvas ratio
+export type AspectRatioLayoutMode = "vertical_compact" | "horizontal_balanced" | "square_compact";
+
 // V1.2.1.4: Background preset for programmatic CSS backgrounds
 export type BackgroundPreset =
   | "tech_grid_dark"   // 深蓝黑底 + 细网格 + 蓝色柔光（通用科技新闻）
@@ -69,6 +72,8 @@ export type RemotionStyle = {
   backgroundPreset?: BackgroundPreset;
   // V1.2.1.4: Card Stack visual peek frames (independent of audio/segment timing)
   cardStackPeekFrames?: number;
+  // V1.2.2: Aspect-ratio-aware layout mode — drives density and sizing per output ratio
+  aspectRatioLayoutMode?: AspectRatioLayoutMode;
 };
 
 // V0.6.2: Remotion family — selects visual presentation paradigm
