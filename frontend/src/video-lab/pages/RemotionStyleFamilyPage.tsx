@@ -51,6 +51,23 @@ interface MatrixResponse {
   totalElapsedMs: number;
 }
 
+interface TransitionMatrixItem {
+  family: string;
+  transitionStyle: string;
+  success: boolean;
+  videoUrl: string;
+  experimentId: string;
+  clipSeconds: number;
+  elapsedMs: number;
+  message: string;
+  warnings: string[];
+}
+
+interface TransitionMatrixResponse {
+  items: TransitionMatrixItem[];
+  totalElapsedMs: number;
+}
+
 // ─── Style Family Definition ───────────────────────────────────────────────────
 
 interface StyleFamily {
@@ -963,9 +980,510 @@ const MATRIX_FAMILIES = [
 
 const MATRIX_BACKGROUNDS = [
   { id: "tech_grid_dark", label: "tech_grid_dark" },
+  { id: "aurora_blue", label: "aurora_blue" },
   { id: "glass_dashboard", label: "glass_dashboard" },
   { id: "warm_cinematic", label: "warm_cinematic" },
+  { id: "neon_circuit", label: "neon_circuit" },
+  { id: "deep_space", label: "deep_space" },
 ];
+
+const TRANSITION_MATRIX_FAMILIES = [
+  { id: "data_news", name: "Data News", color: "#7c3aed" },
+  { id: "card_stack", name: "Card Stack", color: "#2563eb" },
+  { id: "caption_story", name: "Caption Story", color: "#ec4899" },
+];
+
+const MATRIX_TRANSITIONS = [
+  { id: "slide_fade", label: "slide_fade" },
+  { id: "fade", label: "fade" },
+  { id: "slide", label: "slide" },
+  { id: "push", label: "push" },
+  { id: "wipe", label: "wipe" },
+  { id: "zoom_blur", label: "zoom_blur" },
+  { id: "flip", label: "flip" },
+  { id: "glitch", label: "glitch" },
+];
+
+const CAPABILITY_SUMMARY = [
+  { label: "表现范式", value: "5", detail: "Data / Stack / Timeline / Dashboard / Caption" },
+  { label: "动态背景", value: "6", detail: "含极光、玻璃、深空、霓虹电路" },
+  { label: "转场风格", value: "8", detail: "含 wipe / push / zoom / flip / glitch" },
+  { label: "沉淀 preset", value: "19+", detail: "可进入 Style Gallery 生成样片" },
+];
+
+const STYLE_DIMENSIONS = [
+  {
+    name: "版式范式",
+    scope: "画面结构",
+    current: "data_news / card_stack / timeline_news / dashboard_brief / caption_story",
+    next: "继续做同一素材下的版式差异，而不是只换背景。",
+  },
+  {
+    name: "背景系统",
+    scope: "空间氛围",
+    current: "tech_grid_dark / aurora_blue / glass_dashboard / warm_cinematic / neon_circuit / deep_space",
+    next: "按内容类型选择默认背景，避免强背景抢正文。",
+  },
+  {
+    name: "场景转场",
+    scope: "段落切换",
+    current: "slide_fade / fade / slide / push / wipe / zoom_blur / flip / glitch",
+    next: "把稳定转场设为默认，把 glitch/flip 放到强风格 preset。",
+  },
+  {
+    name: "数据动效",
+    scope: "指标表达",
+    current: "countup_bar / countup_number / none / chart_story / ranking_strip",
+    next: "扩展折线、对比柱、排名推进等数据叙事。",
+  },
+  {
+    name: "文字叙事",
+    scope: "字幕与标题",
+    current: "关键标题逐字浮现 / caption_story / caption_intro / cta_overlay",
+    next: "补正文按行错峰、强调词闪现、口播节奏同步。",
+  },
+  {
+    name: "报告型视频",
+    scope: "长内容承载",
+    current: "source-bound report opening + selected item frames",
+    next: "把报告型默认 preset 与 workbench 路线配置打通。",
+  },
+];
+
+const STYLE_SAMPLE_GROUPS = [
+  {
+    title: "版式样例",
+    note: "同一份 keyPoints，用完全不同的画面组织方式呈现。",
+    items: [
+      { id: "remotion_card_stack", name: "卡片叠层", detail: "多信息点 / 资讯合集" },
+      { id: "remotion_timeline_news", name: "时间线快讯", detail: "事件演进 / 阶段推进" },
+      { id: "remotion_dashboard_brief", name: "指标看板", detail: "Benchmark / 排行对比" },
+      { id: "remotion_caption_story", name: "大字旁白", detail: "观点摘要 / 口播解释" },
+    ],
+  },
+  {
+    title: "数据动效样例",
+    note: "不是只显示文字，而是把数值、排行、图表作为 Remotion 动画主体。",
+    items: [
+      { id: "remotion_metric_motion", name: "动态数据栏目", detail: "数字滚动 + 数据条" },
+      { id: "remotion_chart_story", name: "图表叙事", detail: "柱状图推进 + 当前解读" },
+      { id: "remotion_ranking_strip", name: "排行条快报", detail: "Top list / 横向强弱条" },
+    ],
+  },
+  {
+    title: "文字叙事样例",
+    note: "面向口播、观点和短视频标题节奏，重点不在数据图表。",
+    items: [
+      { id: "remotion_caption_intro", name: "电影感开场字屏", detail: "居中大标题 / 开场冲击" },
+      { id: "remotion_cta_overlay", name: "行动号召叠层", detail: "结尾引导 / 系列预告" },
+      { id: "remotion_caption_aurora_zoom", name: "极光大字叙事", detail: "极光背景 + 镜头推进" },
+    ],
+  },
+  {
+    title: "背景与转场组合样例",
+    note: "从背景矩阵和转场矩阵中沉淀出的可用组合。",
+    items: [
+      { id: "remotion_report_stable", name: "稳重报告型", detail: "tech grid + slide fade" },
+      { id: "remotion_dashboard_glass_wipe", name: "玻璃看板快报", detail: "glass + wipe" },
+      { id: "remotion_deep_space_stack", name: "深空卡片栈", detail: "deep space + push" },
+      { id: "remotion_neon_glitch", name: "霓虹故障高能", detail: "neon circuit + glitch" },
+    ],
+  },
+];
+
+const STYLE_MODULES = [
+  {
+    module: "表现范式",
+    status: "已接入",
+    coverage: "Data News / Card Stack / Timeline / Dashboard / Caption",
+    optimize: "继续拉开同一内容在不同版式中的结构差异。",
+    action: "查看范式总览",
+    anchor: "#style-family-overview",
+  },
+  {
+    module: "背景系统",
+    status: "已扩展",
+    coverage: "6 个动态背景，覆盖科技、玻璃、极光、深空、霓虹、暖电影。",
+    optimize: "补默认搭配策略，避免背景抢正文。",
+    action: "生成背景矩阵",
+    anchor: "#background-matrix",
+  },
+  {
+    module: "场景转场",
+    status: "已扩展",
+    coverage: "8 个转场，含 wipe / push / zoom / flip / glitch。",
+    optimize: "区分默认转场和强风格转场，后者只进入高能 preset。",
+    action: "生成转场矩阵",
+    anchor: "#transition-matrix",
+  },
+  {
+    module: "数据动效",
+    status: "可继续扩",
+    coverage: "countup_bar / countup_number / chart_story / ranking_strip。",
+    optimize: "补折线推进、对比柱、排行榜变化等更强数据叙事。",
+    action: "看数据样例",
+    anchor: "#style-samples",
+  },
+  {
+    module: "文字叙事",
+    status: "可继续扩",
+    coverage: "标题逐字浮现、Caption Story、Intro、CTA。",
+    optimize: "补正文按行错峰、关键词闪现、字幕节奏模板。",
+    action: "看文字样例",
+    anchor: "#style-samples",
+  },
+  {
+    module: "Gallery 沉淀",
+    status: "已接入",
+    coverage: "5 个矩阵沉淀组合已进入 Style Gallery preset。",
+    optimize: "继续把实验矩阵里稳定组合沉淀为可复用 preset。",
+    action: "查看可用组合",
+    anchor: "#promoted-presets",
+  },
+];
+
+function ModuleOptimizationPanel() {
+  const statusStyle: Record<string, { bg: string; color: string; border: string }> = {
+    "已接入": { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
+    "已扩展": { bg: "#eff6ff", color: "#2563eb", border: "#bfdbfe" },
+    "可继续扩": { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
+  };
+
+  return (
+    <div
+      id="module-optimization"
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1.25rem",
+        marginBottom: "2.5rem",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.9rem" }}>
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+          子模块优化看板
+        </h2>
+        <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
+          从实验能力到可用能力
+        </span>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: "0.85rem",
+        }}
+      >
+        {STYLE_MODULES.map((item) => {
+          const sc = statusStyle[item.status] ?? statusStyle["可继续扩"];
+          return (
+            <a
+              key={item.module}
+              href={item.anchor}
+              style={{
+                textDecoration: "none",
+                color: "inherit",
+                border: "1px solid #e2e8f0",
+                borderRadius: "12px",
+                padding: "0.9rem",
+                background: "#ffffff",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <div style={{ fontSize: "0.9rem", fontWeight: 800, color: "#1e293b" }}>{item.module}</div>
+                <span style={{ fontSize: "0.68rem", fontWeight: 800, color: sc.color, background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 999, padding: "0.1rem 0.45rem", whiteSpace: "nowrap" }}>
+                  {item.status}
+                </span>
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "#475569", lineHeight: 1.5, marginBottom: "0.45rem" }}>
+                {item.coverage}
+              </div>
+              <div style={{ fontSize: "0.7rem", color: "#64748b", lineHeight: 1.5, marginBottom: "0.55rem" }}>
+                {item.optimize}
+              </div>
+              <div style={{ fontSize: "0.72rem", fontWeight: 800, color: "#2563eb" }}>
+                {item.action}
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CapabilitySummaryPanel() {
+  return (
+    <div
+      id="capability-summary"
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1rem",
+        marginBottom: "1.25rem",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "0.75rem",
+        }}
+      >
+        {CAPABILITY_SUMMARY.map((item) => (
+          <div
+            key={item.label}
+            style={{
+              border: "1px solid #e2e8f0",
+              borderRadius: "10px",
+              padding: "0.8rem",
+              background: "#f8fafc",
+            }}
+          >
+            <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "#1e293b", lineHeight: 1 }}>
+              {item.value}
+            </div>
+            <div style={{ fontSize: "0.8rem", fontWeight: 800, color: "#334155", marginTop: "0.35rem" }}>
+              {item.label}
+            </div>
+            <div style={{ fontSize: "0.72rem", color: "#64748b", marginTop: "0.25rem", lineHeight: 1.45 }}>
+              {item.detail}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StyleDimensionsPanel() {
+  return (
+    <div
+      id="style-dimensions"
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1.25rem",
+        marginBottom: "2.5rem",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.9rem" }}>
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+          Remotion 样式维度地图
+        </h2>
+        <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
+          不只是背景和转场
+        </span>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+          <thead>
+            <tr style={{ background: "#f8fafc" }}>
+              <th style={thStyle}>维度</th>
+              <th style={thStyle}>影响范围</th>
+              <th style={thStyle}>当前已有能力</th>
+              <th style={thStyle}>下一步价值</th>
+            </tr>
+          </thead>
+          <tbody>
+            {STYLE_DIMENSIONS.map((row, i) => (
+              <tr key={row.name} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "white" : "#fafafa" }}>
+                <td style={{ ...tdLabelStyle, fontWeight: 800, color: "#1e293b" }}>{row.name}</td>
+                <td style={tdLabelStyle}>{row.scope}</td>
+                <td style={{ ...tdLabelStyle, color: "#475569" }}>{row.current}</td>
+                <td style={{ ...tdLabelStyle, color: "#64748b" }}>{row.next}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ExpandedStyleSamplesPanel() {
+  return (
+    <div
+      id="style-samples"
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1.25rem",
+        marginBottom: "2.5rem",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginBottom: "0.9rem" }}>
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+          可扩展样式样例
+        </h2>
+        <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
+          样式不等于换皮
+        </span>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+          gap: "0.9rem",
+        }}
+      >
+        {STYLE_SAMPLE_GROUPS.map((group) => (
+          <div
+            key={group.title}
+            style={{
+              border: "1px solid #e2e8f0",
+              borderRadius: "12px",
+              padding: "0.9rem",
+              background: "#ffffff",
+            }}
+          >
+            <div style={{ fontSize: "0.9rem", fontWeight: 800, color: "#1e293b", marginBottom: "0.35rem" }}>
+              {group.title}
+            </div>
+            <div style={{ fontSize: "0.72rem", color: "#64748b", lineHeight: 1.5, marginBottom: "0.75rem" }}>
+              {group.note}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+              {group.items.map((item) => (
+                <Link
+                  key={item.id}
+                  to={`${REMOTION_GALLERY_BASE}&style_id=${item.id}`}
+                  style={{
+                    textDecoration: "none",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    padding: "0.5rem 0.6rem",
+                    background: "#f8fafc",
+                  }}
+                >
+                  <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "#2563eb" }}>
+                    {item.name}
+                  </div>
+                  <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "0.15rem" }}>
+                    {item.detail}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const PROMOTED_STYLE_PRESETS = [
+  {
+    id: "remotion_report_stable",
+    name: "稳重报告型",
+    useCase: "报告型长内容 / 阅读优先",
+    family: "data_news",
+    background: "tech_grid_dark",
+    transition: "slide_fade",
+    color: "#3b82f6",
+  },
+  {
+    id: "remotion_dashboard_glass_wipe",
+    name: "玻璃看板快报",
+    useCase: "Benchmark / 指标对比",
+    family: "dashboard_brief",
+    background: "glass_dashboard",
+    transition: "wipe",
+    color: "#2563eb",
+  },
+  {
+    id: "remotion_deep_space_stack",
+    name: "深空卡片栈",
+    useCase: "多信息点 / 资讯合集",
+    family: "card_stack",
+    background: "deep_space",
+    transition: "push",
+    color: "#38bdf8",
+  },
+  {
+    id: "remotion_neon_glitch",
+    name: "霓虹故障高能",
+    useCase: "强风格短视频 / 科技爆点",
+    family: "data_news",
+    background: "neon_circuit",
+    transition: "glitch",
+    color: "#ec4899",
+  },
+  {
+    id: "remotion_caption_aurora_zoom",
+    name: "极光大字叙事",
+    useCase: "观点摘要 / 口播解释",
+    family: "caption_story",
+    background: "aurora_blue",
+    transition: "zoom_blur",
+    color: "#8b5cf6",
+  },
+];
+
+function PromotedStylePresets() {
+  return (
+    <div
+      id="promoted-presets"
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1.25rem",
+        marginBottom: "2.5rem",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.9rem", flexWrap: "wrap" }}>
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+          已沉淀可用组合
+        </h2>
+        <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
+          背景矩阵 + 转场矩阵 → Style Gallery preset
+        </span>
+      </div>
+      <p style={{ fontSize: "0.82rem", color: "#64748b", marginTop: 0, marginBottom: "1rem", lineHeight: 1.6 }}>
+        这些不是新的实验入口，而是从现有背景/转场实验中沉淀出的可直接生成样片的 Remotion 组合。
+      </p>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+          gap: "0.85rem",
+        }}
+      >
+        {PROMOTED_STYLE_PRESETS.map((preset) => (
+          <Link
+            key={preset.id}
+            to={`${REMOTION_GALLERY_BASE}&style_id=${preset.id}`}
+            style={{
+              textDecoration: "none",
+              color: "inherit",
+              border: `1px solid ${preset.color}2f`,
+              borderRadius: "12px",
+              padding: "0.85rem",
+              background: `linear-gradient(135deg, ${preset.color}10 0%, #ffffff 70%)`,
+            }}
+          >
+            <div style={{ fontSize: "0.9rem", fontWeight: 800, color: "#1e293b", marginBottom: "0.35rem" }}>
+              {preset.name}
+            </div>
+            <div style={{ fontSize: "0.74rem", color: "#64748b", marginBottom: "0.7rem" }}>
+              {preset.useCase}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.7rem", color: "#475569" }}>
+              <span>范式：{preset.family}</span>
+              <span>背景：{preset.background}</span>
+              <span>转场：{preset.transition}</span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function BackgroundVariantMatrix({
   result,
@@ -1048,7 +1566,7 @@ function BackgroundVariantMatrix({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
+          gridTemplateColumns: `repeat(${MATRIX_BACKGROUNDS.length}, minmax(150px, 1fr))`,
           gap: "0.65rem",
         }}
       >
@@ -1172,6 +1690,203 @@ function BackgroundVariantMatrix({
   );
 }
 
+function TransitionVariantMatrix({
+  result,
+  onReload,
+  loading,
+}: {
+  result: TransitionMatrixResponse | null;
+  onReload: () => void;
+  loading: boolean;
+}) {
+  const resolveUrl = (u: string) =>
+    u && u.startsWith("/runtime/")
+      ? `${import.meta.env.VITE_API_BASE?.replace(/\/video-lab$/, "") ?? ""}${u}`
+      : u || "";
+
+  const grid = TRANSITION_MATRIX_FAMILIES.map((fam) => ({
+    family: fam,
+    cells: MATRIX_TRANSITIONS.map((transition) => ({
+      transition,
+      item: result?.items.find(
+        (it) => it.family === fam.id && it.transitionStyle === transition.id
+      ),
+    })),
+  }));
+
+  const totalSuccess = result?.items.filter((it) => it.success).length ?? 0;
+  const totalItems = result?.items.length ?? 0;
+
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1.25rem",
+        marginBottom: "2.5rem",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.85rem", flexWrap: "wrap" }}>
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+          转场差异化实验 · V1.2.4
+        </h2>
+        <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
+          3 family x 6 transition = 18 clips
+        </span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {result && (
+            <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+              {totalSuccess}/{totalItems} 成功 · {result.totalElapsedMs}ms
+            </span>
+          )}
+          <button
+            onClick={onReload}
+            disabled={loading}
+            style={{
+              background: loading ? "#94a3b8" : "#7c3aed",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              padding: "0.45rem 1rem",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              cursor: loading ? "wait" : "pointer",
+            }}
+          >
+            {loading ? "渲染中..." : "生成转场矩阵"}
+          </button>
+        </div>
+      </div>
+
+      <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.85rem" }}>
+        基于现有背景差异化实验框架，固定内容和背景，横向比较 slide_fade / fade / slide / push / wipe / zoom_blur。
+        Lab-only，不写 Style Sweep job 或 Style Gallery sample。
+      </p>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${MATRIX_TRANSITIONS.length}, minmax(150px, 1fr))`,
+          gap: "0.65rem",
+          overflowX: "auto",
+        }}
+      >
+        {grid.map((row) =>
+          row.cells.map((cell) => {
+            const item = cell.item;
+            const success = item?.success ?? false;
+            const hasVideo = success && Boolean(item?.videoUrl);
+
+            return (
+              <div
+                key={`${row.family.id}-${cell.transition.id}`}
+                style={{
+                  minWidth: 150,
+                  border: `1px solid ${row.family.color}30`,
+                  borderRadius: "10px",
+                  overflow: "hidden",
+                  background: "white",
+                }}
+              >
+                <div
+                  style={{
+                    background: `linear-gradient(135deg, ${row.family.color}15 0%, ${row.family.color}06 100%)`,
+                    borderBottom: `1px solid ${row.family.color}25`,
+                    padding: "0.4rem 0.65rem",
+                  }}
+                >
+                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: row.family.color }}>
+                    {row.family.name}
+                  </div>
+                  <div style={{ fontSize: "0.68rem", color: "#64748b" }}>
+                    {cell.transition.label}
+                  </div>
+                </div>
+
+                <div style={{ padding: "0.4rem", background: "#0f172a" }}>
+                  {hasVideo && item ? (
+                    <video
+                      controls
+                      src={resolveUrl(item.videoUrl)}
+                      style={{
+                        width: "100%",
+                        height: "180px",
+                        objectFit: "contain",
+                        display: "block",
+                        borderRadius: "6px",
+                        background: "#0a0e1a",
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        height: "180px",
+                        background: "#1e293b",
+                        borderRadius: "6px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "0.72rem",
+                        color: "#ef4444",
+                        padding: "0.5rem",
+                        textAlign: "center",
+                      }}
+                    >
+                      {item ? `失败：${item.message}` : "待渲染"}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{
+                  padding: "0.3rem 0.65rem",
+                  borderTop: `1px solid ${row.family.color}15`,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}>
+                  {item?.success ? (
+                    <span style={{ fontSize: "0.65rem", color: "#16a34a" }}>成功</span>
+                  ) : item ? (
+                    <span style={{ fontSize: "0.65rem", color: "#ef4444" }}>失败</span>
+                  ) : (
+                    <span style={{ fontSize: "0.65rem", color: "#94a3b8" }}>-</span>
+                  )}
+                  <span style={{ fontSize: "0.62rem", color: "#94a3b8" }}>
+                    {item ? `${item.elapsedMs}ms` : ""}
+                  </span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {result && (
+        <div
+          style={{
+            marginTop: "1rem",
+            padding: "0.85rem 1rem",
+            background: "#f8fafc",
+            borderRadius: "8px",
+            fontSize: "0.78rem",
+            color: "#475569",
+            lineHeight: 1.6,
+          }}
+        >
+          <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: "0.3rem" }}>观察提示：</div>
+          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+            <li>fade 是否更柔和，slide/push 是否有明确方向感。</li>
+            <li>wipe 是否有可见擦除边界，zoom_blur 是否有镜头推进感。</li>
+            <li>同一 transition 在 Data News / Card Stack / Caption Story 中是否仍可辨识。</li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function RemotionStyleFamilyPage() {
@@ -1183,6 +1898,9 @@ export default function RemotionStyleFamilyPage() {
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixResult, setMatrixResult] = useState<MatrixResponse | null>(null);
   const [matrixError, setMatrixError] = useState("");
+  const [transitionMatrixLoading, setTransitionMatrixLoading] = useState(false);
+  const [transitionMatrixResult, setTransitionMatrixResult] = useState<TransitionMatrixResponse | null>(null);
+  const [transitionMatrixError, setTransitionMatrixError] = useState("");
 
   const runCompare = async () => {
     setCompareLoading(true);
@@ -1217,8 +1935,8 @@ export default function RemotionStyleFamilyPage() {
           content: "",
           params: { clipSeconds: 3, keyPointCount: 3 },
           matrix: {
-            families: ["timeline_news", "dashboard_brief", "caption_story"],
-            backgroundPresets: ["tech_grid_dark", "glass_dashboard", "warm_cinematic"],
+            families: MATRIX_FAMILIES.map((family) => family.id),
+            backgroundPresets: MATRIX_BACKGROUNDS.map((background) => background.id),
           },
         }),
       });
@@ -1229,6 +1947,37 @@ export default function RemotionStyleFamilyPage() {
       setMatrixError(String(e));
     } finally {
       setMatrixLoading(false);
+    }
+  };
+
+  const runTransitionMatrix = async () => {
+    setTransitionMatrixLoading(true);
+    setTransitionMatrixError("");
+    setTransitionMatrixResult(null);
+    try {
+      const resp = await fetch(`${API_BASE}/style-family/transition-matrix`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "",
+          params: {
+            clipSeconds: 3,
+            keyPointCount: 3,
+            backgroundPreset: "tech_grid_dark",
+          },
+          matrix: {
+            families: TRANSITION_MATRIX_FAMILIES.map((family) => family.id),
+            transitionStyles: MATRIX_TRANSITIONS.map((transition) => transition.id),
+          },
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+      setTransitionMatrixResult(data);
+    } catch (e) {
+      setTransitionMatrixError(String(e));
+    } finally {
+      setTransitionMatrixLoading(false);
     }
   };
 
@@ -1260,6 +2009,10 @@ export default function RemotionStyleFamilyPage() {
           将 Remotion 从单一路线升级为可编程视频表现系统 — 本页是"设计方向研究"，批量生成验证请去 Style Sweep，沉淀样片请去 Style Gallery。
         </p>
       </div>
+
+      <CapabilitySummaryPanel />
+
+      <ModuleOptimizationPanel />
 
       {/* V0.8.8: 主流程入口 */}
       <div
@@ -1326,7 +2079,7 @@ export default function RemotionStyleFamilyPage() {
       </div>
 
       {/* Section 1: Family Cards */}
-      <div style={{ marginBottom: "3rem" }}>
+      <div id="style-family-overview" style={{ marginBottom: "3rem" }}>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem", color: "#1e293b" }}>
           范式总览
         </h2>
@@ -1351,6 +2104,10 @@ export default function RemotionStyleFamilyPage() {
 
       {/* V0.8.8: 参考样例 → 可落地范式 映射表 */}
       <ReferenceMappingPanel />
+
+      <StyleDimensionsPanel />
+
+      <ExpandedStyleSamplesPanel />
 
       {/* Section 2: Comparison Matrix */}
       <div
@@ -1687,16 +2444,34 @@ export default function RemotionStyleFamilyPage() {
         )}
       </div>
 
+      <PromotedStylePresets />
+
       {/* V1.2.3: Background Variant Matrix */}
-      <BackgroundVariantMatrix
-        result={matrixResult}
-        onReload={runMatrix}
-        loading={matrixLoading}
-      />
+      <div id="background-matrix">
+        <BackgroundVariantMatrix
+          result={matrixResult}
+          onReload={runMatrix}
+          loading={matrixLoading}
+        />
+      </div>
 
       {matrixError && (
         <div style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "1rem", padding: "0.75rem", background: "#fef2f2", borderRadius: "8px" }}>
           错误：{matrixError}
+        </div>
+      )}
+
+      <div id="transition-matrix">
+        <TransitionVariantMatrix
+          result={transitionMatrixResult}
+          onReload={runTransitionMatrix}
+          loading={transitionMatrixLoading}
+        />
+      </div>
+
+      {transitionMatrixError && (
+        <div style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "1rem", padding: "0.75rem", background: "#fef2f2", borderRadius: "8px" }}>
+          错误：{transitionMatrixError}
         </div>
       )}
 

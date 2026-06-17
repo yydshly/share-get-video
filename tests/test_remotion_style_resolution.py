@@ -159,6 +159,14 @@ class TestStyleResolution:
         assert props["style"].get("highlightColor") == "#00FF00"
         assert props["style"].get("fontScale") == 1.2
 
+    def test_extended_transition_styles_are_applied(self):
+        """V1.2.4: rich transition styles should pass through to Remotion style props."""
+        structured = {"lead": "娴嬭瘯", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        for transition in ("push", "wipe", "zoom_blur", "flip", "glitch"):
+            props = _build_props(structured, key_points, {"transitionStyle": transition})
+            assert props["style"].get("transitionStyle") == transition
+
     def test_content_debug_has_style_dict(self):
         """contentDebug.style must always be a dict (not raise UnboundLocalError)."""
         structured = {"lead": "测试", "subtitle": "AI"}
@@ -210,6 +218,14 @@ class TestBackgroundPresetAndCardStackPeekFrames:
         }
         props = _build_props(structured, key_points, params)
         assert props["style"]["backgroundPreset"] == "warm_cinematic"
+
+    def test_rich_background_presets_are_applied(self):
+        """V1.2.4: richer background presets are passed through to Remotion."""
+        structured = {"lead": "test", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        for background in ("neon_circuit", "deep_space"):
+            props = _build_props(structured, key_points, {"backgroundPreset": background})
+            assert props["style"]["backgroundPreset"] == background
 
     def test_background_preset_invalid_value_not_passed(self):
         """Invalid backgroundPreset values are silently ignored."""

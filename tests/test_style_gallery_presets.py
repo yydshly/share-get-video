@@ -69,11 +69,30 @@ def test_remotion_style_family_variants_are_offered():
     }.issubset(ids)
 
 
+def test_remotion_matrix_combinations_are_promoted_to_presets():
+    """Background/transition matrix winners should be available as concrete gallery presets."""
+    presets = {p["style_id"]: p for p in list_preset_styles()}
+    expected = {
+        "remotion_report_stable": ("data_news", "tech_grid_dark", "slide_fade"),
+        "remotion_dashboard_glass_wipe": ("dashboard_brief", "glass_dashboard", "wipe"),
+        "remotion_deep_space_stack": ("card_stack", "deep_space", "push"),
+        "remotion_neon_glitch": ("data_news", "neon_circuit", "glitch"),
+        "remotion_caption_aurora_zoom": ("caption_story", "aurora_blue", "zoom_blur"),
+    }
+
+    assert expected.keys() <= presets.keys()
+    for style_id, (family, background, transition) in expected.items():
+        params = presets[style_id]["params"]
+        assert params.get("remotionFamily") == family
+        assert params.get("backgroundPreset") == background
+        assert params.get("transitionStyle") == transition
+
+
 def test_expanded_style_coverage():
     """扩充后各路线样式数（覆盖更大风格跨度）。"""
     by_route = Counter(p["route_id"] for p in list_preset_styles())
     assert by_route["local_frame_compose"] >= 5
-    assert by_route["template_programmatic_render"] >= 14
+    assert by_route["template_programmatic_render"] >= 19
     assert by_route["ai_asset_then_compose"] >= 5
 
 

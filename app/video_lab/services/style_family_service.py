@@ -3,6 +3,7 @@ Style Family Service — extracted from router.py V1.0.2.
 
 Provides run_style_family_compare() for /style-family/compare endpoint.
 V1.2.3: Added run_background_variant_matrix() for /style-family/background-matrix.
+V1.2.4: Added run_transition_variant_matrix() for /style-family/transition-matrix.
 """
 
 import time
@@ -87,8 +88,11 @@ def run_style_family_compare(request) -> dict[str, Any]:
 # Valid background presets (from props_builder.py)
 VALID_BACKGROUND_PRESETS = [
     "tech_grid_dark",
+    "aurora_blue",
     "glass_dashboard",
     "warm_cinematic",
+    "neon_circuit",
+    "deep_space",
 ]
 
 # Valid families for matrix experiment
@@ -96,6 +100,23 @@ VALID_MATRIX_FAMILIES = [
     "timeline_news",
     "dashboard_brief",
     "caption_story",
+]
+
+VALID_TRANSITION_MATRIX_FAMILIES = [
+    "data_news",
+    "card_stack",
+    "caption_story",
+]
+
+VALID_TRANSITION_STYLES = [
+    "slide_fade",
+    "fade",
+    "slide",
+    "push",
+    "wipe",
+    "zoom_blur",
+    "flip",
+    "glitch",
 ]
 
 
@@ -161,6 +182,63 @@ def run_background_variant_matrix(request) -> dict[str, Any]:
             items.append({
                 "family": family_id,
                 "backgroundPreset": bg_preset,
+                "success": result.get("success", False),
+                "videoUrl": result.get("clipUrl", ""),
+                "experimentId": result.get("experimentId", ""),
+                "clipSeconds": result.get("clipSeconds", clip_seconds),
+                "elapsedMs": result.get("elapsedMs", 0),
+                "message": result.get("message", ""),
+                "warnings": result.get("warnings", []),
+            })
+
+    elapsed = int((time.time() - t0) * 1000)
+
+    return {
+        "items": items,
+        "totalElapsedMs": elapsed,
+    }
+
+
+def run_transition_variant_matrix(request) -> dict[str, Any]:
+    """
+    V1.2.4: Transition Variant Matrix - family x transition style clips.
+
+    Lab-only: mirrors background matrix behavior and does not persist samples.
+    """
+    t0 = time.time()
+
+    content = request.content.strip() or STYLE_FAMILY_DEFAULT_CONTENT
+    params = dict(request.params or {})
+    params["visualRoute"] = "template_programmatic_render"
+    clip_seconds = int(params.get("clipSeconds", 3))
+    key_point_count = int(params.get("keyPointCount", 3))
+
+    matrix_config = dict(request.matrix or {})
+    families = matrix_config.get("families", VALID_TRANSITION_MATRIX_FAMILIES)
+    transition_styles = matrix_config.get("transitionStyles", VALID_TRANSITION_STYLES)
+
+    families = [f for f in families if f in VALID_TRANSITION_MATRIX_FAMILIES]
+    transition_styles = [ts for ts in transition_styles if ts in VALID_TRANSITION_STYLES]
+
+    items: list[dict[str, Any]] = []
+
+    for family_id in families:
+        for transition_style in transition_styles:
+            family_params = {
+                **params,
+                "remotionFamily": family_id,
+                "keyPointCount": key_point_count,
+                "transitionStyle": transition_style,
+            }
+            result = render_clip_preview(
+                content=content,
+                visual_route="template_programmatic_render",
+                params=family_params,
+                clip_seconds=clip_seconds,
+            )
+            items.append({
+                "family": family_id,
+                "transitionStyle": transition_style,
                 "success": result.get("success", False),
                 "videoUrl": result.get("clipUrl", ""),
                 "experimentId": result.get("experimentId", ""),

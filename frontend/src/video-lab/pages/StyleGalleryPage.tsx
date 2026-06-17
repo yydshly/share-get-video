@@ -299,6 +299,8 @@ function getKeyParamsSummary(params: Record<string, unknown>, routeId: string): 
     if (params.overviewStyle) summaries.push(`概览风格: ${params.overviewStyle}`);
     if (params.metricAnimation) summaries.push(`指标动画: ${params.metricAnimation}`);
     if (params.transitionStyle) summaries.push(`转场: ${params.transitionStyle}`);
+    if (params.backgroundPreset) summaries.push(`背景: ${params.backgroundPreset}`);
+    if (params.remotionFamily) summaries.push(`范式: ${params.remotionFamily}`);
     const bgm = getBgmInfo(params);
     if (bgm.enabled) summaries.push(`BGM: ${bgm.mode}`);
   } else if (routeId === "ai_asset_then_compose") {

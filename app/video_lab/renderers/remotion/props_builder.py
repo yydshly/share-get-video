@@ -154,7 +154,7 @@ def build_remotion_props(
     if metric_animation:
         style["metricAnimation"] = metric_animation
     transition_style = rstyle.get("transitionStyle") or params.get("transitionStyle")
-    if transition_style:
+    if transition_style in ("slide_fade", "fade", "slide", "push", "wipe", "zoom_blur", "flip", "glitch"):
         style["transitionStyle"] = transition_style
     family_variant = rstyle.get("familyVariant") or params.get("familyVariant")
     if family_variant:
@@ -162,7 +162,7 @@ def build_remotion_props(
 
     # V1.2.1.4: Background preset and Card Stack peek frames
     background_preset = rstyle.get("backgroundPreset") or params.get("backgroundPreset")
-    if background_preset in ("tech_grid_dark", "aurora_blue", "glass_dashboard", "warm_cinematic"):
+    if background_preset in ("tech_grid_dark", "aurora_blue", "glass_dashboard", "warm_cinematic", "neon_circuit", "deep_space"):
         style["backgroundPreset"] = background_preset
     card_stack_peek_frames = rstyle.get("cardStackPeekFrames") or params.get("cardStackPeekFrames")
     if card_stack_peek_frames is not None:

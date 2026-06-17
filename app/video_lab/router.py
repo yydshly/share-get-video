@@ -28,6 +28,7 @@ from app.video_lab.schemas import (
     StyleSampleSaveRequest,
     StyleFamilyCompareRequest,
     BackgroundVariantMatrixRequest,
+    TransitionVariantMatrixRequest,
     TechniqueProbeRequest,
     StyleSweepRequest,
 )
@@ -43,6 +44,7 @@ from app.video_lab.services import (
     run_visual_compose_endpoint,
     run_style_family_compare,
     run_background_variant_matrix,
+    run_transition_variant_matrix,
     run_technique_probe_endpoint,
     run_style_sweep_endpoint,
     extract_style_sample_assets,
@@ -398,6 +400,15 @@ def style_family_background_matrix(request: BackgroundVariantMatrixRequest) -> d
     Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
     """
     return run_background_variant_matrix(request)
+
+
+@router.post("/style-family/transition-matrix")
+def style_family_transition_matrix(request: TransitionVariantMatrixRequest) -> dict[str, Any]:
+    """Transition Variant Matrix: family x transition style clips.
+
+    Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
+    """
+    return run_transition_variant_matrix(request)
 
 
 # ─────────────────────────────────────────────

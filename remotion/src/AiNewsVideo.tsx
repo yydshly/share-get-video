@@ -454,6 +454,100 @@ const BackgroundLayer: React.FC<{
     );
   }
 
+  if (preset === "neon_circuit") {
+    const scanX = ((frame * 0.65) % 150) - 25;
+    const pulse = 0.55 + 0.45 * Math.sin(frame / 18);
+    const gridPan = -((frame * 0.3) % 48);
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: "#050716", overflow: "hidden" }}>
+        <div style={{
+          position: "absolute", inset: "-10%",
+          transform: `translateY(${gridPan}px)`,
+          backgroundImage: `
+            linear-gradient(90deg, ${accent}18 1px, transparent 1px),
+            linear-gradient(0deg, ${C.accent2}12 1px, transparent 1px)
+          `,
+          backgroundSize: "48px 48px",
+          opacity: 0.78,
+        }} />
+        <div style={{
+          position: "absolute", left: `${scanX}%`, top: 0, width: "24%", height: "100%",
+          background: `linear-gradient(90deg, transparent, ${accent}22 42%, ${highlight}38 50%, ${accent}22 58%, transparent)`,
+          filter: "blur(10px)",
+          transform: "skewX(-8deg)",
+        }} />
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <div key={`node-${i}`} style={{
+            position: "absolute",
+            left: `${14 + i * 14}%`,
+            top: `${18 + ((i * 23) % 56)}%`,
+            width: 10 + (i % 3) * 4,
+            height: 10 + (i % 3) * 4,
+            borderRadius: 999,
+            background: i % 2 ? highlight : accent,
+            opacity: 0.35 + pulse * 0.45,
+            boxShadow: `0 0 ${22 + pulse * 28}px ${i % 2 ? highlight : accent}`,
+          }} />
+        ))}
+        <div style={{
+          position: "absolute", top: "12%", right: "-10%", width: "52%", height: "52%",
+          background: `radial-gradient(circle, ${C.accent2}22 0%, transparent 66%)`,
+          filter: "blur(64px)",
+          opacity: 0.7,
+        }} />
+        <FloatingParticles count={16} color={highlight} maxSize={3} />
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse at center, transparent 0%, transparent 56%, #050716d8 100%)",
+        }} />
+      </div>
+    );
+  }
+
+  if (preset === "deep_space") {
+    const driftX = Math.sin(frame / 85) * 5;
+    const driftY = Math.cos(frame / 110) * 4;
+    const orbit = frame * 0.08;
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: "#030612", overflow: "hidden" }}>
+        <div style={{
+          position: "absolute", inset: "-18%",
+          transform: `translate(${driftX}%, ${driftY}%) scale(1.05)`,
+          background: `
+            radial-gradient(ellipse at 28% 32%, ${accent}26 0%, transparent 34%),
+            radial-gradient(ellipse at 72% 58%, ${C.accent2}22 0%, transparent 36%),
+            radial-gradient(circle at 55% 18%, ${highlight}18 0%, transparent 30%)
+          `,
+          filter: "blur(34px)",
+          opacity: 0.9,
+        }} />
+        {[0, 1, 2].map((i) => (
+          <div key={`orbit-${i}`} style={{
+            position: "absolute",
+            left: `${18 + i * 18}%`,
+            top: `${16 + i * 13}%`,
+            width: `${70 - i * 8}%`,
+            height: `${46 - i * 5}%`,
+            border: `1px solid ${i % 2 ? highlight : accent}24`,
+            borderRadius: "50%",
+            transform: `rotate(${orbit + i * 22}deg)`,
+            filter: "blur(0.2px)",
+          }} />
+        ))}
+        <FloatingParticles count={26} color="rgba(191,219,254,0.9)" maxSize={3} />
+        <div style={{
+          position: "absolute", left: "8%", bottom: "8%", width: "42%", height: "28%",
+          background: `radial-gradient(ellipse, ${highlight}12 0%, transparent 70%)`,
+          filter: "blur(46px)",
+        }} />
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(180deg, #030612cc 0%, transparent 38%, #030612dd 100%)",
+        }} />
+      </div>
+    );
+  }
+
   // Default: tech_grid_dark — 深蓝黑底 + 流动网格 + 扫描光带 + 上升粒子 + 呼吸辉光
   const gridPan = -((frame * 0.4) % 60);
   const scanY = ((frame * 0.55) % 130) - 15;
@@ -952,6 +1046,7 @@ const KeyPointCard: React.FC<{
   const variant = vstyle?.familyVariant;
   const iconGlyph = tonePreset.glyph;
   const metricAnimation = vstyle?.metricAnimation ?? "countup_bar";
+  const transitionStyle = vstyle?.transitionStyle ?? "slide_fade";
 
   // V0.3.9: Scale animation frames by motion intensity
   const [cardFadeStart, cardFadeEnd] = scaleFrames([0, 12]);
@@ -962,6 +1057,35 @@ const KeyPointCard: React.FC<{
 
   const cardOpacity = interpolate(localFrame, [cardFadeStart, cardFadeEnd], [0, 1], { extrapolateRight: "clamp" });
   const cardY = interpolate(localFrame, [cardFadeStart, cardFadeEnd], [40, 0], { extrapolateRight: "clamp" });
+  const transitionProgress = interpolate(localFrame, [0, 18], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const transitionEase = 1 - Math.pow(1 - transitionProgress, 3);
+  const cardOpacityFx = transitionStyle === "slide" || transitionStyle === "push" || transitionStyle === "wipe" || transitionStyle === "flip" || transitionStyle === "glitch"
+    ? 1
+    : cardOpacity;
+  const glitchOffset = transitionStyle === "glitch" ? Math.sin(localFrame * 1.9) * (1 - transitionEase) * 18 : 0;
+  const cardTranslateX =
+    transitionStyle === "glitch"
+      ? `${glitchOffset}px`
+      : transitionStyle === "push"
+      ? `${(1 - transitionEase) * 90}px`
+      : transitionStyle === "slide"
+      ? `${(1 - transitionEase) * 36}px`
+      : "0px";
+  const cardTranslateY = transitionStyle === "slide_fade" || transitionStyle === "fade" ? `${cardY}px` : "0px";
+  const cardScale = transitionStyle === "zoom_blur"
+    ? 0.92 + 0.08 * transitionEase
+    : transitionStyle === "flip"
+    ? 0.96 + 0.04 * transitionEase
+    : 1;
+  const cardRotateY = transitionStyle === "flip" ? (1 - transitionEase) * -24 : 0;
+  const cardFilter = transitionStyle === "zoom_blur"
+    ? `blur(${(1 - transitionEase) * 10}px)`
+    : transitionStyle === "glitch"
+    ? `saturate(${1.2 + (1 - transitionEase) * 1.4}) contrast(${1.05 + (1 - transitionEase) * 0.55}) hue-rotate(${Math.sin(localFrame * 1.3) * (1 - transitionEase) * 12}deg)`
+    : "none";
+  const cardClipPath = transitionStyle === "wipe"
+    ? `inset(0 ${Math.round((1 - transitionEase) * 100)}% 0 0 round 24px)`
+    : "none";
   const indexOpacity = interpolate(localFrame, [indexFadeStart, indexFadeEnd], [0, 1], { extrapolateRight: "clamp" });
   const titleOpacity = interpolate(localFrame, [titleFadeStart, titleFadeEnd], [0, 1], { extrapolateRight: "clamp" });
   const bodyOpacity = interpolate(localFrame, [bodyFadeStart, bodyFadeEnd], [0, 1], { extrapolateRight: "clamp" });
@@ -996,8 +1120,10 @@ const KeyPointCard: React.FC<{
           border: `2px solid ${C.border}`,
           padding: layout.cardPadding,
           position: "relative",
-          opacity: cardOpacity,
-          transform: `translateY(${cardY}px)`,
+          opacity: cardOpacityFx,
+          transform: `perspective(900px) translate(${cardTranslateX}, ${cardTranslateY}) rotateY(${cardRotateY}deg) scale(${cardScale})`,
+          filter: cardFilter,
+          clipPath: cardClipPath,
           boxShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
           // V0.5.5: 内容垂直居中 + 贴合内容的高度下限，消除卡片下半固定留白
           // V1.2.2: Uses layout config for compact minHeight
@@ -1273,6 +1399,7 @@ const CardStackLayer: React.FC<{
   const showIcon = vstyle?.showIcon ?? true;
   const iconGlyph = tonePreset.glyph;
   const metricAnimation = vstyle?.metricAnimation ?? "countup_bar";
+  const transitionStyle = vstyle?.transitionStyle ?? "slide_fade";
 
   // Card Stack specific positioning
   const isPrev = stackPosition === -1;
@@ -1288,7 +1415,7 @@ const CardStackLayer: React.FC<{
   const entryDuration = 16; // frames to fully enter
   const exitDuration = 16;  // frames to fully exit
 
-  let scale: number, opacity: number, offsetX: number, offsetY: number;
+  let scale: number, opacity: number, offsetX: number, offsetY: number, rotateY: number, layerFilter: string;
 
   if (isPrev) {
     // V0.6.5.2: Further strengthened — prev card visible at top-right corner
@@ -1298,6 +1425,8 @@ const CardStackLayer: React.FC<{
     opacity = 1.0 - 0.25 * eased;   // 1.0 → 0.75 (more opaque)
     offsetX = 220 * eased;           // slides right much more (was 140)
     offsetY = -130 * eased;          // slides up much more (was -80)
+    rotateY = 0;
+    layerFilter = "none";
   } else if (isNext) {
     // V0.6.5.2: Further strengthened — next card visible at bottom-left corner
     const progress = Math.min(1, localFrame / entryDuration);
@@ -1306,14 +1435,32 @@ const CardStackLayer: React.FC<{
     opacity = 0.40 + 0.20 * eased;  // 0.40 → 0.60 (more opaque than V0.6.5's 0.40)
     offsetX = -220 * eased;          // from left much more (was -120)
     offsetY = 110 * eased;           // from bottom much more (was 70)
+    rotateY = 0;
+    layerFilter = "none";
   } else {
     // Current card: V0.6.5 — slides up from bottom, scales in to full size
     const progress = Math.min(1, localFrame / entryDuration);
     const eased = 1 - Math.pow(1 - progress, 3);
-    scale = 0.90 + 0.10 * eased;   // 0.90 → 1.0 (was 0.92 → 1.0)
-    opacity = 0.0 + 1.0 * eased;    // 0 → 1
-    offsetX = 0;                    // V0.6.5: centered (was 20 → 0)
-    offsetY = 0;                   // V0.6.5: centered (was 30 → 0)
+    scale = transitionStyle === "zoom_blur"
+      ? 0.84 + 0.16 * eased
+      : transitionStyle === "flip"
+      ? 0.88 + 0.12 * eased
+      : 0.90 + 0.10 * eased;
+    opacity = transitionStyle === "slide" || transitionStyle === "push" || transitionStyle === "wipe" || transitionStyle === "flip" || transitionStyle === "glitch" ? 1 : eased;
+    offsetX = transitionStyle === "glitch"
+      ? Math.sin(localFrame * 1.7) * (1 - eased) * 26
+      : transitionStyle === "push"
+      ? (1 - eased) * 170
+      : transitionStyle === "slide"
+      ? (1 - eased) * 70
+      : 0;
+    offsetY = transitionStyle === "slide_fade" || transitionStyle === "fade" ? 0 : 0;
+    rotateY = transitionStyle === "flip" ? (1 - eased) * -28 : 0;
+    layerFilter = transitionStyle === "glitch"
+      ? `saturate(${1.25 + (1 - eased) * 1.2}) contrast(${1.1 + (1 - eased) * 0.45})`
+      : transitionStyle === "zoom_blur"
+      ? `blur(${(1 - eased) * 8}px)`
+      : "none";
   }
 
   // V0.6.5.2: Visible border color for prev/next layer identification
@@ -1514,7 +1661,8 @@ const CardStackLayer: React.FC<{
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        transform: `translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+        transform: `perspective(900px) translate(${offsetX}px, ${offsetY}px) rotateY(${rotateY}deg) scale(${scale})`,
+        filter: layerFilter,
         opacity,
         transformOrigin: "center center",
         zIndex,
@@ -2139,6 +2287,7 @@ const CaptionStoryLayout: React.FC<{
   const hl = vstyle?.highlightColor || "#f9a8d4";
   const fs = vstyle?.fontScale || 1;
   const variant = vstyle?.familyVariant;
+  const transitionStyle = vstyle?.transitionStyle ?? "slide_fade";
   const relativeStarts: number[] = [];
   {
     let acc = 0;
@@ -2161,7 +2310,35 @@ const CaptionStoryLayout: React.FC<{
   const segmentStart = relativeStarts[activeIndex] ?? 0;
   const segmentFrame = Math.max(0, localFrame - segmentStart);
   const titleOpacity = interpolate(segmentFrame, [0, 14], [0, 1], { extrapolateRight: "clamp" });
-  const titleY = interpolate(segmentFrame, [0, 18], [40, 0], { extrapolateRight: "clamp" });
+  const transitionProgress = interpolate(segmentFrame, [0, 18], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const transitionEase = 1 - Math.pow(1 - transitionProgress, 3);
+  const titleY = transitionStyle === "push" || transitionStyle === "slide" || transitionStyle === "wipe"
+    ? 0
+    : interpolate(segmentFrame, [0, 18], [40, 0], { extrapolateRight: "clamp" });
+  const titleGlitchX = transitionStyle === "glitch" ? Math.sin(segmentFrame * 1.9) * (1 - transitionEase) * 22 : 0;
+  const titleX = transitionStyle === "glitch"
+    ? titleGlitchX
+    : transitionStyle === "push"
+    ? (1 - transitionEase) * 120
+    : transitionStyle === "slide"
+    ? (1 - transitionEase) * 54
+    : 0;
+  const titleScale = transitionStyle === "zoom_blur"
+    ? 0.9 + 0.1 * transitionEase
+    : transitionStyle === "flip"
+    ? 0.96 + 0.04 * transitionEase
+    : 1;
+  const titleRotateY = transitionStyle === "flip" ? (1 - transitionEase) * -26 : 0;
+  const titleFilter = transitionStyle === "zoom_blur"
+    ? `blur(${(1 - transitionEase) * 9}px)`
+    : transitionStyle === "glitch"
+    ? `saturate(${1.25 + (1 - transitionEase) * 1.3}) contrast(${1.1 + (1 - transitionEase) * 0.5}) hue-rotate(${Math.sin(segmentFrame * 1.2) * (1 - transitionEase) * 14}deg)`
+    : "none";
+  const titleClipPath = transitionStyle === "wipe"
+    ? `inset(0 ${Math.round((1 - transitionEase) * 100)}% 0 0)`
+    : "none";
+  const titleOpacityFx = transitionStyle === "slide" || transitionStyle === "push" || transitionStyle === "wipe" || transitionStyle === "flip" || transitionStyle === "glitch" ? 1 : titleOpacity;
+  const titleTransform = `perspective(900px) translate(${titleX}px, ${titleY}px) rotateY(${titleRotateY}deg) scale(${titleScale})`;
   const bodyOpacity = interpolate(segmentFrame, [10, 30], [0, 1], { extrapolateRight: "clamp" });
 
   if (variant === "caption_intro") {
@@ -2171,7 +2348,7 @@ const CaptionStoryLayout: React.FC<{
         <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
         <div style={{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 930 }}>
           <div style={{ display: "inline-flex", border: `1px solid ${accent}66`, color: accent, borderRadius: 999, padding: "8px 18px", fontSize: 18, fontWeight: 800, letterSpacing: 4, textTransform: "uppercase", marginBottom: 34 }}>Cinematic Intro</div>
-          <h2 style={{ color: C.textPrimary, fontSize: Math.round(82 * fs), lineHeight: 1.05, margin: 0, opacity: titleOpacity, transform: `translateY(${titleY}px)`, textShadow: `0 0 86px ${accent}55` }}>
+          <h2 style={{ color: C.textPrimary, fontSize: Math.round(82 * fs), lineHeight: 1.05, margin: 0, opacity: titleOpacityFx, transform: titleTransform, filter: titleFilter, clipPath: titleClipPath, textShadow: `0 0 86px ${accent}55` }}>
             <HighlightedText text={active?.title ?? ""} style={{}} highlightColor={hl} emphasisTerms={active?.emphasisTerms} />
           </h2>
           <p style={{ color: C.textSecondary, fontSize: Math.round(31 * fs), lineHeight: 1.5, margin: "34px auto 0", opacity: bodyOpacity, maxWidth: 820 }}>{active?.body}</p>
@@ -2187,7 +2364,7 @@ const CaptionStoryLayout: React.FC<{
         <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} />
         <div style={{ position: "relative", zIndex: 1, maxWidth: 900 }}>
           <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 32 }}>CTA Overlay</div>
-          <h2 style={{ color: C.textPrimary, fontSize: Math.round(68 * fs), lineHeight: 1.08, margin: 0, opacity: titleOpacity, transform: `translateY(${titleY}px)` }}>
+          <h2 style={{ color: C.textPrimary, fontSize: Math.round(68 * fs), lineHeight: 1.08, margin: 0, opacity: titleOpacityFx, transform: titleTransform, filter: titleFilter, clipPath: titleClipPath }}>
             <HighlightedText text={active?.title ?? ""} style={{}} highlightColor={hl} emphasisTerms={active?.emphasisTerms} />
           </h2>
           <p style={{ color: C.textSecondary, fontSize: Math.round(31 * fs), lineHeight: 1.5, margin: "30px 0 0", opacity: bodyOpacity }}>{active?.body}</p>
@@ -2208,7 +2385,7 @@ const CaptionStoryLayout: React.FC<{
         <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 38 }}>
           Caption Story · {String(activeIndex + 1).padStart(2, "0")} / {keyPoints.length}
         </div>
-        <h2 style={{ color: C.textPrimary, fontSize: Math.round(74 * fs), lineHeight: 1.08, letterSpacing: 0, margin: 0, opacity: titleOpacity, transform: `translateY(${titleY}px)`, textShadow: `0 0 70px ${accent}44` }}>
+        <h2 style={{ color: C.textPrimary, fontSize: Math.round(74 * fs), lineHeight: 1.08, letterSpacing: 0, margin: 0, opacity: titleOpacityFx, transform: titleTransform, filter: titleFilter, clipPath: titleClipPath, textShadow: `0 0 70px ${accent}44` }}>
           <HighlightedText text={active?.title ?? ""} style={{}} highlightColor={hl} emphasisTerms={active?.emphasisTerms} />
         </h2>
         <div style={{ width: 150, height: 6, borderRadius: 999, background: `linear-gradient(90deg, ${accent}, ${hl})`, marginTop: 34, marginBottom: 34, opacity: titleOpacity }} />
@@ -2510,6 +2687,125 @@ const ReportOpeningPage: React.FC<{
   );
 };
 
+const SceneTransitionOverlay: React.FC<{
+  transitionStyle: TransitionStyle;
+  durationFrames: number;
+  accent?: string;
+  highlight?: string;
+}> = ({ transitionStyle, durationFrames, accent = C.accent, highlight = C.highlight }) => {
+  const frame = useCurrentFrame();
+  const raw = durationFrames <= 1 ? 1 : frame / Math.max(1, durationFrames - 1);
+  const p = Math.max(0, Math.min(1, raw));
+  const crest = 1 - Math.abs(p * 2 - 1);
+  const ease = 1 - Math.pow(1 - p, 3);
+
+  if (transitionStyle === "glitch") {
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none", zIndex: 40, overflow: "hidden", opacity: 0.95 }}>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} style={{
+            position: "absolute",
+            left: `${Math.sin(frame * (1.5 + i * 0.2)) * 5}%`,
+            top: `${12 + i * 16}%`,
+            width: `${42 + i * 8}%`,
+            height: 6 + (i % 2) * 8,
+            background: `linear-gradient(90deg, transparent, ${i % 2 ? highlight : accent}${Math.round(crest * 55).toString(16).padStart(2, "0")}, transparent)`,
+            filter: "blur(1px)",
+            transform: `skewX(${i % 2 ? -10 : 10}deg)`,
+          }} />
+        ))}
+        <div style={{ position: "absolute", inset: 0, background: `rgba(255,255,255,${crest * 0.05})` }} />
+      </AbsoluteFill>
+    );
+  }
+
+  if (transitionStyle === "wipe") {
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none", zIndex: 40, overflow: "hidden" }}>
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: `${ease * 120 - 35}%`,
+          width: "32%",
+          height: "100%",
+          background: `linear-gradient(90deg, transparent, ${accent}42, ${highlight}66, transparent)`,
+          filter: "blur(10px)",
+          transform: "skewX(-12deg)",
+        }} />
+      </AbsoluteFill>
+    );
+  }
+
+  if (transitionStyle === "push") {
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none", zIndex: 40, overflow: "hidden" }}>
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          background: `linear-gradient(90deg, transparent 0%, ${accent}${Math.round(crest * 42).toString(16).padStart(2, "0")} 48%, transparent 100%)`,
+          transform: `translateX(${(ease - 0.5) * 34}%)`,
+        }} />
+      </AbsoluteFill>
+    );
+  }
+
+  if (transitionStyle === "zoom_blur") {
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none", zIndex: 40 }}>
+        <div style={{
+          position: "absolute",
+          inset: "-12%",
+          background: `radial-gradient(circle, transparent 0%, ${highlight}${Math.round(crest * 38).toString(16).padStart(2, "0")} 42%, ${accent}${Math.round(crest * 28).toString(16).padStart(2, "0")} 66%, transparent 100%)`,
+          transform: `scale(${0.92 + crest * 0.22})`,
+          filter: `blur(${10 + crest * 18}px)`,
+        }} />
+      </AbsoluteFill>
+    );
+  }
+
+  if (transitionStyle === "flip") {
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none", zIndex: 40, overflow: "hidden", perspective: 900 }}>
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          background: `linear-gradient(135deg, ${accent}${Math.round(crest * 32).toString(16).padStart(2, "0")}, transparent 50%, ${highlight}${Math.round(crest * 26).toString(16).padStart(2, "0")})`,
+          transform: `rotateY(${(1 - ease) * -18}deg)`,
+          transformOrigin: "center",
+        }} />
+      </AbsoluteFill>
+    );
+  }
+
+  if (transitionStyle === "slide") {
+    return (
+      <AbsoluteFill style={{ pointerEvents: "none", zIndex: 40, overflow: "hidden" }}>
+        <div style={{
+          position: "absolute",
+          right: `${ease * 115 - 30}%`,
+          top: 0,
+          width: "22%",
+          height: "100%",
+          background: `linear-gradient(90deg, transparent, ${accent}${Math.round(crest * 46).toString(16).padStart(2, "0")}, transparent)`,
+          filter: "blur(8px)",
+        }} />
+      </AbsoluteFill>
+    );
+  }
+
+  if (transitionStyle === "fade" || transitionStyle === "slide_fade") {
+    return (
+      <AbsoluteFill style={{
+        pointerEvents: "none",
+        zIndex: 40,
+        background: `radial-gradient(circle, ${highlight}${Math.round(crest * 28).toString(16).padStart(2, "0")} 0%, transparent 58%)`,
+      }} />
+    );
+  }
+
+  return null;
+};
+
 // V0.3.9: Main Video Component with transitionStyle and style variant support
 // V0.6.2: Card Stack support via remotionFamily prop
 export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
@@ -2541,6 +2837,13 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
         return 20; // More overlap for pure fade
       case "slide":
         return 8;  // Less overlap for pure slide
+      case "push":
+      case "wipe":
+      case "flip":
+        return 10;
+      case "zoom_blur":
+      case "glitch":
+        return 14;
       case "slide_fade":
       default:
         return 12; // Balanced slide+fade
@@ -2607,6 +2910,10 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
     totalVisualFrames,
     safeOverlap,
   };
+  const overlayFrames = safeOverlap > 0 ? Math.max(6, safeOverlap) : 0;
+  const transitionBoundaries = overlayFrames > 0
+    ? [coverFrames, ...cardStarts.slice(1), ...(summaryFrames > 0 ? [summaryStart] : [])]
+    : [];
 
   return (
     <AbsoluteFill style={{ background: "transparent" }}>
@@ -2729,6 +3036,21 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
           />
         </Sequence>
       )}
+
+      {transitionBoundaries.map((boundary, i) => (
+        <Sequence
+          key={`scene-transition-${i}-${boundary}`}
+          from={Math.max(0, boundary - Math.floor(overlayFrames / 2))}
+          durationInFrames={overlayFrames}
+        >
+          <SceneTransitionOverlay
+            transitionStyle={transitionStyle}
+            durationFrames={overlayFrames}
+            accent={style?.accentColor}
+            highlight={style?.highlightColor}
+          />
+        </Sequence>
+      ))}
     </AbsoluteFill>
   );
 };

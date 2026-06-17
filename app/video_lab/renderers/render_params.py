@@ -29,7 +29,7 @@ VALID_OVERVIEW_STYLES = {"timeline", "grid", "clean"}
 VALID_METRIC_ANIMATIONS = {"countup_bar", "countup_number", "none"}
 
 # Valid transition styles
-VALID_TRANSITION_STYLES = {"slide_fade", "fade", "slide"}
+VALID_TRANSITION_STYLES = {"slide_fade", "fade", "slide", "push", "wipe", "zoom_blur", "flip", "glitch"}
 
 
 @dataclass

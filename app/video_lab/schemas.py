@@ -209,6 +209,22 @@ class BackgroundVariantMatrixRequest(BaseModel):
         description="矩阵配置：families 和 backgroundPresets 各选 3 个",
     )
 
+class TransitionVariantMatrixRequest(BaseModel):
+    """JSON body for POST /video-lab/style-family/transition-matrix."""
+
+    content: str = Field(
+        default="ProReviewer improves review quality by 39%.\nShopping Reasoning Bench shows 57-77% pass rates.\nAnthropic and TCS expand enterprise AI adoption.",
+        description="Source content for lab clips",
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Render params such as keyPointCount, clipSeconds, backgroundPreset",
+    )
+    matrix: dict[str, Any] = Field(
+        ...,
+        description="Matrix config with families and transitionStyles",
+    )
+
 
 class CreateChainBenchmarkRequest(BaseModel):
     """JSON body for POST /video-lab/chain-benchmarks"""
