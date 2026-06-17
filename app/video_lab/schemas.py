@@ -192,6 +192,24 @@ class StyleFamilyCompareRequest(BaseModel):
     )
 
 
+class BackgroundVariantMatrixRequest(BaseModel):
+    """JSON body for POST /video-lab/style-family/background-matrix
+    V1.2.3: Lab-only 背景差异化实验 — 3 family × 3 background preset = 9 clips."""
+
+    content: str = Field(
+        default="科学研究评审实现突破：ProReviewer系统将评审建模为马尔可夫决策过程，在五个质量维度超越传统方法39%。\n依据：依据 1\n购物AI助手落后：主流模型通过率仅57-77%。\n依据：依据 1\n企业级AI加速落地：Anthropic与TCS合作，DeepMind投资千万美元。\n依据：依据 1",
+        description="报告原文内容",
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="渲染参数，支持 keyPointCount, clipSeconds",
+    )
+    matrix: dict[str, Any] = Field(
+        ...,
+        description="矩阵配置：families 和 backgroundPresets 各选 3 个",
+    )
+
+
 class CreateChainBenchmarkRequest(BaseModel):
     """JSON body for POST /video-lab/chain-benchmarks"""
 

@@ -2,6 +2,7 @@
 Style Family Service — extracted from router.py V1.0.2.
 
 Provides run_style_family_compare() for /style-family/compare endpoint.
+V1.2.3: Added run_background_variant_matrix() for /style-family/background-matrix.
 """
 
 import time
@@ -78,5 +79,100 @@ def run_style_family_compare(request) -> dict[str, Any]:
 
     return {
         **{key: parse_result(value) for key, value in family_results.items()},
+        "totalElapsedMs": elapsed,
+    }
+
+
+# V1.2.3: Lab-only 背景差异化实验
+# Valid background presets (from props_builder.py)
+VALID_BACKGROUND_PRESETS = [
+    "tech_grid_dark",
+    "glass_dashboard",
+    "warm_cinematic",
+]
+
+# Valid families for matrix experiment
+VALID_MATRIX_FAMILIES = [
+    "timeline_news",
+    "dashboard_brief",
+    "caption_story",
+]
+
+
+def run_background_variant_matrix(request) -> dict[str, Any]:
+    """
+    V1.2.3: Background Variant Matrix — 3 families × 3 background presets = 9 clips.
+
+    Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
+    All clips are temporary lab assets.
+
+    Args:
+        request: BackgroundVariantMatrixRequest object
+
+    Returns:
+        {
+            "items": [
+                {
+                    "family": "timeline_news",
+                    "backgroundPreset": "tech_grid_dark",
+                    "success": true,
+                    "videoUrl": "/runtime/video_lab/experiments/clip_xxx/clip.mp4",
+                    "elapsedMs": 12345,
+                    "message": "",
+                    "warnings": []
+                },
+                ...
+            ],
+            "totalElapsedMs": 123456
+        }
+    """
+    t0 = time.time()
+
+    content = request.content.strip() or STYLE_FAMILY_DEFAULT_CONTENT
+    params = dict(request.params or {})
+    params["visualRoute"] = "template_programmatic_render"
+    clip_seconds = int(params.get("clipSeconds", 3))
+    key_point_count = int(params.get("keyPointCount", 3))
+
+    matrix_config = dict(request.matrix or {})
+    families = matrix_config.get("families", VALID_MATRIX_FAMILIES)
+    background_presets = matrix_config.get("backgroundPresets", VALID_BACKGROUND_PRESETS)
+
+    # Filter to valid entries only
+    families = [f for f in families if f in VALID_MATRIX_FAMILIES]
+    background_presets = [bp for bp in background_presets if bp in VALID_BACKGROUND_PRESETS]
+
+    items: list[dict[str, Any]] = []
+
+    for family_id in families:
+        for bg_preset in background_presets:
+            family_params = {
+                **params,
+                "remotionFamily": family_id,
+                "keyPointCount": key_point_count,
+                "backgroundPreset": bg_preset,
+            }
+            result = render_clip_preview(
+                content=content,
+                visual_route="template_programmatic_render",
+                params=family_params,
+                clip_seconds=clip_seconds,
+            )
+            items.append({
+                "family": family_id,
+                "backgroundPreset": bg_preset,
+                "success": result.get("success", False),
+                "videoUrl": result.get("clipUrl", ""),
+                "experimentId": result.get("experimentId", ""),
+                "clipSeconds": result.get("clipSeconds", clip_seconds),
+                "elapsedMs": result.get("elapsedMs", 0),
+                "message": result.get("message", ""),
+                "warnings": result.get("warnings", []),
+            })
+
+    elapsed = int((time.time() - t0) * 1000)
+
+    return {
+        "items": items,
         "totalElapsedMs": elapsed,
     }

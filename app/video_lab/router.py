@@ -27,6 +27,7 @@ from app.video_lab.schemas import (
     StyleSampleGenerateRequest,
     StyleSampleSaveRequest,
     StyleFamilyCompareRequest,
+    BackgroundVariantMatrixRequest,
     TechniqueProbeRequest,
     StyleSweepRequest,
 )
@@ -41,6 +42,7 @@ from app.video_lab.services import (
     run_visual_compose_contract,
     run_visual_compose_endpoint,
     run_style_family_compare,
+    run_background_variant_matrix,
     run_technique_probe_endpoint,
     run_style_sweep_endpoint,
     extract_style_sample_assets,
@@ -386,6 +388,16 @@ def style_family_compare(request: StyleFamilyCompareRequest) -> dict[str, Any]:
     """Compare Data News vs Card Stack vs Timeline vs Dashboard vs Caption Story
     Remotion presentation paradigms."""
     return run_style_family_compare(request)
+
+
+# V1.2.3: Lab-only 背景差异化实验
+@router.post("/style-family/background-matrix")
+def style_family_background_matrix(request: BackgroundVariantMatrixRequest) -> dict[str, Any]:
+    """Background Variant Matrix: 3 families × 3 background presets = 9 clips.
+
+    Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
+    """
+    return run_background_variant_matrix(request)
 
 
 # ─────────────────────────────────────────────

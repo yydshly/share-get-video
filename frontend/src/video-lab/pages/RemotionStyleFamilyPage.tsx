@@ -33,6 +33,24 @@ interface CompareResponse {
   totalElapsedMs: number;
 }
 
+// V1.2.3: Background Variant Matrix
+interface MatrixItem {
+  family: string;
+  backgroundPreset: string;
+  success: boolean;
+  videoUrl: string;
+  experimentId: string;
+  clipSeconds: number;
+  elapsedMs: number;
+  message: string;
+  warnings: string[];
+}
+
+interface MatrixResponse {
+  items: MatrixItem[];
+  totalElapsedMs: number;
+}
+
 // ─── Style Family Definition ───────────────────────────────────────────────────
 
 interface StyleFamily {
@@ -936,12 +954,216 @@ const tdCenterStyle: React.CSSProperties = {
   color: "#f59e0b",
 };
 
+// V1.2.3: Background Variant Matrix Component
+const MATRIX_FAMILIES = [
+  { id: "timeline_news", name: "Timeline", color: "#0891b2" },
+  { id: "dashboard_brief", name: "Dashboard", color: "#f59e0b" },
+  { id: "caption_story", name: "Caption Story", color: "#ec4899" },
+];
+
+const MATRIX_BACKGROUNDS = [
+  { id: "tech_grid_dark", label: "tech_grid_dark" },
+  { id: "glass_dashboard", label: "glass_dashboard" },
+  { id: "warm_cinematic", label: "warm_cinematic" },
+];
+
+function BackgroundVariantMatrix({
+  result,
+  onReload,
+  loading,
+}: {
+  result: MatrixResponse | null;
+  onReload: () => void;
+  loading: boolean;
+}) {
+  const resolveUrl = (u: string) =>
+    u && u.startsWith("/runtime/")
+      ? `${import.meta.env.VITE_API_BASE?.replace(/\/video-lab$/, "") ?? ""}${u}`
+      : u || "";
+
+  // Build 3×3 grid: rows = families, cols = backgrounds
+  const grid = MATRIX_FAMILIES.map((fam) => ({
+    family: fam,
+    cells: MATRIX_BACKGROUNDS.map((bg) => ({
+      bg,
+      item: result?.items.find(
+        (it) => it.family === fam.id && it.backgroundPreset === bg.id
+      ),
+    })),
+  }));
+
+  const totalSuccess = result?.items.filter((it) => it.success).length ?? 0;
+  const totalItems = result?.items.length ?? 0;
+
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "16px",
+        padding: "1.25rem",
+        marginBottom: "2.5rem",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
+          背景差异化实验 · V1.2.3
+        </h2>
+        <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
+          3 family × 3 background = 9 clips
+        </span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {result && (
+            <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+              {totalSuccess}/{totalItems} 成功 · {result.totalElapsedMs}ms
+            </span>
+          )}
+          <button
+            onClick={onReload}
+            disabled={loading}
+            style={{
+              background: loading ? "#94a3b8" : "#0891b2",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              padding: "0.45rem 1rem",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              cursor: loading ? "wait" : "pointer",
+            }}
+          >
+            {loading ? "渲染中..." : "重新生成"}
+          </button>
+        </div>
+      </div>
+
+      <p style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "1rem" }}>
+        同一内容（Timeline / Dashboard / Caption Story）× 3 种背景（tech_grid_dark / glass_dashboard / warm_cinematic），
+        观察背景能否让同一种 family 呈现不同的视觉氛围。Lab-only，不写 Style Sweep job 或 Style Gallery sample。
+      </p>
+
+      {/* 3×3 Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem" }}>
+        {grid.map((row) =>
+          row.cells.map((cell) => {
+            const item = cell.item;
+            const success = item?.success ?? false;
+            const hasVideo = success && Boolean(item?.videoUrl);
+
+            return (
+              <div
+                key={`${row.family.id}-${cell.bg.id}`}
+                style={{
+                  border: `1px solid ${row.family.color}30`,
+                  borderRadius: "10px",
+                  overflow: "hidden",
+                  background: "white",
+                }}
+              >
+                {/* Card header */}
+                <div
+                  style={{
+                    background: `linear-gradient(135deg, ${row.family.color}18 0%, ${row.family.color}08 100%)`,
+                    borderBottom: `1px solid ${row.family.color}30`,
+                    padding: "0.5rem 0.75rem",
+                  }}
+                >
+                  <div style={{ fontSize: "0.78rem", fontWeight: 700, color: row.family.color }}>
+                    {row.family.name}
+                  </div>
+                  <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "0.1rem" }}>
+                    {cell.bg.label}
+                  </div>
+                </div>
+
+                {/* Video or status */}
+                <div style={{ padding: "0.5rem" }}>
+                  {hasVideo && item ? (
+                    <>
+                      <video
+                        controls
+                        src={resolveUrl(item.videoUrl)}
+                        style={{
+                          width: "100%",
+                          borderRadius: "6px",
+                          background: "#0f172a",
+                          maxHeight: "140px",
+                          objectFit: "contain",
+                        }}
+                      />
+                      <div style={{ fontSize: "0.65rem", color: "#64748b", marginTop: "0.3rem", textAlign: "center" }}>
+                        {item.clipSeconds}s · {item.elapsedMs}ms
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      style={{
+                        background: "#fef2f2",
+                        border: "1px solid #fecaca",
+                        borderRadius: "6px",
+                        padding: "0.5rem",
+                        fontSize: "0.72rem",
+                        color: "#ef4444",
+                        textAlign: "center",
+                        minHeight: "80px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {item ? `失败：${item.message}` : "待渲染"}
+                    </div>
+                  )}
+                  {item?.warnings && item.warnings.length > 0 && (
+                    <div style={{ fontSize: "0.62rem", color: "#f59e0b", marginTop: "0.2rem" }}>
+                      ⚠ {item.warnings[0]}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Observation hints */}
+      {result && (
+        <div
+          style={{
+            marginTop: "1rem",
+            padding: "0.85rem 1rem",
+            background: "#f8fafc",
+            borderRadius: "8px",
+            fontSize: "0.78rem",
+            color: "#475569",
+            lineHeight: 1.6,
+          }}
+        >
+          <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: "0.3rem" }}>观察提示：</div>
+          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+            <li>三种背景在同一 family 中是否肉眼可区分？</li>
+            <li>背景是否遮挡正文文字？文字仍可读吗？</li>
+            <li>9:16 画面中背景与内容的关系是否协调？</li>
+            <li>family 结构差异（Timeline 时间线 / Dashboard 指标卡 / Caption 大字）在不同背景下是否仍可辨识？</li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function RemotionStyleFamilyPage() {
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareResult, setCompareResult] = useState<CompareResponse | null>(null);
   const [compareError, setCompareError] = useState("");
+
+  // V1.2.3: Background Variant Matrix state
+  const [matrixLoading, setMatrixLoading] = useState(false);
+  const [matrixResult, setMatrixResult] = useState<MatrixResponse | null>(null);
+  const [matrixError, setMatrixError] = useState("");
 
   const runCompare = async () => {
     setCompareLoading(true);
@@ -960,6 +1182,34 @@ export default function RemotionStyleFamilyPage() {
       setCompareError(String(e));
     } finally {
       setCompareLoading(false);
+    }
+  };
+
+  // V1.2.3: Background Variant Matrix
+  const runMatrix = async () => {
+    setMatrixLoading(true);
+    setMatrixError("");
+    setMatrixResult(null);
+    try {
+      const resp = await fetch(`${API_BASE}/style-family/background-matrix`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: "",
+          params: { clipSeconds: 3, keyPointCount: 3 },
+          matrix: {
+            families: ["timeline_news", "dashboard_brief", "caption_story"],
+            backgroundPresets: ["tech_grid_dark", "glass_dashboard", "warm_cinematic"],
+          },
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+      setMatrixResult(data);
+    } catch (e) {
+      setMatrixError(String(e));
+    } finally {
+      setMatrixLoading(false);
     }
   };
 
@@ -1417,6 +1667,19 @@ export default function RemotionStyleFamilyPage() {
           </div>
         )}
       </div>
+
+      {/* V1.2.3: Background Variant Matrix */}
+      <BackgroundVariantMatrix
+        result={matrixResult}
+        onReload={runMatrix}
+        loading={matrixLoading}
+      />
+
+      {matrixError && (
+        <div style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "1rem", padding: "0.75rem", background: "#fef2f2", borderRadius: "8px" }}>
+          错误：{matrixError}
+        </div>
+      )}
 
       {/* Back link */}
       <div style={{ textAlign: "center" }}>
