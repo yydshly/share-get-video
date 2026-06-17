@@ -16,6 +16,7 @@ import QualityHistoryPage from "./video-lab/pages/QualityHistoryPage";
 import StyleGalleryPage from "./video-lab/pages/StyleGalleryPage";
 import RouteBaselineComparisonPage from "./video-lab/pages/RouteBaselineComparisonPage";
 import RemotionStyleFamilyPage from "./video-lab/pages/RemotionStyleFamilyPage";
+import RemotionLabPage from "./video-lab/pages/RemotionLabPage";
 import VideoGenerationWorkbenchPage from "./video-lab/pages/VideoGenerationWorkbenchPage";
 import TechniqueProbePage from "./video-lab/pages/TechniqueProbePage";
 import StyleSweepPage from "./video-lab/pages/StyleSweepPage";
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/video-lab/style-gallery" element={<StyleGalleryPage />} />
         <Route path="/video-lab/route-baseline-comparison" element={<RouteBaselineComparisonPage />} />
         <Route path="/video-lab/remotion-style-family" element={<RemotionStyleFamilyPage />} />
+        <Route path="/video-lab/remotion-lab" element={<RemotionLabPage />} />
         <Route path="/video-lab/workbench" element={<VideoGenerationWorkbenchPage />} />
         <Route path="/video-lab/technique-probe" element={<TechniqueProbePage />} />
         <Route path="/video-lab/style-sweep" element={<StyleSweepPage />} />

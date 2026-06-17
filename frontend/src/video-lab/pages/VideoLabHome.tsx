@@ -261,6 +261,12 @@ export default function VideoLabHome() {
             icon="🎞️"
           />
           <EntryCard
+            to="/video-lab/remotion-lab"
+            title="Remotion 能力探索中心"
+            desc="探索背景、转场、视觉风格和候选模板。"
+            icon="🔬"
+          />
+          <EntryCard
             to="/video-lab/quality-history"
             title="Quality History"
             desc="查看历史质量评分和路线趋势。"
