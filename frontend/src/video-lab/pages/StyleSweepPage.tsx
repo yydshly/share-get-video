@@ -164,6 +164,10 @@ export default function StyleSweepPage() {
   const [saveState, setSaveState] = useState<"" | "saving" | "saved" | "failed">("");
   // Stage 2B: 提升到样片库状态
   const [promoteStates, setPromoteStates] = useState<Record<string, PromoteState>>({});
+  // Stage 3A-2: 删除 job 状态
+  const [deletingJobId, setDeletingJobId] = useState<string>("");
+  // Stage 3A-2: 删除反馈提示
+  const [deleteHint, setDeleteHint] = useState<"" | "success" | "failed">("");
 
   const activeRoute = ROUTES.find((r) => r.id === routeId)!;
 
@@ -301,6 +305,44 @@ export default function StyleSweepPage() {
         ...prev,
         [styleId]: { status: "failed", message: "网络错误" },
       }));
+    }
+  };
+
+  // Stage 3A-2: 删除历史 job 记录
+  const deleteJob = async (jobIdToDelete: string) => {
+    if (!window.confirm(
+      "确认删除这条 Style Sweep 记录吗？\n\n只会删除历史记录，不会删除视频、音频、字幕和已提升到样片库的样片。",
+    )) return;
+
+    setDeletingJobId(jobIdToDelete);
+    try {
+      const resp = await fetch(`${API_BASE}/style-sweep-jobs/${jobIdToDelete}`, {
+        method: "DELETE",
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        setDeleteHint("failed");
+        setTimeout(() => setDeleteHint(""), 3000);
+        return;
+      }
+      // 乐观删除：从历史列表移除
+      setHistoryJobs((prev) => prev.filter((j) => j.jobId !== jobIdToDelete));
+      setDeleteHint("success");
+      setTimeout(() => setDeleteHint(""), 3000);
+      // 如果删除的是当前打开的 job，清空相关状态
+      if (jobId === jobIdToDelete) {
+        setJobId(null);
+        setJobStatus("");
+        setJobProgress({ total: 0, completed: 0, succeeded: 0, failed: 0 });
+        setData(null);
+        setIssueMarks({});
+        setPromoteStates({});
+        setExpanded({});
+        setSaveState("");
+        setError("当前打开的历史记录已删除");
+      }
+    } finally {
+      setDeletingJobId("");
     }
   };
 
@@ -756,9 +798,34 @@ export default function StyleSweepPage() {
                 >
                   打开
                 </button>
+                <button
+                  onClick={() => deleteJob(j.jobId)}
+                  disabled={deletingJobId === j.jobId || (j.status !== "completed" && j.status !== "failed")}
+                  title={j.status !== "completed" && j.status !== "failed" ? "运行中的任务暂不支持删除" : "删除此记录"}
+                  style={{
+                    padding: "2px 8px", borderRadius: 6, fontSize: "0.72rem",
+                    border: "1px solid #dc2626", background: "white", color: "#dc2626",
+                    cursor: deletingJobId === j.jobId || (j.status !== "completed" && j.status !== "failed") ? "not-allowed" : "pointer",
+                    opacity: deletingJobId === j.jobId || (j.status !== "completed" && j.status !== "failed") ? 0.5 : 1,
+                  }}
+                >
+                  {deletingJobId === j.jobId ? "删除中..." : "删除记录"}
+                </button>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Stage 3A-2: 删除反馈 */}
+      {deleteHint === "success" && (
+        <div style={{ marginTop: "0.5rem", color: "#16a34a", fontSize: "0.8rem" }}>
+          ✅ 已删除记录，视频资产未删除
+        </div>
+      )}
+      {deleteHint === "failed" && (
+        <div style={{ marginTop: "0.5rem", color: "#dc2626", fontSize: "0.8rem" }}>
+          ❌ 删除失败
         </div>
       )}
 
