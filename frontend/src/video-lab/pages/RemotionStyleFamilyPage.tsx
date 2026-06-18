@@ -2315,6 +2315,45 @@ const FAMILY_ADAPTATION_FAMILIES = [
   { id: "caption_story", name: "Caption Story", desc: "大字叙事 / 解释型内容" },
 ];
 
+// V1.2.8+: Preview profiles — replace simple clipSeconds selector with structured profiles
+type VisualTechniquePreviewProfileId = "smoke_2s" | "visual_6s" | "deep_12s";
+
+const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
+  [K in VisualTechniquePreviewProfileId]: {
+    label: string;
+    clipSeconds: number;
+    keyPointCount: number;
+    badge: string;
+    purpose: string;
+    acceptanceLevel: "smoke_only" | "visual_review" | "deep_review";
+  };
+}> = {
+  smoke_2s: {
+    label: "2s 冒烟预览",
+    clipSeconds: 2,
+    keyPointCount: 2,
+    badge: "Smoke",
+    purpose: "快速确认能否生成、能否播放、背景方向是否大致不同。不用于最终视觉验收。",
+    acceptanceLevel: "smoke_only",
+  },
+  visual_6s: {
+    label: "6s 视觉预览",
+    clipSeconds: 6,
+    keyPointCount: 3,
+    badge: "Review",
+    purpose: "观察 family 版式、正文可读性、visualTechnique 特征是否真正展开。建议作为默认人工验收档位。",
+    acceptanceLevel: "visual_review",
+  },
+  deep_12s: {
+    label: "12s 深度预览",
+    clipSeconds: 12,
+    keyPointCount: 4,
+    badge: "Deep",
+    purpose: "观察更完整的动效、转场节奏、内容承载能力。用于准备 Recipe 候选前的深度观察。",
+    acceptanceLevel: "deep_review",
+  },
+} as const;
+
 // V1.2.5+: Local-only visual acceptance state — front-end ephemeral, never persisted.
 type LocalVisualAcceptance = "pending" | "accepted" | "partial" | "rejected";
 
@@ -2337,26 +2376,28 @@ function VisualTechniqueVariantMatrix({
   result,
   onReload,
   loading,
-  clipSeconds,
-  onClipSecondsChange,
+  previewProfileId,
+  onPreviewProfileIdChange,
   fixtureId,
   onFixtureIdChange,
   matrixMode,
   onMatrixModeChange,
   adaptationTechnique,
   onAdaptationTechniqueChange,
+  resultSignature,
 }: {
   result: VisualTechniqueMatrixResponse | null;
   onReload: () => void;
   loading: boolean;
-  clipSeconds: number;
-  onClipSecondsChange: (s: number) => void;
+  previewProfileId: VisualTechniquePreviewProfileId;
+  onPreviewProfileIdChange: (id: VisualTechniquePreviewProfileId) => void;
   fixtureId: VisualTechniqueFixtureId;
   onFixtureIdChange: (id: VisualTechniqueFixtureId) => void;
   matrixMode: "technique_compare" | "family_adaptation";
   onMatrixModeChange: (mode: "technique_compare" | "family_adaptation") => void;
   adaptationTechnique: VisualTechniqueId;
   onAdaptationTechniqueChange: (technique: VisualTechniqueId) => void;
+  resultSignature: string | null;
 }) {
   const resolveUrl = (u: string) =>
     u && u.startsWith("/runtime/")
@@ -2364,6 +2405,16 @@ function VisualTechniqueVariantMatrix({
       : u || "";
 
   const fixture = VISUAL_TECHNIQUE_FIXTURES[fixtureId];
+  const profile = VISUAL_TECHNIQUE_PREVIEW_PROFILES[previewProfileId];
+
+  // V1.2.8+: Stale result detection
+  const currentSignature = JSON.stringify({
+    mode: matrixMode,
+    fixtureId,
+    previewProfileId,
+    adaptationTechnique,
+  });
+  const isResultStale = result !== null && resultSignature !== null && resultSignature !== currentSignature;
 
   // Local-only visual acceptance state — UI ephemeral, never persisted to backend.
   const [localAcceptance, setLocalAcceptance] = useState<Record<string, LocalVisualAcceptance>>({});
@@ -2396,7 +2447,7 @@ function VisualTechniqueVariantMatrix({
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.85rem", flexWrap: "wrap" }}>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
-          视觉技法矩阵 · V1.2.7
+          视觉技法矩阵 · V1.2.8
         </h2>
 
         {/* Matrix mode selector */}
@@ -2435,6 +2486,34 @@ function VisualTechniqueVariantMatrix({
           </button>
         </div>
 
+        {/* Preview profile selector */}
+        <div style={{ display: "flex", gap: "0.3rem" }}>
+          {(Object.keys(VISUAL_TECHNIQUE_PREVIEW_PROFILES) as VisualTechniquePreviewProfileId[]).map((id) => {
+            const p = VISUAL_TECHNIQUE_PREVIEW_PROFILES[id];
+            const active = previewProfileId === id;
+            return (
+              <button
+                key={id}
+                onClick={() => onPreviewProfileIdChange(id)}
+                disabled={loading}
+                title={p.purpose}
+                style={{
+                  background: active ? "#7c3aed" : "white",
+                  color: active ? "white" : "#475569",
+                  border: `1px solid ${active ? "#7c3aed" : "#cbd5e1"}`,
+                  borderRadius: "6px",
+                  padding: "0.2rem 0.55rem",
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  cursor: loading ? "not-allowed" : "pointer",
+                }}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+
         <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
           {matrixMode === "technique_compare"
             ? "1 family × 5 techniques = 5 clips"
@@ -2460,7 +2539,9 @@ function VisualTechniqueVariantMatrix({
               cursor: loading ? "wait" : "pointer",
             }}
           >
-            {loading ? "渲染中..." : "运行视觉技法矩阵"}
+            {loading
+              ? `正在生成 ${profile.label}...`
+              : `运行 ${profile.label}`}
           </button>
         </div>
       </div>
@@ -2479,7 +2560,7 @@ function VisualTechniqueVariantMatrix({
         }}
       >
         <div style={{ fontWeight: 700, marginBottom: "0.5rem", color: "#1e40af" }}>
-          🧪 当前测试模式：{clipSeconds}s {clipSeconds === 2 ? "冒烟预览" : clipSeconds === 6 ? "视觉预览" : "长预览"}
+          🧪 当前预览档位：{profile.label}
         </div>
 
         {/* Fixture selector */}
@@ -2540,6 +2621,50 @@ function VisualTechniqueVariantMatrix({
               {fixture.content.length > 80 ? fixture.content.slice(0, 80) + "…" : fixture.content}
             </span>
           </div>
+        </div>
+
+        {/* Profile info */}
+        <div
+          style={{
+            background: "white",
+            border: `1px solid ${profile.acceptanceLevel === "smoke_only" ? "#fca5a5" : profile.acceptanceLevel === "visual_review" ? "#86efac" : "#bfdbfe"}`,
+            borderRadius: "6px",
+            padding: "0.4rem 0.75rem",
+            marginBottom: "0.4rem",
+          }}
+        >
+          <div style={{ fontWeight: 700, color: "#1e40af", marginBottom: "0.15rem" }}>
+            {profile.label}
+            <span
+              style={{
+                marginLeft: "0.4rem",
+                background: profile.acceptanceLevel === "smoke_only" ? "#fee2e2" : profile.acceptanceLevel === "visual_review" ? "#dcfce7" : "#eff6ff",
+                color: profile.acceptanceLevel === "smoke_only" ? "#b91c1c" : profile.acceptanceLevel === "visual_review" ? "#15803d" : "#2563eb",
+                borderRadius: 999,
+                padding: "0.05rem 0.45rem",
+                fontSize: "0.68rem",
+                fontWeight: 600,
+              }}
+            >
+              {profile.badge}
+            </span>
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "#475569" }}>
+            clipSeconds：<b>{profile.clipSeconds}</b> · keyPointCount：<b>{profile.keyPointCount}</b>
+          </div>
+          <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: "0.1rem" }}>
+            {profile.purpose}
+          </div>
+          {profile.acceptanceLevel === "smoke_only" && (
+            <div style={{ fontSize: "0.68rem", color: "#b91c1c", fontWeight: 600, marginTop: "0.2rem" }}>
+              ⚠ 注意：2s 仅验证能否生成，不建议作为视觉通过依据。
+            </div>
+          )}
+          {profile.acceptanceLevel === "deep_review" && (
+            <div style={{ fontSize: "0.68rem", color: "#b45309", marginTop: "0.2rem" }}>
+              ℹ 注意：12s 渲染耗时长，适合深度观察，不建议频繁批量运行。
+            </div>
+          )}
         </div>
 
         <div style={{ color: "#b91c1c", fontWeight: 600 }}>
@@ -2624,6 +2749,24 @@ function VisualTechniqueVariantMatrix({
           <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: "#94a3b8" }}>
             当前汇总仅保存在前端页面刷新前，用于本轮人工观察
           </span>
+        </div>
+      )}
+
+      {/* V1.2.8+: Stale result warning */}
+      {isResultStale && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "0.65rem 1rem",
+            background: "#fef3c7",
+            border: "1px solid #fcd34d",
+            borderRadius: "8px",
+            fontSize: "0.78rem",
+            color: "#92400e",
+            fontWeight: 600,
+          }}
+        >
+          ⚠ 当前结果来自旧参数。你已切换测试内容 / 模式 / technique / 预览档位，请重新运行后再验收。
         </div>
       )}
 
@@ -2736,7 +2879,12 @@ function VisualTechniqueVariantMatrix({
                   <span style={{ color: "#94a3b8" }}>·</span>
                   <span style={{ color: "#94a3b8" }}>视觉：待人工验收</span>
                 </div>
-                <span style={{ color: "#94a3b8" }}>{item.elapsedMs}ms</span>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.1rem" }}>
+                  <span style={{ color: "#94a3b8", fontSize: "0.68rem" }}>{item.elapsedMs}ms</span>
+                  <span style={{ color: "#94a3b8", fontSize: "0.62rem" }}>
+                    {profile.label} · {profile.keyPointCount} points
+                  </span>
+                </div>
               </div>
 
               {/* Description */}
@@ -2886,6 +3034,11 @@ function VisualTechniqueVariantMatrix({
                 <div style={{ fontSize: "0.62rem", color: "#94a3b8", marginTop: "0.3rem" }}>
                   本地状态：仅当前页面刷新前有效，不写后端，不进入 Style Gallery
                 </div>
+                {profile.acceptanceLevel === "smoke_only" && (
+                  <div style={{ fontSize: "0.62rem", color: "#b91c1c", marginTop: "0.25rem", fontWeight: 600 }}>
+                    ⚠ 2s 仅为冒烟预览，请谨慎标记通过，最终结论请使用 6s/12s。
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -2969,14 +3122,16 @@ export default function RemotionStyleFamilyPage() {
   const [visualTechniqueMatrixLoading, setVisualTechniqueMatrixLoading] = useState(false);
   const [visualTechniqueMatrixResult, setVisualTechniqueMatrixResult] = useState<VisualTechniqueMatrixResponse | null>(null);
   const [visualTechniqueMatrixError, setVisualTechniqueMatrixError] = useState("");
-  // V1.2.5+: Visual Technique clip length selector (default 2s = smoke preview)
-  const [visualTechniqueClipSeconds, setVisualTechniqueClipSeconds] = useState(2);
   // V1.2.6+: Visual Technique fixture selector (default = generic_ai_eval)
   const [visualTechniqueFixtureId, setVisualTechniqueFixtureId] = useState<VisualTechniqueFixtureId>("generic_ai_eval");
   // V1.2.7+: Visual Technique Matrix mode (technique_compare = default, family_adaptation = new)
   const [visualTechniqueMatrixMode, setVisualTechniqueMatrixMode] = useState<"technique_compare" | "family_adaptation">("technique_compare");
   // V1.2.7+: Selected technique for family adaptation mode (default = academic_sketch)
   const [familyAdaptationTechnique, setFamilyAdaptationTechnique] = useState<VisualTechniqueId>("academic_sketch");
+  // V1.2.8+: Preview profile selector (default = visual_6s, not smoke)
+  const [visualTechniquePreviewProfileId, setVisualTechniquePreviewProfileId] = useState<VisualTechniquePreviewProfileId>("visual_6s");
+  // V1.2.8+: Signature of the params used to generate current result — for stale detection
+  const [visualTechniqueResultSignature, setVisualTechniqueResultSignature] = useState<string | null>(null);
 
   const runCompare = async () => {
     setCompareLoading(true);
@@ -3092,6 +3247,7 @@ export default function RemotionStyleFamilyPage() {
     setVisualTechniqueMatrixResult(null);
     try {
       const fixture = VISUAL_TECHNIQUE_FIXTURES[visualTechniqueFixtureId];
+      const profile = VISUAL_TECHNIQUE_PREVIEW_PROFILES[visualTechniquePreviewProfileId];
       const matrix =
         visualTechniqueMatrixMode === "technique_compare"
           ? {
@@ -3108,14 +3264,21 @@ export default function RemotionStyleFamilyPage() {
               families: FAMILY_ADAPTATION_FAMILIES.map((f) => f.id),
               visualTechniques: [familyAdaptationTechnique],
             };
+      // Build signature for stale detection
+      const signature = JSON.stringify({
+        mode: visualTechniqueMatrixMode,
+        fixtureId: visualTechniqueFixtureId,
+        previewProfileId: visualTechniquePreviewProfileId,
+        adaptationTechnique: familyAdaptationTechnique,
+      });
       const resp = await fetch(`${API_BASE}/style-family/visual-technique-matrix`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content: fixture.content,
           params: {
-            clipSeconds: visualTechniqueClipSeconds,
-            keyPointCount: 2,
+            clipSeconds: profile.clipSeconds,
+            keyPointCount: profile.keyPointCount,
             visualStylePreset: "warm_paper",
             backgroundPreset: "warm_cinematic",
             transitionStyle: "slide_fade",
@@ -3126,6 +3289,7 @@ export default function RemotionStyleFamilyPage() {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
       setVisualTechniqueMatrixResult(data);
+      setVisualTechniqueResultSignature(signature);
     } catch (e) {
       setVisualTechniqueMatrixError(String(e));
     } finally {
@@ -3648,14 +3812,15 @@ export default function RemotionStyleFamilyPage() {
           result={visualTechniqueMatrixResult}
           onReload={runVisualTechniqueMatrix}
           loading={visualTechniqueMatrixLoading}
-          clipSeconds={visualTechniqueClipSeconds}
-          onClipSecondsChange={setVisualTechniqueClipSeconds}
+          previewProfileId={visualTechniquePreviewProfileId}
+          onPreviewProfileIdChange={setVisualTechniquePreviewProfileId}
           fixtureId={visualTechniqueFixtureId}
           onFixtureIdChange={setVisualTechniqueFixtureId}
           matrixMode={visualTechniqueMatrixMode}
           onMatrixModeChange={setVisualTechniqueMatrixMode}
           adaptationTechnique={familyAdaptationTechnique}
           onAdaptationTechniqueChange={setFamilyAdaptationTechnique}
+          resultSignature={visualTechniqueResultSignature}
         />
       </div>
 
