@@ -35,8 +35,16 @@ class TestRemotionRendererDiagnostics:
         from app.video_lab.renderers.remotion import remotion_renderer
 
         assert remotion_renderer.default_remotion_timeout({"durationSec": 15}) == 300
-        assert remotion_renderer.default_remotion_timeout({"durationSec": 160.74}) > 300
-        assert remotion_renderer.default_remotion_timeout({"durationSec": 9999}) == 900
+        assert remotion_renderer.default_remotion_timeout({"durationSec": 105.31}) == 751
+        assert remotion_renderer.default_remotion_timeout({"durationSec": 160.74}) > 900
+        assert remotion_renderer.default_remotion_timeout({"durationSec": 9999}) == 1200
+
+    def test_long_portrait_render_uses_bounded_concurrency(self):
+        from app.video_lab.renderers.remotion import remotion_renderer
+
+        assert remotion_renderer.default_remotion_concurrency({"durationSec": 20}) == "75%"
+        assert remotion_renderer.default_remotion_concurrency({"durationSec": 60}) == "12"
+        assert remotion_renderer.default_remotion_concurrency({"durationSec": 105.31}) == "8"
 
     def test_render_command_uses_fast_server_render_flags(self, tmp_path):
         """Remotion command should use bounded quality and concurrency flags."""
@@ -64,8 +72,29 @@ class TestRemotionRendererDiagnostics:
         assert "--crf" in cmd
         assert "26" in cmd
         assert "--concurrency" in cmd
-        assert "75%" in cmd
+        assert "8" in cmd
         assert captured["timeout"] > 300
+
+    def test_timeout_message_includes_last_render_progress(self, tmp_path):
+        from app.video_lab.renderers.remotion import remotion_renderer
+
+        timeout_error = subprocess.TimeoutExpired(
+            "remotion",
+            5,
+            output="Rendered 120/300\nRendered 121/300, time remaining: 20s\n",
+        )
+        with patch.object(remotion_renderer, "_run_command", side_effect=timeout_error):
+            with patch.object(remotion_renderer, "check_remotion_available", return_value=(True, "ok")):
+                with patch.object(remotion_renderer, "get_experiment_dir", return_value=tmp_path):
+                    result = remotion_renderer.render_remotion_video(
+                        "test_exp",
+                        {"title": "Test", "durationSec": 12.0},
+                        timeout=5,
+                    )
+
+        assert result["success"] is False
+        assert "Rendered 121/300" in result["message"]
+        assert "timeout output tail" in "\n".join(result["logs"])
 
     def test_timeout_recovers_valid_completed_mp4(self, tmp_path):
         """If Remotion finishes an MP4 at the timeout boundary, return success."""

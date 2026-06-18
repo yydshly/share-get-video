@@ -21,18 +21,45 @@ REMOTION_ENTRY = "AiNewsVideo"
 REMOTION_CLI_JS = Path("node_modules") / "@remotion" / "cli" / "remotion-cli.js"
 
 
-def default_remotion_timeout(props: dict[str, Any], *, minimum: int = 300, maximum: int = 900) -> int:
-    """Return a render timeout scaled to the actual composition length."""
+def _duration_sec(props: dict[str, Any]) -> float:
     try:
-        duration_sec = float(props.get("durationSec", 0) or 0)
+        return float(props.get("durationSec", 0) or 0)
     except (TypeError, ValueError):
-        duration_sec = 0.0
+        return 0.0
+
+
+def default_remotion_concurrency(props: dict[str, Any]) -> str:
+    """Use bounded workers for long portrait renders to avoid Chrome thrashing."""
+    duration_sec = _duration_sec(props)
+    if duration_sec >= 90:
+        return "8"
+    if duration_sec >= 45:
+        return "12"
+    return "75%"
+
+
+def default_remotion_timeout(props: dict[str, Any], *, minimum: int = 300, maximum: int = 1200) -> int:
+    """Return a render timeout scaled to the actual composition length."""
+    duration_sec = _duration_sec(props)
     if duration_sec <= 0:
         return minimum
-    # 1080x1920 Remotion renders often take several multiples of the video
-    # duration on local Windows machines. Keep a bounded ceiling so a broken
-    # render still fails in finite time.
-    return max(minimum, min(maximum, int(60 + duration_sec * 3)))
+    # A real 1080x1920 / card_stack benchmark took ~46.5s for 300 frames,
+    # projecting beyond 8 minutes for a 105s composition. Long renders need
+    # more headroom than the old 3x-duration formula.
+    multiplier = 6 if duration_sec >= 90 else 4
+    startup_budget = 120 if duration_sec >= 90 else 60
+    return max(minimum, min(maximum, int(startup_budget + duration_sec * multiplier)))
+
+
+def _timeout_output(exc: subprocess.TimeoutExpired) -> str:
+    """Decode the partial Remotion output retained by TimeoutExpired."""
+    chunks: list[str] = []
+    for value in (exc.stdout, exc.stderr):
+        if isinstance(value, bytes):
+            chunks.append(value.decode("utf-8", errors="replace"))
+        elif value:
+            chunks.append(str(value))
+    return "\n".join(chunks).strip()
 
 
 def _probe_mp4_duration(path: Path, timeout: int = 20) -> float:
@@ -160,6 +187,11 @@ def render_remotion_video(
     exp_dir = get_experiment_dir(experiment_id)
     if timeout is None:
         timeout = default_remotion_timeout(props)
+    concurrency = str(props.get("concurrency") or default_remotion_concurrency(props))
+    logs.append(
+        f"[Remotion] render budget: timeout={timeout}s, "
+        f"concurrency={concurrency}, duration={_duration_sec(props):.2f}s"
+    )
 
     # Check environment
     available, avail_msg = check_remotion_available()
@@ -209,7 +241,7 @@ def render_remotion_video(
         "--crf",
         str(props.get("crf") or 26),
         "--concurrency",
-        str(props.get("concurrency") or "75%"),
+        concurrency,
     ]
     if frame_range:
         cmd += ["--frames", frame_range]
@@ -302,8 +334,19 @@ def render_remotion_video(
                 "warnings": warnings,
             }
 
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         msg = f"Remotion render timed out after {timeout}s"
+        partial_output = _timeout_output(exc)
+        if partial_output:
+            output_tail = partial_output[-2000:]
+            logs.append(f"[Remotion] timeout output tail:\n{output_tail}")
+            progress_lines = [
+                line.strip()
+                for line in partial_output.splitlines()
+                if line.strip().startswith(("Rendered ", "Encoded "))
+            ]
+            if progress_lines:
+                msg += f" (last progress: {progress_lines[-1]})"
         found_mp4 = output_mp4 if output_mp4.exists() else _find_mp4_in_dir(exp_dir, output_name)
         if found_mp4:
             actual_duration = _probe_mp4_duration(found_mp4)
