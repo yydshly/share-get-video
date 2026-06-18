@@ -243,6 +243,38 @@ class TestVisualTechniqueOverlayInSource:
             pattern = rf'{re.escape(technique)}\s*:\s*\{{[^}}]*\}}'
             assert re.search(pattern, source), f"No chip color entry found for visualTechnique={technique}"
 
+    def test_prototype_overlays_use_current_content_instead_of_demo_labels(self):
+        source_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "remotion",
+            "src",
+            "AiNewsVideo.tsx",
+        )
+        source = open(source_path, encoding="utf-8").read()
+
+        assert "TechniqueContentContext" in source
+        assert "techniquePointTitle(contentPoints" in source
+        for stale_label in ("Model A", "Input Layer", "ProductName v2.0", '["AI", "正在", "改变", "内容", "创作"]'):
+            assert stale_label not in source
+
+    def test_new_techniques_have_non_generic_card_surfaces(self):
+        source_path = os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "remotion",
+            "src",
+            "AiNewsVideo.tsx",
+        )
+        source = open(source_path, encoding="utf-8").read()
+
+        for technique in NEW_TECHNIQUES:
+            assert technique in source
+        assert "whiteboard_explainer" in source
+        assert "benchmark_ranking" in source and "architecture_diagram" in source
+        assert "launch_countdown" in source and "magazine_headline" in source
+        assert "audio_visualizer" in source and "capability_radar" in source
+
 
 class TestRemotionLabPagePrototypes:
     """RemotionLabPage.tsx marks all 12 new techniques as implemented_minimal."""

@@ -103,6 +103,11 @@ interface VisualTechniqueMatrixItem {
   elapsedMs: number;
   message: string;
   warnings: string[];
+  resolvedStyle?: {
+    visualStylePreset?: string;
+    backgroundPreset?: string;
+    transitionStyle?: string;
+  };
 }
 
 interface VisualTechniqueMatrixResponse {
@@ -2236,6 +2241,78 @@ const VISUAL_TECHNIQUE_META: Record<string, VisualTechniqueMeta> = {
     suitableFor: ["开发教程", "API 讲解", "代码片段解释", "开源项目摘要"],
     observePoints: ["是否像代码编辑器", "代码行是否可见", "终端日志是否可见", "正文是否可读"],
   },
+  whiteboard_explainer: {
+    name: "白板解释动画", source: "Effect Prototype Gallery / whiteboard", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "用当前信息点生成白板步骤、手绘圈选和箭头，适合教学与概念拆解。",
+    suitableFor: ["概念解释", "教学视频", "方法步骤", "原理拆解"],
+    observePoints: ["步骤文字是否来自当前主题", "白板层级是否清楚", "手绘元素是否克制", "正文是否可读"],
+  },
+  benchmark_ranking: {
+    name: "Benchmark 排行榜", source: "Effect Prototype Gallery / ranking", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "从当前条目的标题和指标生成排名条，适合模型、产品和方案横评。",
+    suitableFor: ["模型横评", "产品对比", "性能报告", "榜单内容"],
+    observePoints: ["排行名称是否对应内容", "数字是否来自信息点", "名次层级是否明显", "卡片是否像数据榜单"],
+  },
+  architecture_diagram: {
+    name: "系统架构拆解", source: "Effect Prototype Gallery / architecture", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "将前三个信息点映射为真实模块和数据流，适合系统、流程与组件关系。",
+    suitableFor: ["系统设计", "技术架构", "流程拆解", "Agent 系统"],
+    observePoints: ["模块名是否来自当前内容", "数据流是否明确", "工程感是否区别于 blueprint", "正文是否可读"],
+  },
+  product_demo_flow: {
+    name: "产品演示流程", source: "Effect Prototype Gallery / product-demo", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "将功能信息点映射为产品面板与操作路径，适合功能介绍和使用教程。",
+    suitableFor: ["产品介绍", "功能演示", "使用教程", "新手引导"],
+    observePoints: ["产品标题是否匹配主题", "功能名称是否真实", "操作顺序是否清晰", "UI 风格是否完整"],
+  },
+  launch_countdown: {
+    name: "发布倒计时", source: "Effect Prototype Gallery / launch", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "高冲击倒计时与发射节奏，仅适合明确的发布、揭幕和活动预告主题。",
+    suitableFor: ["新品发布", "活动预告", "版本揭幕", "上线倒计时"],
+    observePoints: ["主题是否确实具有发布语义", "倒计时是否抢占正文", "节奏是否有终点", "橙红视觉是否统一"],
+  },
+  map_timeline: {
+    name: "地图路径时间线", source: "Effect Prototype Gallery / map", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "把事件节点映射为路径与站点，适合地理迁移、路线演进和跨区域叙事。",
+    suitableFor: ["地域演进", "旅行路线", "全球扩张", "事件传播"],
+    observePoints: ["节点是否来自当前内容", "路径是否有明确方向", "地图语义是否成立", "绿色路线是否清楚"],
+  },
+  audio_visualizer: {
+    name: "音频波形可视化", source: "Effect Prototype Gallery / audio", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "以当前标题为节目主题，使用帧驱动频谱强化播客、音乐和声音叙事。",
+    suitableFor: ["播客摘要", "音乐内容", "声音叙事", "音频栏目"],
+    observePoints: ["节目标题是否匹配", "波形是否有节奏变化", "正文与频谱是否冲突", "紫色媒体感是否统一"],
+  },
+  tiktok_caption_story: {
+    name: "逐词字幕短视频", source: "Effect Prototype Gallery / caption", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "从当前首条正文拆词并逐段强调，适合口播观点和社交媒体快节奏表达。",
+    suitableFor: ["观点口播", "社交短视频", "资讯快剪", "金句表达"],
+    observePoints: ["字幕是否来自当前正文", "高亮节奏是否自然", "字号变化是否稳定", "黑底字幕感是否明确"],
+  },
+  magazine_headline: {
+    name: "杂志标题冲击", source: "Effect Prototype Gallery / magazine", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "从当前总标题拆分大字版面，适合单一强观点、突发新闻和品牌主张。",
+    suitableFor: ["突发新闻", "观点表达", "品牌主张", "封面标题"],
+    observePoints: ["大字是否来自当前标题", "版面层级是否有冲击", "色块是否克制", "正文是否仍可阅读"],
+  },
+  capability_radar: {
+    name: "能力雷达图", source: "Effect Prototype Gallery / radar", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "将最多六个信息点和指标映射为雷达维度，适合多维能力与产品画像。",
+    suitableFor: ["模型能力", "产品画像", "多维评估", "方案对比"],
+    observePoints: ["维度名是否来自当前内容", "数值是否来源明确", "雷达图是否完整", "标签是否拥挤"],
+  },
+  timeline_recap: {
+    name: "事件时间线复盘", source: "Effect Prototype Gallery / recap", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "将前四个信息点映射为顺序里程碑，适合项目进展、年度总结和事件演进。",
+    suitableFor: ["项目回顾", "年度总结", "事件演进", "版本历程"],
+    observePoints: ["里程碑是否来自当前内容", "先后顺序是否合理", "当前节点是否明确", "时间线是否区别于地图路线"],
+  },
+  lottie_icon_story: {
+    name: "图标动画叙事", source: "Effect Prototype Gallery / icon-story", status: "asset_verified", acceptance: "visually_unaccepted",
+    description: "将前三个信息点映射为图标、标题和说明的三段叙事，适合品牌与功能概览。",
+    suitableFor: ["品牌视频", "功能概览", "产品特性", "概念介绍"],
+    observePoints: ["三段内容是否真实对应", "图标是否辅助而非替代信息", "激活节奏是否清楚", "整体是否轻量"],
+  },
 };
 
 // V1.2.6+: Visual Technique Test Fixtures — content modes for testing different technique semantics
@@ -3225,6 +3302,11 @@ function VisualTechniqueVariantMatrix({
                     <span style={{ color: "#b45309", fontWeight: 600 }}>非推荐，仅作横向对比</span>
                   )}
                 </div>
+                {item.resolvedStyle && (
+                  <div style={{ marginTop: "0.2rem", color: "#7c3aed" }}>
+                    样式组合：{item.resolvedStyle.visualStylePreset} · {item.resolvedStyle.backgroundPreset} · {item.resolvedStyle.transitionStyle}
+                  </div>
+                )}
               </div>
 
               {/* Family adaptation mode: show family description */}
@@ -3672,9 +3754,6 @@ export default function RemotionStyleFamilyPage() {
               keyPointCount: overrideKeyPointCount ?? profile.keyPointCount,
               // 结构化 fixture 直接解析，不经 LLM 重排：demo 一致、快、免费
               useLlmPlan: false,
-              visualStylePreset: "warm_paper",
-              backgroundPreset: "warm_cinematic",
-              transitionStyle: "slide_fade",
               visualTechniqueContentProbe: visualTechniqueMatrixMode === "family_adaptation",
               visualTechniqueFixtureId: requestFixtureId,
               visualTechniqueMatrixMode: visualTechniqueMatrixMode,

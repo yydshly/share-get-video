@@ -450,6 +450,27 @@ VALID_VISUAL_TECHNIQUES = [
     "lottie_icon_story",
 ]
 
+VISUAL_TECHNIQUE_STYLE_DEFAULTS: dict[str, dict[str, str]] = {
+    # Preserve the accepted baseline for the original five techniques.
+    "academic_sketch": {"visualStylePreset": "warm_paper", "backgroundPreset": "warm_cinematic", "transitionStyle": "slide_fade"},
+    "blueprint": {"visualStylePreset": "warm_paper", "backgroundPreset": "warm_cinematic", "transitionStyle": "slide_fade"},
+    "data_viz_dashboard": {"visualStylePreset": "warm_paper", "backgroundPreset": "warm_cinematic", "transitionStyle": "slide_fade"},
+    "agent_sandbox_25d": {"visualStylePreset": "warm_paper", "backgroundPreset": "warm_cinematic", "transitionStyle": "slide_fade"},
+    "kinetic_code_typography": {"visualStylePreset": "warm_paper", "backgroundPreset": "warm_cinematic", "transitionStyle": "slide_fade"},
+    "whiteboard_explainer": {"visualStylePreset": "light_editorial", "backgroundPreset": "warm_cinematic", "transitionStyle": "fade"},
+    "benchmark_ranking": {"visualStylePreset": "bold_magazine", "backgroundPreset": "glass_dashboard", "transitionStyle": "push"},
+    "architecture_diagram": {"visualStylePreset": "bold_magazine", "backgroundPreset": "tech_grid_dark", "transitionStyle": "wipe"},
+    "product_demo_flow": {"visualStylePreset": "light_editorial", "backgroundPreset": "glass_dashboard", "transitionStyle": "slide"},
+    "launch_countdown": {"visualStylePreset": "bold_magazine", "backgroundPreset": "deep_space", "transitionStyle": "zoom_blur"},
+    "map_timeline": {"visualStylePreset": "warm_paper", "backgroundPreset": "deep_space", "transitionStyle": "push"},
+    "audio_visualizer": {"visualStylePreset": "bold_magazine", "backgroundPreset": "deep_space", "transitionStyle": "zoom_blur"},
+    "tiktok_caption_story": {"visualStylePreset": "bold_magazine", "backgroundPreset": "neon_circuit", "transitionStyle": "glitch"},
+    "magazine_headline": {"visualStylePreset": "bold_magazine", "backgroundPreset": "warm_cinematic", "transitionStyle": "push"},
+    "capability_radar": {"visualStylePreset": "bold_magazine", "backgroundPreset": "glass_dashboard", "transitionStyle": "fade"},
+    "timeline_recap": {"visualStylePreset": "warm_paper", "backgroundPreset": "tech_grid_dark", "transitionStyle": "slide"},
+    "lottie_icon_story": {"visualStylePreset": "light_editorial", "backgroundPreset": "aurora_blue", "transitionStyle": "slide_fade"},
+}
+
 
 def run_visual_technique_matrix(request) -> dict[str, Any]:
     """
@@ -469,14 +490,6 @@ def run_visual_technique_matrix(request) -> dict[str, Any]:
     params["visualRoute"] = "template_programmatic_render"
     clip_seconds = int(params.get("clipSeconds", 2))
     key_point_count = int(params.get("keyPointCount", 2))
-
-    # Inject defaults when not explicitly set
-    if "visualStylePreset" not in params:
-        params["visualStylePreset"] = "warm_paper"
-    if "backgroundPreset" not in params:
-        params["backgroundPreset"] = "warm_cinematic"
-    if "transitionStyle" not in params:
-        params["transitionStyle"] = "slide_fade"
 
     matrix_config = dict(request.matrix or {})
     families = matrix_config.get("families", VALID_VISUAL_TECHNIQUE_MATRIX_FAMILIES)
@@ -507,7 +520,9 @@ def run_visual_technique_matrix(request) -> dict[str, Any]:
 
     for family_id in families:
         for vt in visual_techniques:
+            technique_defaults = VISUAL_TECHNIQUE_STYLE_DEFAULTS.get(vt, {})
             family_params = {
+                **technique_defaults,
                 **params,
                 "remotionFamily": family_id,
                 "keyPointCount": key_point_count,
@@ -522,6 +537,11 @@ def run_visual_technique_matrix(request) -> dict[str, Any]:
             items.append({
                 "family": family_id,
                 "visualTechnique": vt,
+                "resolvedStyle": {
+                    "visualStylePreset": family_params.get("visualStylePreset"),
+                    "backgroundPreset": family_params.get("backgroundPreset"),
+                    "transitionStyle": family_params.get("transitionStyle"),
+                },
                 "success": result.get("success", False),
                 "videoUrl": result.get("clipUrl", ""),
                 "experimentId": result.get("experimentId", ""),

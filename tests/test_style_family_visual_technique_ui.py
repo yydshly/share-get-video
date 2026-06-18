@@ -58,6 +58,19 @@ def test_effect_gallery_and_matrix_show_the_same_five_supported_techniques():
     assert matrix_ids == expected
 
 
+def test_all_17_techniques_have_acceptance_metadata():
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+    meta_match = re.search(
+        r"const VISUAL_TECHNIQUE_META: Record<string, VisualTechniqueMeta> = \{(.*?)\n\};",
+        source,
+        flags=re.DOTALL,
+    )
+    assert meta_match is not None
+    meta_ids = set(re.findall(r"^\s{2}([a-z0-9_]+):\s*\{", meta_match.group(1), flags=re.MULTILINE))
+    assert meta_ids == set(style_family_service.VALID_VISUAL_TECHNIQUES)
+    assert "样式组合：" in source
+
+
 def test_effect_gallery_describes_current_implementation_truthfully():
     source = LAB_PAGE.read_text(encoding="utf-8")
 

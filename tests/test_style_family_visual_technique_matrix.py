@@ -88,6 +88,43 @@ def test_visual_technique_matrix_injects_defaults(monkeypatch):
     assert captured[0]["transitionStyle"] == "slide_fade"
 
 
+def test_new_visual_techniques_receive_distinct_semantic_style_defaults(monkeypatch):
+    captured = {}
+
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        captured[params["visualTechnique"]] = dict(params)
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": "exp_1",
+            "clipSeconds": clip_seconds,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+    request = SimpleNamespace(
+        content="Test",
+        params={"clipSeconds": 2, "keyPointCount": 2},
+        matrix={
+            "families": ["data_news"],
+            "visualTechniques": ["whiteboard_explainer", "launch_countdown", "capability_radar"],
+        },
+    )
+
+    result = style_family_service.run_visual_technique_matrix(request)
+
+    assert captured["whiteboard_explainer"]["visualStylePreset"] == "light_editorial"
+    assert captured["launch_countdown"]["backgroundPreset"] == "deep_space"
+    assert captured["capability_radar"]["backgroundPreset"] == "glass_dashboard"
+    assert len({
+        captured[name]["transitionStyle"]
+        for name in ("whiteboard_explainer", "launch_countdown", "capability_radar")
+    }) >= 2
+    assert all(item["resolvedStyle"]["visualStylePreset"] for item in result["items"])
+
+
 def test_visual_technique_matrix_3_clips_at_limit(monkeypatch):
     """3 families × 1 technique = 3 items — within MAX_MATRIX_ITEMS=9."""
     call_count = [0]

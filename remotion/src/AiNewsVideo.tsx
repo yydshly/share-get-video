@@ -14,6 +14,25 @@ import {
 } from "remotion";
 import type { AiNewsVideoProps, KeyPoint, Metric, RemotionStyle, MotionIntensity, CoverStyle, OverviewStyle, MetricAnimation, TransitionStyle, RemotionFamily, ReportOverview, BackgroundPreset } from "./data";
 
+const TechniqueContentContext = React.createContext<{
+  title: string;
+  keyPoints: KeyPoint[];
+}>({ title: "", keyPoints: [] });
+
+function techniquePointTitle(points: KeyPoint[], index: number, fallback: string): string {
+  return points[index]?.title?.trim() || fallback;
+}
+
+function techniqueMetricValue(point: KeyPoint | undefined, fallback: number): number {
+  const metric = point?.metrics?.[0];
+  if (metric && Number.isFinite(metric.value)) {
+    const value = Number(metric.value);
+    return value > 1 ? Math.min(100, value) / 100 : Math.max(0.08, value);
+  }
+  const numeric = `${point?.title ?? ""} ${point?.body ?? ""}`.match(/(\d+(?:\.\d+)?)%/);
+  return numeric ? Math.min(100, Number(numeric[1])) / 100 : fallback;
+}
+
 // ─── Highlight Helper (V0.3.6-b1) ────────────────────────────────────────────
 /** Auto-extract numbers, percentages, and key terms from text (fallback). */
 function autoExtractHighlights(text: string): string[] {
@@ -789,6 +808,72 @@ function getTechniqueSurface(visualTechnique?: string): TechniqueSurface {
       titleShadow: "0 0 18px rgba(80,220,160,0.25)",
     };
   }
+  if (visualTechnique === "whiteboard_explainer") {
+    return {
+      cardBg: "rgba(255,255,255,0.94)",
+      cardBorder: "rgba(51,65,85,0.34)",
+      cardShadow: "0 10px 28px rgba(15,23,42,0.14)",
+      titleColor: "#172033",
+      bodyColor: "#334155",
+      mutedColor: "#64748b",
+      titleShadow: "none",
+    };
+  }
+  if (["benchmark_ranking", "architecture_diagram", "product_demo_flow"].includes(visualTechnique ?? "")) {
+    return {
+      cardBg: "rgba(10,20,38,0.78)",
+      cardBorder: "rgba(56,189,248,0.48)",
+      cardShadow: "0 12px 34px rgba(2,132,199,0.20), 0 8px 24px rgba(0,0,0,0.42)",
+      titleColor: "#e0f2fe",
+      bodyColor: "#bae6fd",
+      mutedColor: "#7dd3fc",
+      titleShadow: "0 0 24px rgba(56,189,248,0.28)",
+    };
+  }
+  if (["launch_countdown", "magazine_headline"].includes(visualTechnique ?? "")) {
+    return {
+      cardBg: "rgba(24,12,12,0.82)",
+      cardBorder: "rgba(249,115,22,0.52)",
+      cardShadow: "0 12px 38px rgba(239,68,68,0.20), 0 8px 24px rgba(0,0,0,0.5)",
+      titleColor: "#fff7ed",
+      bodyColor: "#fed7aa",
+      mutedColor: "#fb923c",
+      titleShadow: "0 0 26px rgba(249,115,22,0.30)",
+    };
+  }
+  if (["audio_visualizer", "capability_radar", "lottie_icon_story"].includes(visualTechnique ?? "")) {
+    return {
+      cardBg: "rgba(18,16,40,0.80)",
+      cardBorder: "rgba(167,139,250,0.48)",
+      cardShadow: "0 12px 36px rgba(124,58,237,0.22), 0 8px 24px rgba(0,0,0,0.48)",
+      titleColor: "#f5f3ff",
+      bodyColor: "#ddd6fe",
+      mutedColor: "#a78bfa",
+      titleShadow: "0 0 24px rgba(167,139,250,0.30)",
+    };
+  }
+  if (visualTechnique === "tiktok_caption_story") {
+    return {
+      cardBg: "rgba(0,0,0,0.84)",
+      cardBorder: "rgba(255,255,255,0.28)",
+      cardShadow: "0 10px 34px rgba(0,0,0,0.70)",
+      titleColor: "#ffffff",
+      bodyColor: "#f1f5f9",
+      mutedColor: "#94a3b8",
+      titleShadow: "0 2px 0 #ef4444, 2px 0 0 #22d3ee",
+    };
+  }
+  if (visualTechnique === "map_timeline" || visualTechnique === "timeline_recap") {
+    return {
+      cardBg: "rgba(10,31,28,0.78)",
+      cardBorder: "rgba(74,222,128,0.42)",
+      cardShadow: "0 12px 34px rgba(34,197,94,0.15), 0 8px 24px rgba(0,0,0,0.46)",
+      titleColor: "#ecfdf5",
+      bodyColor: "#bbf7d0",
+      mutedColor: "#86efac",
+      titleShadow: "0 0 22px rgba(74,222,128,0.24)",
+    };
+  }
   return {
     cardBg: C.card,
     cardBorder: C.border,
@@ -861,6 +946,9 @@ const BackgroundLayer: React.FC<{
 }> = ({ preset = "tech_grid_dark", accent = C.accent, highlight = C.highlight, visualStylePreset, visualTechnique }) => {
   const tokens = resolveVisualStyleTokens(visualStylePreset);
   const frame = useCurrentFrame();
+  const techniqueContent = React.useContext(TechniqueContentContext);
+  const contentPoints = techniqueContent.keyPoints;
+  const contentTitle = techniqueContent.title || "AI 前沿动态";
   // Use visual style surface background when set, otherwise preset background
   const baseBg = tokens.surfaceBackground;
 
@@ -1432,7 +1520,7 @@ const BackgroundLayer: React.FC<{
             background: strokeColor, color: "#fff", borderRadius: 6,
             padding: "3px 10px", fontSize: 11, fontWeight: 700, fontFamily: "cursive",
             opacity: Math.min(1, (frame - 8) / 6),
-          }}>Step 1</div>
+          }}>{techniquePointTitle(contentPoints, 0, "步骤 1")}</div>
         )}
         {step2Visible && (
           <div style={{
@@ -1440,7 +1528,7 @@ const BackgroundLayer: React.FC<{
             background: accentColor2, color: "#fff", borderRadius: 6,
             padding: "3px 10px", fontSize: 11, fontWeight: 700, fontFamily: "cursive",
             opacity: Math.min(1, (frame - 18) / 6),
-          }}>Step 2</div>
+          }}>{techniquePointTitle(contentPoints, 1, "步骤 2")}</div>
         )}
         {step3Visible && (
           <div style={{
@@ -1448,7 +1536,7 @@ const BackgroundLayer: React.FC<{
             background: "#ef4444", color: "#fff", borderRadius: 6,
             padding: "3px 10px", fontSize: 11, fontWeight: 700, fontFamily: "cursive",
             opacity: Math.min(1, (frame - 28) / 6),
-          }}>Step 3</div>
+          }}>{techniquePointTitle(contentPoints, 2, "步骤 3")}</div>
         )}
         {/* Connecting lines */}
         {step3Visible && (
@@ -1465,12 +1553,13 @@ const BackgroundLayer: React.FC<{
   // V1.2.3: benchmark_ranking — horizontal bar chart with rank labels and score animation
   if (visualTechnique === "benchmark_ranking") {
     const bmBg = "#0d1117";
-    const bars = [
-      { label: "Model A", score: 0.92, color: "#58a6ff" },
-      { label: "Model B", score: 0.85, color: "#3fb950" },
-      { label: "Model C", score: 0.78, color: "#f0883e" },
-      { label: "Model D", score: 0.61, color: "#8b949e" },
-    ];
+    const fallbackScores = [0.92, 0.85, 0.78, 0.61];
+    const barPalette = ["#58a6ff", "#3fb950", "#f0883e", "#8b949e"];
+    const bars = Array.from({ length: Math.min(4, Math.max(3, contentPoints.length)) }, (_, i) => ({
+      label: techniquePointTitle(contentPoints, i, `项目 ${i + 1}`),
+      score: techniqueMetricValue(contentPoints[i], fallbackScores[i]),
+      color: barPalette[i],
+    }));
     const barAppear = [6, 12, 18, 24];
     return (
       <div style={{ position: "absolute", inset: 0, zIndex: 0, background: bmBg, overflow: "hidden" }}>
@@ -1485,7 +1574,7 @@ const BackgroundLayer: React.FC<{
           return (
             <div key={i} style={{ position: "absolute", top: `${18 + i * 18}%`, left: "6%", right: "6%" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                <span style={{ fontSize: 12, color: "#c9d1d9", fontWeight: 700, width: 55 }}>{bar.label}</span>
+                <span style={{ fontSize: 14, color: "#c9d1d9", fontWeight: 700, width: 190, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{bar.label}</span>
                 <span style={{ fontSize: 11, color: bar.color }}>{rankLabel}</span>
                 <span style={{ fontSize: 12, color: "#8b949e", marginLeft: "auto" }}>{(progress * 100).toFixed(0)}%</span>
               </div>
@@ -1513,9 +1602,9 @@ const BackgroundLayer: React.FC<{
     const arrowColor = "#3fb950";
     const boxBorder = "rgba(88,166,255,0.40)";
     const modules = [
-      { x: 50, y: 18, w: 80, h: 30, label: "Input Layer", color: "#58a6ff" },
-      { x: 50, y: 44, w: 80, h: 30, label: "Processing", color: "#a371f7" },
-      { x: 50, y: 70, w: 80, h: 30, label: "Output Layer", color: "#3fb950" },
+      { x: 50, y: 18, w: 180, h: 34, label: techniquePointTitle(contentPoints, 0, "输入层"), color: "#58a6ff" },
+      { x: 50, y: 44, w: 180, h: 34, label: techniquePointTitle(contentPoints, 1, "处理层"), color: "#a371f7" },
+      { x: 50, y: 70, w: 180, h: 34, label: techniquePointTitle(contentPoints, 2, "输出层"), color: "#3fb950" },
     ];
     const phase = Math.floor(frame / 30) % 3;
     return (
@@ -1572,9 +1661,9 @@ const BackgroundLayer: React.FC<{
     const btnColor = "#3b82f6";
     const phase = Math.floor(frame / 20) % 4;
     const panels = [
-      { x: 10, y: 20, label: "Dashboard", icon: "▣" },
-      { x: 38, y: 20, label: "Settings", icon: "⚙" },
-      { x: 65, y: 20, label: "Analytics", icon: "◉" },
+      { x: 8, y: 20, label: techniquePointTitle(contentPoints, 0, "功能一"), icon: "▣" },
+      { x: 37, y: 20, label: techniquePointTitle(contentPoints, 1, "功能二"), icon: "⚙" },
+      { x: 66, y: 20, label: techniquePointTitle(contentPoints, 2, "功能三"), icon: "◉" },
     ];
     return (
       <div style={{ position: "absolute", inset: 0, zIndex: 0, background: demoBg, overflow: "hidden" }}>
@@ -1584,7 +1673,7 @@ const BackgroundLayer: React.FC<{
           {["●", "●", "●"].map((c, i) => (
             <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: ["#ef4444", "#f59e0b", "#22c55e"][i] }} />
           ))}
-          <div style={{ marginLeft: 8, fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>ProductName v2.0</div>
+          <div style={{ marginLeft: 8, fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>{contentTitle}</div>
         </div>
         {panels.map((p, i) => {
           const active = (i === phase);
@@ -1734,7 +1823,7 @@ const BackgroundLayer: React.FC<{
           NOW PLAYING
         </div>
         <div style={{ position: "absolute", top: "32%", left: "50%", transform: "translateX(-50%)", fontSize: 22, fontWeight: 900, color: "#f1f5f9", fontFamily: "sans-serif", zIndex: 2, textAlign: "center", textShadow: "0 0 20px rgba(99,102,241,0.4)" }}>
-          AI 前沿动态
+          {contentTitle}
         </div>
         {/* Spectrum bars — bottom half */}
         <div style={{ position: "absolute", bottom: "12%", left: "8%", right: "8%", height: "35%", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 3 }}>
@@ -1755,7 +1844,13 @@ const BackgroundLayer: React.FC<{
   // V1.2.3: tiktok_caption_story — large subtitle with word-by-word highlight
   if (visualTechnique === "tiktok_caption_story") {
     const tcBg = "#000000";
-    const words = ["AI", "正在", "改变", "内容", "创作"];
+    const captionSource = contentPoints[0]?.body || contentPoints[0]?.title || contentTitle;
+    const words = captionSource
+      .replace(/[，。！？、：:\s]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .flatMap((word) => word.length > 4 ? [word.slice(0, 4), word.slice(4)] : [word])
+      .slice(0, 7);
     const activeWord = Math.floor(frame / 15) % words.length;
     return (
       <div style={{ position: "absolute", inset: 0, zIndex: 0, background: tcBg, overflow: "hidden" }}>
@@ -1771,7 +1866,6 @@ const BackgroundLayer: React.FC<{
                 fontSize: isActive ? 52 : 36,
                 fontWeight: 900,
                 color: isActive ? "#ffffff" : isPast ? "#555555" : "#888888",
-                transition: "all 0.2s",
                 textShadow: isActive ? "0 0 24px rgba(255,255,255,0.5)" : "none",
                 transform: isActive ? "scale(1.08)" : "scale(1)",
               }}>
@@ -1784,8 +1878,8 @@ const BackgroundLayer: React.FC<{
         <div style={{ position: "absolute", bottom: "14%", left: "8%", right: "8%", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.15)" }} />
           <div>
-            <div style={{ fontSize: 13, color: "#ffffff", fontWeight: 700 }}>AI 前沿 · 速览</div>
-            <div style={{ fontSize: 10, color: "#666666" }}>关注获取更多 AI 资讯</div>
+            <div style={{ fontSize: 13, color: "#ffffff", fontWeight: 700 }}>{contentTitle}</div>
+            <div style={{ fontSize: 10, color: "#666666" }}>主题观点 · 逐词强调</div>
           </div>
         </div>
       </div>
@@ -1797,7 +1891,12 @@ const BackgroundLayer: React.FC<{
     const mhBg = "#0a0a0a";
     const flashColor = "#ef4444";
     const phase = Math.floor(frame / 40) % 2;
-    const titleWords = ["AI", "改变", "一切"];
+    const titleWords = contentTitle
+      .replace(/[，。！？、：:\s]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .flatMap((word) => word.length > 5 ? [word.slice(0, 5), word.slice(5)] : [word])
+      .slice(0, 3);
     return (
       <div style={{ position: "absolute", inset: 0, zIndex: 0, background: mhBg, overflow: "hidden" }}>
         {/* Bold color block left accent */}
@@ -1838,8 +1937,13 @@ const BackgroundLayer: React.FC<{
     const crAccent = "#a78bfa";
     const crFill = "rgba(167,139,250,0.18)";
     const crGrid = "rgba(167,139,250,0.12)";
-    const dims = ["推理", "记忆", "工具", "多模", "安全", "效率"];
-    const values = [0.95, 0.78, 0.88, 0.72, 0.83, 0.69];
+    const fallbackDims = ["推理", "记忆", "工具", "多模", "安全", "效率"];
+    const fallbackValues = [0.95, 0.78, 0.88, 0.72, 0.83, 0.69];
+    const dims = Array.from(
+      { length: 6 },
+      (_, i) => techniquePointTitle(contentPoints, i, fallbackDims[i]).slice(0, 6),
+    );
+    const values = dims.map((_, i) => techniqueMetricValue(contentPoints[i], fallbackValues[i]));
     const n = dims.length;
     const cx = 50, cy = 48, r = 22;
     const phase = Math.min(1, frame / 40);
@@ -1886,18 +1990,17 @@ const BackgroundLayer: React.FC<{
   if (visualTechnique === "timeline_recap") {
     const trBg = "#0f172a";
     const trAccent = "#fbbf24";
-    const milestones = [
-      { label: "Q1", event: "产品立项", x: 15 },
-      { label: "Q2", event: "Beta 发布", x: 38 },
-      { label: "Q3", event: "正式上线", x: 62 },
-      { label: "Q4", event: "100万用户", x: 85 },
-    ];
+    const milestones = Array.from({ length: 4 }, (_, i) => ({
+      label: `0${i + 1}`,
+      event: techniquePointTitle(contentPoints, i, `里程碑 ${i + 1}`),
+      x: [15, 38, 62, 85][i],
+    }));
     const highlightIdx = Math.floor(frame / 22) % milestones.length;
     return (
       <div style={{ position: "absolute", inset: 0, zIndex: 0, background: trBg, overflow: "hidden" }}>
         {/* Title */}
         <div style={{ position: "absolute", top: "10%", left: "8%", fontSize: 10, color: "#94a3b8", fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-          TIMELINE RECAP · 2024
+          TIMELINE RECAP · {contentTitle}
         </div>
         {/* Timeline axis */}
         <div style={{ position: "absolute", top: "50%", left: "8%", right: "8%", height: 2, background: "rgba(148,163,184,0.2)" }} />
@@ -1914,7 +2017,6 @@ const BackgroundLayer: React.FC<{
                 background: isHighlight ? trAccent : isPast ? "#3b82f6" : "rgba(148,163,184,0.4)",
                 border: `2px solid ${isHighlight ? trAccent : isPast ? "#3b82f6" : "rgba(148,163,184,0.4)"}`,
                 boxShadow: isHighlight ? `0 0 16px ${trAccent}` : "none",
-                transition: "all 0.3s",
               }} />
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 10, color: isHighlight ? trAccent : "#64748b", fontWeight: 700, fontFamily: "monospace" }}>{m.label}</div>
@@ -1934,8 +2036,10 @@ const BackgroundLayer: React.FC<{
     const iconBorder = "rgba(99,102,241,0.5)";
     const phase = Math.floor(frame / 25) % 3;
     const icons = ["⚡", "🔗", "🚀"];
-    const labels = ["快速生成", "智能组合", "无缝发布"];
-    const descriptions = ["多模型并行采样", "自动选择最优结果", "一键发布到多平台"];
+    const fallbackLabels = ["快速生成", "智能组合", "无缝发布"];
+    const fallbackDescriptions = ["多模型并行采样", "自动选择最优结果", "一键发布到多平台"];
+    const labels = Array.from({ length: 3 }, (_, i) => techniquePointTitle(contentPoints, i, fallbackLabels[i]));
+    const descriptions = Array.from({ length: 3 }, (_, i) => contentPoints[i]?.body || fallbackDescriptions[i]);
     const SCALE_KEYFRAMES = [0.5, 1.1, 1.0];
     const scale = interpolate(frame % 25, [0, 8, 16], [SCALE_KEYFRAMES[0], SCALE_KEYFRAMES[1], SCALE_KEYFRAMES[2]], { extrapolateRight: "clamp" });
     return (
@@ -1952,7 +2056,6 @@ const BackgroundLayer: React.FC<{
               transform: `translate(-50%, -50%) scale(${isActive ? scale : 0.85})`,
               display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
               opacity: isActive ? 1 : 0.35,
-              transition: "opacity 0.4s",
             }}>
               <div style={{
                 width: 56, height: 56, borderRadius: 14,
@@ -4413,6 +4516,65 @@ const ReportOpeningPage: React.FC<{
   );
 };
 
+const SEMANTIC_PROTOTYPE_TECHNIQUES = new Set([
+  "whiteboard_explainer",
+  "benchmark_ranking",
+  "architecture_diagram",
+  "product_demo_flow",
+  "launch_countdown",
+  "map_timeline",
+  "audio_visualizer",
+  "tiktok_caption_story",
+  "magazine_headline",
+  "capability_radar",
+  "timeline_recap",
+  "lottie_icon_story",
+]);
+
+const TechniqueStageLabel: React.FC<{
+  title: string;
+  subtitle: string;
+  vstyle?: RemotionStyle;
+}> = ({ title, subtitle, vstyle }) => {
+  const frame = useCurrentFrame();
+  const opacity = interpolate(frame, [0, 12], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+  const surface = getTechniqueSurface(vstyle?.visualTechnique);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "6%",
+        right: "6%",
+        bottom: "5%",
+        zIndex: 3,
+        opacity,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "space-between",
+        gap: 24,
+        pointerEvents: "none",
+      }}
+    >
+      <div>
+        <div style={{ color: surface.titleColor, fontSize: 28, fontWeight: 850, lineHeight: 1.15 }}>
+          {title}
+        </div>
+        {subtitle && (
+          <div style={{ color: surface.mutedColor, fontSize: 15, marginTop: 6 }}>
+            {subtitle}
+          </div>
+        )}
+      </div>
+      <div style={{ color: surface.mutedColor, fontSize: 12, fontFamily: "monospace", letterSpacing: "0.12em" }}>
+        CONTENT-DRIVEN VISUAL
+      </div>
+    </div>
+  );
+};
+
 const SceneTransitionOverlay: React.FC<{
   transitionStyle: TransitionStyle;
   durationFrames: number;
@@ -4612,6 +4774,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
   const coverStyle = style?.coverStyle ?? "editorial";
   const overviewStyle = style?.overviewStyle ?? "timeline";
   const isReportSourceBound = structureType === "report_source_bound";
+  const isSemanticPrototype = SEMANTIC_PROTOTYPE_TECHNIQUES.has(style?.visualTechnique ?? "");
 
   // Calculate transition overlap based on transitionStyle
   // V0.3.9: Different transition modes - fade has more overlap, slide has less
@@ -4700,6 +4863,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
     : [];
 
   return (
+    <TechniqueContentContext.Provider value={{ title, keyPoints }}>
     <AbsoluteFill style={{ background: "transparent" }}>
       {/* V1.2.1.4: Programmatic background layer at root — individual pages can override */}
       <BackgroundLayer preset={style?.backgroundPreset} accent={style?.accentColor} highlight={style?.highlightColor} visualStylePreset={style?.visualStylePreset} visualTechnique={style?.visualTechnique} />
@@ -4767,6 +4931,12 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
             overview={reportOverview || { title, summary: subtitle }}
             keyPoints={keyPoints}
             duration={coverFrames}
+            vstyle={style}
+          />
+        ) : isSemanticPrototype ? (
+          <TechniqueStageLabel
+            title={title}
+            subtitle={subtitle}
             vstyle={style}
           />
         ) : (
@@ -4893,6 +5063,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
         </Sequence>
       ))}
     </AbsoluteFill>
+    </TechniqueContentContext.Provider>
   );
 };
 
