@@ -2518,11 +2518,12 @@ const FAMILY_ADAPTATION_FAMILIES = [
 
 // V1.2.8+: Preview profiles — replace simple clipSeconds selector with structured profiles
 // Each profile explicitly lists which visualTechniques to include, keeping requests within MAX_MATRIX_ITEMS=9.
-type VisualTechniquePreviewProfileId = "smoke_2s" | "visual_6s" | "deep_12s";
+type VisualTechniquePreviewProfileId = "smoke_2s" | "visual_6s" | "deep_12s" | "full_17";
 
 // 5-technique subsets chosen from ALL_VISUAL_TECHNIQUES (17 total).
 // smoke_2s uses the same 5 as generic_ai_eval.recommendedTechniques (already shown in UI as "5 techniques").
 // visual_6s and deep_12s each use a different 5 to maximise coverage across the 17 available.
+// full_17 uses ALL_VISUAL_TECHNIQUES but sends them one-at-a-time to stay within MAX_MATRIX_ITEMS=9.
 const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
   [K in VisualTechniquePreviewProfileId]: {
     label: string;
@@ -2533,6 +2534,8 @@ const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
     acceptanceLevel: "smoke_only" | "visual_review" | "deep_review";
     // V1.2.8+: explicit technique list — must be passed to matrix.visualTechniques
     visualTechniques: readonly VisualTechniqueId[];
+    // V1.2.9+: how to send the techniques: "batch" = grouped in one request, "sequential" = one at a time
+    requestMode: "batch" | "sequential";
   };
 }> = {
   smoke_2s: {
@@ -2550,6 +2553,7 @@ const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
       "agent_sandbox_25d",
       "kinetic_code_typography",
     ],
+    requestMode: "batch",
   },
   visual_6s: {
     label: "8s 视觉预览",
@@ -2566,6 +2570,7 @@ const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
       "product_demo_flow",
       "tiktok_caption_story",
     ],
+    requestMode: "batch",
   },
   deep_12s: {
     label: "12s 深度预览",
@@ -2582,6 +2587,19 @@ const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
       "magazine_headline",
       "capability_radar",
     ],
+    requestMode: "batch",
+  },
+  // V1.2.9+: Full 17 — sends each technique one at a time, aggregating results.
+  // Exists only in technique_compare mode; uses generic_ai_eval content.
+  full_17: {
+    label: "全部 17 个",
+    clipSeconds: 2,
+    keyPointCount: 2,
+    badge: "Full",
+    purpose: "逐个生成全部 17 个 visualTechnique，用于人工筛选与效果验收。耗时长，请耐心等待。",
+    acceptanceLevel: "visual_review",
+    visualTechniques: ALL_VISUAL_TECHNIQUES,
+    requestMode: "sequential",
   },
 } as const;
 
@@ -2616,6 +2634,7 @@ function VisualTechniqueVariantMatrix({
   adaptationTechnique,
   onAdaptationTechniqueChange,
   resultSignature,
+  sequentialProgress,
 }: {
   result: VisualTechniqueMatrixResponse | null;
   onReload: () => void;
@@ -2629,6 +2648,8 @@ function VisualTechniqueVariantMatrix({
   adaptationTechnique: VisualTechniqueId;
   onAdaptationTechniqueChange: (technique: VisualTechniqueId) => void;
   resultSignature: string | null;
+  // V1.2.9+: sequential generation progress
+  sequentialProgress: { current: number; total: number; technique: string } | null;
 }) {
   const resolveUrl = (u: string) =>
     u && u.startsWith("/runtime/")
@@ -2637,7 +2658,7 @@ function VisualTechniqueVariantMatrix({
 
   const profile = VISUAL_TECHNIQUE_PREVIEW_PROFILES[previewProfileId];
   const usesTechniqueSpecificContent =
-    matrixMode === "technique_compare" && previewProfileId !== "smoke_2s";
+    matrixMode === "technique_compare" && previewProfileId !== "smoke_2s" && previewProfileId !== "full_17";
   const effectiveSharedFixtureId: VisualTechniqueFixtureId =
     matrixMode === "technique_compare" && previewProfileId === "smoke_2s"
       ? "generic_ai_eval"
@@ -2757,13 +2778,23 @@ function VisualTechniqueVariantMatrix({
 
         <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
           {matrixMode === "technique_compare"
-            ? "1 family × 5 techniques = 5 clips"
+            ? `1 family × ${profile.visualTechniques.length} techniques = ${profile.visualTechniques.length} clips`
             : `${FAMILY_ADAPTATION_FAMILIES.length} families × 1 technique = ${FAMILY_ADAPTATION_FAMILIES.length} clips`}
+          {previewProfileId === "full_17" && (
+            <span style={{ marginLeft: "0.4rem", color: "#b45309" }}>
+              （逐个请求，避免超限）
+            </span>
+          )}
         </span>
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {result && (
             <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
               {result.items.filter((it) => it.success).length}/{result.items.length} 生成成功 · {result.totalElapsedMs}ms
+            </span>
+          )}
+          {sequentialProgress && (
+            <span style={{ fontSize: "0.75rem", color: "#b45309", fontWeight: 600 }}>
+              正在生成 {sequentialProgress.current} / {sequentialProgress.total}：{sequentialProgress.technique}
             </span>
           )}
           <button
@@ -2781,7 +2812,9 @@ function VisualTechniqueVariantMatrix({
             }}
           >
             {loading
-              ? `正在生成 ${profile.label}...`
+              ? sequentialProgress
+                ? `正在生成 ${sequentialProgress.current} / ${sequentialProgress.total}...`
+                : `正在生成 ${profile.label}...`
               : `运行 ${profile.label}`}
           </button>
         </div>
@@ -2851,7 +2884,9 @@ function VisualTechniqueVariantMatrix({
           <div style={{ fontWeight: 700, color: "#1e40af", marginBottom: "0.2rem" }}>
             {usesTechniqueSpecificContent
               ? "按技法自动适配内容"
-              : effectiveSharedFixture.name}
+              : previewProfileId === "full_17"
+                ? `全部 17 个技法（逐个生成）`
+                : effectiveSharedFixture.name}
           </div>
           {usesTechniqueSpecificContent ? (
             <>
@@ -3416,6 +3451,8 @@ export default function RemotionStyleFamilyPage() {
   const [visualTechniquePreviewProfileId, setVisualTechniquePreviewProfileId] = useState<VisualTechniquePreviewProfileId>("visual_6s");
   // V1.2.8+: Signature of the params used to generate current result — for stale detection
   const [visualTechniqueResultSignature, setVisualTechniqueResultSignature] = useState<string | null>(null);
+  // V1.2.9+: Sequential generation progress: null = not running, "N / 17" = in flight
+  const [sequentialProgress, setSequentialProgress] = useState<{ current: number; total: number; technique: string } | null>(null);
 
   const runCompare = async () => {
     setCompareLoading(true);
@@ -3579,41 +3616,35 @@ export default function RemotionStyleFamilyPage() {
     setVisualTechniqueMatrixLoading(true);
     setVisualTechniqueMatrixError("");
     setVisualTechniqueMatrixResult(null);
+    setSequentialProgress(null);
     try {
       const profile = VISUAL_TECHNIQUE_PREVIEW_PROFILES[visualTechniquePreviewProfileId];
       const usesTechniqueSpecificContent =
         visualTechniqueMatrixMode === "technique_compare"
-        && visualTechniquePreviewProfileId !== "smoke_2s";
+        && visualTechniquePreviewProfileId !== "smoke_2s"
+        && visualTechniquePreviewProfileId !== "full_17";
       const effectiveSharedFixtureId: VisualTechniqueFixtureId =
         visualTechniqueMatrixMode === "technique_compare"
         && visualTechniquePreviewProfileId === "smoke_2s"
           ? "generic_ai_eval"
-          : visualTechniqueFixtureId;
+          : visualTechniqueMatrixMode === "technique_compare"
+          && visualTechniquePreviewProfileId === "full_17"
+            ? "generic_ai_eval"
+            : visualTechniqueFixtureId;
 
-      // V1.2.8+: Build matrix from profile's explicit visualTechniques list —
-      // never send ALL_VISUAL_TECHNIQUES (17) which would exceed MAX_MATRIX_ITEMS=9.
       const profileFamilies = ["data_news"];
-      const profileTechniques = profile.visualTechniques;
-      const plannedClipCount = profileFamilies.length * profileTechniques.length;
 
-      // V1.2.8+: Frontend guard — reject configs that would exceed backend limit.
-      if (plannedClipCount > 9) {
-        throw new Error(
-          `当前请求 ${plannedClipCount} clips（${profileFamilies.length} families × ${profileTechniques.length} techniques）` +
-          `，超过后端上限 9。请减少 family 或 technique 数量。`
-        );
+      // V1.2.8+: Frontend guard for batch requests — reject configs that would exceed backend limit.
+      if (profile.requestMode === "batch") {
+        const plannedClipCount = profileFamilies.length * profile.visualTechniques.length;
+        if (plannedClipCount > 9) {
+          throw new Error(
+            `当前请求 ${plannedClipCount} clips（${profileFamilies.length} families × ${profile.visualTechniques.length} techniques）` +
+            `，超过后端上限 9。请减少 family 或 technique 数量。`
+          );
+        }
       }
 
-      const matrix =
-        visualTechniqueMatrixMode === "technique_compare"
-          ? {
-              families: profileFamilies,
-              visualTechniques: [...profileTechniques],
-            }
-          : {
-              families: FAMILY_ADAPTATION_FAMILIES.map((f) => f.id),
-              visualTechniques: [familyAdaptationTechnique],
-            };
       // Build signature for stale detection
       const signature = JSON.stringify({
         mode: visualTechniqueMatrixMode,
@@ -3625,6 +3656,8 @@ export default function RemotionStyleFamilyPage() {
       const requestMatrix = async (
         requestFixtureId: VisualTechniqueFixtureId,
         requestMatrixConfig: { families: string[]; visualTechniques: string[] },
+        overrideClipSeconds?: number,
+        overrideKeyPointCount?: number,
       ): Promise<VisualTechniqueMatrixResponse> => {
         const requestFixture = VISUAL_TECHNIQUE_FIXTURES[requestFixtureId];
         const resp = await fetch(`${API_BASE}/style-family/visual-technique-matrix`, {
@@ -3633,8 +3666,8 @@ export default function RemotionStyleFamilyPage() {
           body: JSON.stringify({
             content: requestFixture.content,
             params: {
-              clipSeconds: profile.clipSeconds,
-              keyPointCount: profile.keyPointCount,
+              clipSeconds: overrideClipSeconds ?? profile.clipSeconds,
+              keyPointCount: overrideKeyPointCount ?? profile.keyPointCount,
               // 结构化 fixture 直接解析，不经 LLM 重排：demo 一致、快、免费
               useLlmPlan: false,
               visualStylePreset: "warm_paper",
@@ -3658,7 +3691,45 @@ export default function RemotionStyleFamilyPage() {
         };
       };
 
-      if (usesTechniqueSpecificContent) {
+      // V1.2.9+: full_17 — sequential one-at-a-time to stay within MAX_MATRIX_ITEMS=9.
+      if (visualTechniquePreviewProfileId === "full_17") {
+        const combinedItems: VisualTechniqueMatrixItem[] = [];
+        let combinedElapsedMs = 0;
+        const total = profile.visualTechniques.length;
+        for (let i = 0; i < total; i++) {
+          const technique = profile.visualTechniques[i];
+          setSequentialProgress({ current: i + 1, total, technique });
+          const requestFixtureId = VISUAL_TECHNIQUE_FIXTURE_MAP[technique] ?? "generic_ai_eval";
+          try {
+            const data = await requestMatrix(requestFixtureId, {
+              families: ["data_news"],
+              visualTechniques: [technique],
+            });
+            combinedItems.push(...data.items);
+            combinedElapsedMs += data.totalElapsedMs;
+          } catch (e) {
+            // V1.2.9+: Don't abort on a single technique failure; record it and continue.
+            combinedItems.push({
+              family: "data_news",
+              visualTechnique: technique,
+              success: false,
+              videoUrl: "",
+              experimentId: "",
+              clipSeconds: profile.clipSeconds,
+              elapsedMs: 0,
+              message: String(e),
+              warnings: [String(e)],
+            });
+          }
+        }
+        setSequentialProgress(null);
+        setVisualTechniqueMatrixResult({
+          items: combinedItems,
+          totalElapsedMs: combinedElapsedMs,
+        });
+      }
+      // V1.2.8+: Sequential per-technique for non-smoke batch profiles (uses technique-specific content).
+      else if (usesTechniqueSpecificContent) {
         const combinedItems: VisualTechniqueMatrixItem[] = [];
         let combinedElapsedMs = 0;
         // Render sequentially to avoid launching five Remotion jobs at once.
@@ -3675,7 +3746,19 @@ export default function RemotionStyleFamilyPage() {
           items: combinedItems,
           totalElapsedMs: combinedElapsedMs,
         });
-      } else {
+      }
+      // Batch mode: all techniques in one request (smoke_2s with generic_ai_eval content).
+      else {
+        const matrix =
+          visualTechniqueMatrixMode === "technique_compare"
+            ? {
+                families: profileFamilies,
+                visualTechniques: [...profile.visualTechniques],
+              }
+            : {
+                families: FAMILY_ADAPTATION_FAMILIES.map((f) => f.id),
+                visualTechniques: [familyAdaptationTechnique],
+              };
         const data = await requestMatrix(effectiveSharedFixtureId, matrix);
         setVisualTechniqueMatrixResult(data);
       }
@@ -3684,6 +3767,7 @@ export default function RemotionStyleFamilyPage() {
       setVisualTechniqueMatrixError(String(e));
     } finally {
       setVisualTechniqueMatrixLoading(false);
+      setSequentialProgress(null);
     }
   };
 
@@ -4211,6 +4295,7 @@ export default function RemotionStyleFamilyPage() {
           adaptationTechnique={familyAdaptationTechnique}
           onAdaptationTechniqueChange={setFamilyAdaptationTechnique}
           resultSignature={visualTechniqueResultSignature}
+          sequentialProgress={sequentialProgress}
         />
       </div>
 

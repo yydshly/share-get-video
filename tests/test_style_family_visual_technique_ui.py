@@ -198,14 +198,19 @@ def test_no_path_sends_all_17_visual_techniques_in_technique_compare_mode():
         "technique_compare matrix still uses ALL_VISUAL_TECHNIQUES instead of profile.visualTechniques"
     )
 
-    # Assert the old bug pattern is gone: visualTechniques: ALL_VISUAL_TECHNIQUES must NOT appear
-    # in the technique_compare branch
-    technique_compare_all_match = re.search(
-        r"technique_compare.*?visualTechniques:\s*ALL_VISUAL_TECHNIQUES",
+    # Assert the old bug pattern is gone in the actual matrix construction:
+    # look for visualTechniques: ALL_VISUAL_TECHNIQUES INSIDE a matrix construction (after a {)
+    # not just anywhere in the file (comments, full_17 profile definition, etc.)
+    batch_matrix_construction = re.search(
+        r"visualTechniqueMatrixMode === \"technique_compare\""
+        r".*?"
+        r"families: profileFamilies,"
+        r".*?"
+        r"visualTechniques:\s*ALL_VISUAL_TECHNIQUES",
         source,
         flags=re.DOTALL,
     )
-    assert technique_compare_all_match is None, (
+    assert batch_matrix_construction is None, (
         "Bug still present: technique_compare branch sends ALL_VISUAL_TECHNIQUES (17) to backend"
     )
 
@@ -283,3 +288,172 @@ def test_remotion_lab_effect_prototypes_still_comprehensive():
     ]
     for proto in expected_prototypes:
         assert proto in lab_source, f"Prototype {proto} missing from RemotionLabPage"
+
+
+# ─── V1.2.9+: full_17 sequential generation ────────────────────────────────────
+
+
+def test_full_17_profile_exists_and_uses_all_17_techniques():
+    """full_17 profile must exist and use ALL_VISUAL_TECHNIQUES as its visualTechniques."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    full_match = re.search(
+        r"full_17:\s*\{(.*?)\n\s*\},",
+        source,
+        flags=re.DOTALL,
+    )
+    assert full_match is not None, "full_17 profile not found in VISUAL_TECHNIQUE_PREVIEW_PROFILES"
+    body = full_match.group(1)
+
+    assert "visualTechniques: ALL_VISUAL_TECHNIQUES" in body, (
+        "full_17 must use ALL_VISUAL_TECHNIQUES"
+    )
+    assert "requestMode: \"sequential\"" in body, (
+        "full_17 must have requestMode: \"sequential\" to avoid MAX_MATRIX_ITEMS overflow"
+    )
+
+
+def test_full_17_profile_label_and_badge():
+    """full_17 must have a visible label (for UI button) and badge."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    full_match = re.search(
+        r"full_17:\s*\{(.*?)\n\s*\},",
+        source,
+        flags=re.DOTALL,
+    )
+    assert full_match is not None
+    body = full_match.group(1)
+
+    assert 'label: "全部 17 个"' in body, "full_17 must have a label for the UI button"
+    assert 'badge: "Full"' in body, "full_17 must have a badge"
+
+
+def test_full_17_sequential_loop_sends_one_technique_at_a_time():
+    """full_17 must iterate over ALL_VISUAL_TECHNIQUES and send one technique per request."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    # The sequential branch for full_17 must have a loop over ALL_VISUAL_TECHNIQUES
+    assert "for (const technique of profile.visualTechniques)" in source, (
+        "Sequential loop should iterate over profile.visualTechniques"
+    )
+
+    # The per-iteration request body must send [technique] (single-element array)
+    # Look for the pattern inside the full_17 block
+    full_match = re.search(
+        r"visualTechniquePreviewProfileId === \"full_17\"(.*?)(?:else if|else|\Z)",
+        source,
+        flags=re.DOTALL,
+    )
+    assert full_match is not None
+    full_block = full_match.group(1)
+
+    # Must contain visualTechniques: [technique] (single, not ALL)
+    assert (
+        "visualTechniques: [technique]" in full_block
+        or "visualTechniques:[technique]" in full_block.replace(" ", "")
+    ), "full_17 must send one technique at a time: visualTechniques: [technique]"
+
+
+def test_full_17_does_not_batch_all_17_in_single_request():
+    """full_17 must NOT construct a batch request with ALL_VISUAL_TECHNIQUES in a single matrix call."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    full_match = re.search(
+        r"visualTechniquePreviewProfileId === \"full_17\"(.*?)(?:else if|else|\Z)",
+        source,
+        flags=re.DOTALL,
+    )
+    assert full_match is not None
+    full_block = full_match.group(1)
+
+    # Must NOT send ALL_VISUAL_TECHNIQUES as a batch
+    assert "ALL_VISUAL_TECHNIQUES" not in full_block, (
+        "full_17 must not send ALL_VISUAL_TECHNIQUES in a single batch request"
+    )
+
+
+def test_sequential_progress_state_exists():
+    """sequentialProgress state must be declared and passed to VisualTechniqueVariantMatrix."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    assert "sequentialProgress" in source, (
+        "sequentialProgress state variable not found"
+    )
+    assert "setSequentialProgress" in source, (
+        "setSequentialProgress setter not found"
+    )
+    assert "sequentialProgress={sequentialProgress}" in source or (
+        "sequentialProgress={}" in source
+    ), "sequentialProgress must be passed to VisualTechniqueVariantMatrix component"
+
+
+def test_full_17_fails_gracefully_per_technique():
+    """When a technique fails during full_17 sequential generation, it must not abort the whole batch."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    # A try/catch inside the sequential loop must exist so one failure doesn't stop the loop
+    full_match = re.search(
+        r"visualTechniquePreviewProfileId === \"full_17\"(.*?)(?:else if|else|\Z)",
+        source,
+        flags=re.DOTALL,
+    )
+    assert full_match is not None
+    full_block = full_match.group(1)
+
+    assert "try" in full_block and "catch" in full_block, (
+        "full_17 sequential loop must have try/catch to continue after individual technique failure"
+    )
+    assert "combinedItems.push" in full_block, (
+        "failed technique must still push a (failed) item to combinedItems"
+    )
+
+
+def test_existing_profiles_still_use_batch_mode():
+    """smoke_2s, visual_6s, deep_12s must still use requestMode: "batch" (not sequential)."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    for profile_id in ["smoke_2s", "visual_6s", "deep_12s"]:
+        profile_match = re.search(
+            rf"{profile_id}:\s*\{{(.*?)\n\s*\}},",
+            source,
+            flags=re.DOTALL,
+        )
+        assert profile_match is not None, f"{profile_id} not found"
+        body = profile_match.group(1)
+        assert 'requestMode: "batch"' in body, (
+            f"{profile_id} must still use requestMode: \"batch\""
+        )
+
+
+def test_batch_profiles_still_guard_against_over_limit():
+    """The plannedClipCount > 9 guard must still exist for batch profile requests."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    # The guard should appear in the batch-only path (not inside full_17 sequential branch)
+    # Verify it exists somewhere in runVisualTechniqueMatrix
+    run_block = re.search(
+        r"const runVisualTechniqueMatrix = async \(\) => \{(.*?)\n\s*\};",
+        source,
+        flags=re.DOTALL,
+    )
+    assert run_block is not None
+    func_body = run_block.group(1)
+
+    assert "plannedClipCount" in func_body, "plannedClipCount guard variable missing"
+    assert "> 9" in func_body, "Guard must check against limit of 9"
+
+
+def test_profile_badge_shows_correct_clip_count():
+    """The clip-count badge must use profile.visualTechniques.length (not hardcoded 5)."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    # Must use the dynamic length rather than hardcoded "5"
+    assert "profile.visualTechniques.length" in source, (
+        "Badge must show dynamic profile.visualTechniques.length, not hardcoded 5"
+    )
+    # Must NOT have hardcoded "1 family × 5 techniques = 5 clips" text anymore
+    hardcoded = re.search(r'"1 family × 5 techniques = 5 clips"', source)
+    assert hardcoded is None, (
+        "Hardcoded '1 family × 5 techniques = 5 clips' must be removed; use dynamic count"
+    )
