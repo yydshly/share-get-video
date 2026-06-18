@@ -194,42 +194,17 @@ class TestRemotionRendererDiagnostics:
 class TestRunCommandPlatform:
     """Tests for _run_command cross-platform behavior."""
 
-    def test_windows_shell_true_gets_string(self):
-        """On Windows (shell=True), subprocess.run must receive a string command."""
+    def test_command_always_runs_without_shell_wrapper(self):
+        """Renderer commands should not wait on a lingering Windows cmd.exe."""
         from app.video_lab.renderers.remotion import remotion_renderer
 
-        original_shell = remotion_renderer.USE_SHELL
-        remotion_renderer.USE_SHELL = True
+        with patch.object(remotion_renderer.subprocess, "run") as mock_run:
+            mock_run.return_value = MockCompletedProcess(0, "", "")
+            remotion_renderer._run_command(
+                ["node", "remotion-cli.js", "--version"], Path("D:/test"), 10
+            )
 
-        try:
-            with patch.object(remotion_renderer.subprocess, "run") as mock_run:
-                mock_run.return_value = MockCompletedProcess(0, "", "")
-                remotion_renderer._run_command(
-                    ["npx", "--version"], Path("D:/test"), 10
-                )
-
-                call_args = mock_run.call_args
-                cmd_arg = call_args[0][0] if call_args[0] else call_args[1].get("args")
-                assert isinstance(cmd_arg, str), f"Expected str on Windows, got {type(cmd_arg)}"
-        finally:
-            remotion_renderer.USE_SHELL = original_shell
-
-    def test_non_windows_shell_false_gets_list(self):
-        """On non-Windows (shell=False), subprocess.run must receive a list command."""
-        from app.video_lab.renderers.remotion import remotion_renderer
-
-        original_shell = remotion_renderer.USE_SHELL
-        remotion_renderer.USE_SHELL = False
-
-        try:
-            with patch.object(remotion_renderer.subprocess, "run") as mock_run:
-                mock_run.return_value = MockCompletedProcess(0, "", "")
-                remotion_renderer._run_command(
-                    ["npx", "--version"], Path("/tmp/test"), 10
-                )
-
-                call_args = mock_run.call_args
-                cmd_arg = call_args[0][0] if call_args[0] else call_args[1].get("args")
-                assert isinstance(cmd_arg, list), f"Expected list on non-Windows, got {type(cmd_arg)}"
-        finally:
-            remotion_renderer.USE_SHELL = original_shell
+            call_args = mock_run.call_args
+            cmd_arg = call_args[0][0] if call_args[0] else call_args[1].get("args")
+            assert isinstance(cmd_arg, list)
+            assert call_args[1]["shell"] is False

@@ -294,14 +294,20 @@ def _derive_report_overview_title(summary: str) -> str:
 
 
 def _extract_report_conclusion_from_overview(summary: str) -> str:
-    """Copy a final trend/conclusion sentence from overview when it is explicit."""
+    """Copy a source-bound closing from the overview without inventing text."""
     sentences = [s.strip() for s in re.split(r"(?<=[。！？])", summary or "") if s.strip()]
     if not sentences:
         return ""
     last_sentence = sentences[-1]
     if any(kw in last_sentence for kw in ["整体来看", "总体来看", "总结", "结论", "趋势"]):
         return last_sentence
-    return ""
+    # When the user explicitly requests a conclusion but the report has no
+    # labelled conclusion paragraph, reuse its final source clause. This keeps
+    # the closing deterministic and source-bound while ensuring the requested
+    # conclusion scene is not silently dropped.
+    clauses = [part.strip() for part in re.split(r"[；;]", last_sentence) if part.strip()]
+    final_clause = clauses[-1] if clauses else last_sentence
+    return final_clause if len(final_clause.rstrip("。！？")) >= 8 else last_sentence
 
 
 def _is_report_evidence_line(line: str) -> bool:
@@ -313,8 +319,18 @@ def _split_report_title_desc(text: str) -> tuple[str, str]:
     for sep in ("：", ":"):
         if sep in stripped:
             title, desc = stripped.split(sep, 1)
+            # "总结/摘要/内容：..." describes an item body; it is not a useful
+            # display title. Let the normal title derivation create one from
+            # the factual summary text.
+            if title.strip() in {"总结", "摘要", "内容", "概述", "简介"}:
+                return "", desc.strip()
             return title.strip(), desc.strip()
     return "", stripped
+
+
+def _is_report_summary_only_line(line: str) -> bool:
+    """Whether a line is a body-only item such as '总结：...'."""
+    return bool(re.match(r"^(总结|摘要|内容|概述|简介)[：:]\s*\S", (line or "").strip()))
 
 
 def _is_report_item_start(line: str) -> bool:
@@ -322,6 +338,8 @@ def _is_report_item_start(line: str) -> bool:
     stripped = (line or "").strip()
     if not stripped or _is_report_evidence_line(stripped):
         return False
+    if _is_report_summary_only_line(stripped):
+        return True
     # Must contain a title-separator to qualify as an explicit item start
     has_sep = any(sep in stripped for sep in ("：", ":"))
     if not has_sep:
@@ -373,30 +391,41 @@ def _derive_item_title_from_description(description: str, index: int) -> tuple[s
 
 
 def _split_report_item_blocks(text: str) -> list[str]:
-    """Split report item area by explicit item starts and blank lines.
+    """Split report item area by explicit starts, evidence boundaries, and blanks.
 
     Each no-title paragraph becomes its own block (not merged with neighbors).
     Explicit "title：desc" lines within a block still create sub-blocks.
+    A normal line after an evidence line starts a new no-title item even when
+    the source uses only single newlines between item/evidence pairs.
     """
     blocks: list[str] = []
     current: list[str] = []
+    current_has_evidence = False
 
     def flush_current() -> None:
-        nonlocal current
+        nonlocal current, current_has_evidence
         block = "\n".join(line for line in current if line.strip()).strip()
         if block:
             blocks.append(block)
         current = []
+        current_has_evidence = False
 
     for raw_line in (text or "").splitlines():
         line = raw_line.strip()
         if not line:
             flush_current()
             continue
-        # Flush before starting a new block when we already have content AND this line is an explicit item start
-        if _is_report_item_start(line) and current:
+
+        is_evidence = _is_report_evidence_line(line)
+        if current and (
+            _is_report_item_start(line)
+            or (current_has_evidence and not is_evidence)
+        ):
             flush_current()
+
         current.append(line)
+        if is_evidence:
+            current_has_evidence = True
 
     flush_current()
     return blocks
@@ -432,6 +461,7 @@ def _parse_report_item_paragraph(paragraph: str, index: int) -> dict[str, Any] |
         "id": f"item-{index}",
         "title": title,
         "description": description,
+        "summary": description,
         "titleSource": title_source,
         "evidence": evidence,
         "sourceText": paragraph.strip(),
@@ -514,7 +544,11 @@ def _generate_report_overview_items_structure(
     item_area = "\n\n".join(paragraphs[1:])
     item_paragraphs = _split_report_item_blocks(item_area)
     explicit_conclusion = ""
-    if item_paragraphs and _is_conclusion_text(item_paragraphs[-1]):
+    if (
+        item_paragraphs
+        and not _is_report_summary_only_line(item_paragraphs[-1])
+        and _is_conclusion_text(item_paragraphs[-1])
+    ):
         explicit_conclusion = item_paragraphs[-1]
         item_paragraphs = item_paragraphs[:-1]
 
@@ -738,11 +772,18 @@ def serialize_for_visual_compose(plan: dict[str, Any]) -> str:
         lines.append("")
 
     for i, item in enumerate(plan.get("items", []), 1):
+        item_body = (
+            item.get("description")
+            or item.get("summary")
+            or item.get("text")
+            or item.get("content")
+            or ""
+        )
         lines.append(f"【信息点 {i}】")
         if item.get("title"):
             lines.append(f"标题：{item['title']}")
-        if item.get("description"):
-            lines.append(f"描述：{item['description']}")
+        if item_body:
+            lines.append(f"描述：{item_body}")
         if item.get("evidence") and plan.get("evidencePolicy") != "hide":
             ev_text = "、".join(item["evidence"])
             if plan.get("evidencePolicy") == "badge":

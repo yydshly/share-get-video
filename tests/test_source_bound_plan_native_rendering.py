@@ -127,6 +127,42 @@ def test_structured_artifact_uses_selected_plan_items_only():
     assert "中国信通院" not in json.dumps(structured, ensure_ascii=False)
 
 
+def test_summary_only_item_field_becomes_shot_body_and_narration():
+    info_plan = sample_info_plan()
+    info_plan["items"] = [
+        {
+            "id": "item-1",
+            "title": "",
+            "summary": "OpenAI 发布新模型，推理能力提升，但成本仍需观察。",
+            "selected": True,
+        }
+    ]
+
+    plan = build_source_bound_plan_from_information_summary(info_plan)
+    shot = plan["shots"][0]
+
+    assert shot["headline"] != "信息点 1"
+    assert shot["display"] == "OpenAI 发布新模型，推理能力提升，但成本仍需观察。"
+    assert shot["narration"] == shot["display"]
+
+
+def test_summary_only_item_field_enters_structured_artifact():
+    info_plan = sample_info_plan()
+    info_plan["items"] = [
+        {
+            "id": "item-1",
+            "title": "",
+            "summary": "Claude Code 增强代码代理能力。",
+            "selected": True,
+        }
+    ]
+
+    structured = build_structured_from_information_summary_plan(info_plan)
+
+    assert structured["totalItems"] == 1
+    assert structured["items"][0]["body"] == "Claude Code 增强代码代理能力。"
+
+
 def test_source_bound_run_skips_plan_shots_and_raw_structure_content(monkeypatch, tmp_path):
     result = run_adapter_with_mocks(monkeypatch, tmp_path)
     assert result.rawOutput["status"] == "succeeded"

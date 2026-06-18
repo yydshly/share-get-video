@@ -18,8 +18,7 @@ from app.video_lab.config import REMOTION_DIR, ffprobe_bin
 REMOTION_ROOT_TSX = Path("src") / "Root.tsx"
 REMOTION_PROPS_PATH = Path("src") / "props.json"
 REMOTION_ENTRY = "AiNewsVideo"
-# shell=True needed on Windows for npx.cmd
-USE_SHELL = os.name == "nt"
+REMOTION_CLI_JS = Path("node_modules") / "@remotion" / "cli" / "remotion-cli.js"
 
 
 def default_remotion_timeout(props: dict[str, Any], *, minimum: int = 300, maximum: int = 900) -> int:
@@ -72,26 +71,8 @@ def _probe_mp4_duration(path: Path, timeout: int = 20) -> float:
 
 
 def _run_command(cmd: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess:
-    """
-    Run a command cross-platform.
-
-    On Windows with shell=True, converts the list to a string via list2cmdline
-    to avoid the instability of subprocess.run(list, shell=True).
-    On non-Windows with shell=False, passes the list directly.
-    """
+    """Run a command directly so the renderer process has no lingering shell."""
     cmd_strs = [str(x) for x in cmd]
-    if USE_SHELL:
-        cmd_to_run = subprocess.list2cmdline(cmd_strs)
-        return subprocess.run(
-            cmd_to_run,
-            cwd=str(cwd),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            shell=True,
-        )
     return subprocess.run(
         cmd_strs,
         cwd=str(cwd),
@@ -116,29 +97,13 @@ def check_remotion_available() -> tuple[bool, str]:
     if not node_path:
         return False, "Node.js not found. Install Node.js to use Remotion rendering."
 
-    # Check npm
-    npm_path = shutil.which("npm")
-    if not npm_path:
-        return False, "npm not found. Install Node.js/npm to use Remotion rendering."
-
-    # Check npx - use stable _run_command so Windows shell=True gets a string
-    try:
-        result = _run_command(["npx", "--version"], REMOTION_DIR, 10)
-        stdout = result.stdout or ""
-        stderr = result.stderr or ""
-        if result.returncode != 0:
-            detail = (stderr or stdout or "").strip()
-            msg = f"npx not available. {detail[-300:] if detail else 'Check Node.js installation.'}"
-            return False, msg
-    except Exception as e:
-        return False, f"npx check failed: {e}"
-
-    # Check if remotion package is installed under the configured REMOTION_DIR
-    remotion_pkg = REMOTION_DIR / "node_modules" / "remotion"
-    if not remotion_pkg.exists():
+    # The renderer invokes the local JS CLI directly, so npm/npx are not
+    # runtime dependencies and cannot leave a wrapper shell hanging.
+    remotion_cli = REMOTION_DIR / REMOTION_CLI_JS
+    if not remotion_cli.exists():
         return (
             False,
-            f"Remotion not installed at {REMOTION_DIR}. Run: cd {REMOTION_DIR} && npm install",
+            f"Remotion CLI not installed at {remotion_cli}. Run npm install in {REMOTION_DIR}",
         )
 
     return True, "Remotion environment available"
@@ -222,12 +187,15 @@ def render_remotion_video(
     output_mp4_posix = Path(output_mp4.as_posix())  # ensures forward slashes
     logs.append(f"[Remotion] output: {output_mp4_posix}")
 
-    # Build npx remotion render command
-    # npx remotion render <entry> <compName> <output> --props=<propsPath> --codec=h264
+    # Invoke the local Remotion CLI with Node directly. On Windows, wrapping
+    # this in `npx` + `shell=True` can leave cmd.exe alive after the MP4 is
+    # complete, making Python wait until the timeout boundary.
+    node_path = shutil.which("node") or "node"
+    remotion_cli = REMOTION_DIR / REMOTION_CLI_JS
     # Note: --props path must use ./ prefix for relative paths on Windows
     cmd = [
-        "npx",
-        "remotion",
+        node_path,
+        str(remotion_cli),
         "render",
         "./" + str(REMOTION_ROOT_TSX),  # ./src/Root.tsx
         REMOTION_ENTRY,

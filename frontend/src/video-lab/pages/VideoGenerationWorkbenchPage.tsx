@@ -111,7 +111,10 @@ interface InformationSummaryPlan {
   items: Array<{
     id: string;
     title: string;
-    description: string;
+    description?: string;
+    summary?: string;
+    text?: string;
+    content?: string;
     evidence?: string[];
     sourceText?: string;
     selected: boolean;
@@ -623,9 +626,10 @@ export default function VideoGenerationWorkbenchPage() {
       }
       const itemsForGeneration = infoSummaryPlan.items.filter((item) => item.selected);
       itemsForGeneration.forEach((item, i) => {
+        const itemBody = item.description || item.summary || item.text || item.content || "";
         lines.push(`【信息点 ${i + 1}】`);
         if (item.title) lines.push(`标题：${item.title}`);
-        if (item.description) lines.push(`描述：${item.description}`);
+        if (itemBody) lines.push(`描述：${itemBody}`);
         if (item.evidence && evidencePolicy === "badge") lines.push(`依据：${item.evidence.join("、")}`);
         lines.push("");
       });
@@ -644,10 +648,12 @@ export default function VideoGenerationWorkbenchPage() {
     const isReportProfile = (infoSummaryPlan?.inputProfile || inputProfile) === "report_overview_items";
     const headline = (infoSummaryPlan?.overview?.title || title).trim();
     const firstItem = infoSummaryPlan?.items?.find((it) => it.selected);
+    const firstItemBody =
+      firstItem?.description || firstItem?.summary || firstItem?.text || firstItem?.content || "";
     const display = (
       isReportProfile
-        ? infoSummaryPlan?.overview?.summary || firstItem?.description || headline
-        : firstItem?.description || infoSummaryPlan?.overview?.summary || headline
+        ? infoSummaryPlan?.overview?.summary || firstItemBody || headline
+        : firstItemBody || infoSummaryPlan?.overview?.summary || headline
     ).trim();
     const emphasisTerms = (infoSummaryPlan?.items || [])
       .filter((it) => it.selected)
@@ -1505,17 +1511,22 @@ export default function VideoGenerationWorkbenchPage() {
                     📌 信息点列表（{infoSummaryPlan.stats.selectedItemCount}/{infoSummaryPlan.stats.detectedItemCount} 已选）
                   </div>
                   {infoSummaryPlan.items.map((item, i) => (
+                    (() => {
+                      const itemBody = item.description || item.summary || item.text || item.content || "";
+                      return (
                     <div key={item.id} style={{ marginBottom: "0.4rem", padding: "0.4rem 0.5rem", background: "#f8fafc", borderRadius: 5, borderLeft: `3px solid ${item.selected ? "#16a34a" : "#94a3b8"}` }}>
                       <div style={{ fontSize: "0.72rem", fontWeight: 600, color: item.selected ? "#16a34a" : "#94a3b8" }}>
                         {i + 1}. {item.title || `信息点 ${i + 1}`}
                       </div>
-                      {item.description && (
-                        <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: 1 }}>{item.description.slice(0, 60)}{item.description.length > 60 ? "..." : ""}</div>
+                      {itemBody && (
+                        <div style={{ fontSize: "0.68rem", color: "#64748b", marginTop: 1 }}>{itemBody.slice(0, 60)}{itemBody.length > 60 ? "..." : ""}</div>
                       )}
                       {item.evidence && item.evidence.length > 0 && (
                         <div style={{ fontSize: "0.65rem", color: "#94a3b8", marginTop: 1 }}>依据：{item.evidence.join("、")}</div>
                       )}
                     </div>
+                      );
+                    })()
                   ))}
 
                   {infoSummaryPlan.stats.droppedItemCount > 0 && (

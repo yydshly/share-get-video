@@ -2736,7 +2736,8 @@ const KeyPointCard: React.FC<{
   fps: number;
   vstyle?: RemotionStyle;
   showDataViz?: boolean;
-}> = ({ kp, index, startFrame, totalDuration, fps, vstyle, showDataViz = true }) => {
+  preserveFullText?: boolean;
+}> = ({ kp, index, startFrame, totalDuration, fps, vstyle, showDataViz = true, preserveFullText = false }) => {
   const frame = useCurrentFrame();
   const localFrame = Math.max(0, frame - startFrame);
 
@@ -2951,7 +2952,11 @@ const KeyPointCard: React.FC<{
         {/* Body — always visible, truncated to descMaxChars */}
         <p
           style={{
-            fontSize: Math.round(layout.cardDescFontSize * fs),
+            fontSize: Math.round(
+              preserveFullText
+                ? Math.max(20, layout.cardDescFontSize * fs - Math.max(0, kp.body.length - layout.descMaxChars) / 18)
+                : layout.cardDescFontSize * fs,
+            ),
             color: surface.bodyColor,
             margin: 0,
             marginBottom: layout.cardElementGap,
@@ -2959,7 +2964,7 @@ const KeyPointCard: React.FC<{
             opacity: bodyOpacity,
           }}
         >
-          <HighlightedText text={truncateText(kp.body, layout.descMaxChars)} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
+          <HighlightedText text={preserveFullText ? kp.body : truncateText(kp.body, layout.descMaxChars)} style={{}} highlightColor={hl} emphasisTerms={kp.emphasisTerms} />
         </p>
 
         {/* Data animation: count-up + growing bar for the primary percentage */}
@@ -4341,7 +4346,15 @@ const ReportOpeningPage: React.FC<{
 
   // V1.2.2: Use layout config for aspect-ratio-aware density
   const layout = getLayoutConfig(vstyle?.aspectRatioLayoutMode);
-  const maxItems = Math.min(layout.coverMaxPreviewItems, keyPoints.length);
+  // Report content is source-bound: show the complete overview and every item
+  // title without ellipsis. Item bodies are rendered in their own scenes.
+  const maxItems = keyPoints.length;
+  const summaryFontSize = Math.round(
+    Math.max(18, layout.coverSubtitleFontSize * fs - Math.max(0, summary.length - 90) / 35),
+  );
+  const previewTitleFontSize = Math.round(
+    Math.max(16, layout.coverPreviewTitleFontSize * fs - Math.max(0, maxItems - 6)),
+  );
 
   return (
     <AbsoluteFill style={{ background: "transparent", padding: 72, color: C.textPrimary, fontFamily: "sans-serif" }}>
@@ -4372,8 +4385,8 @@ const ReportOpeningPage: React.FC<{
         {summary && (
           <>
             <div style={{ width: 120, height: 4, borderRadius: 999, background: `linear-gradient(90deg, ${accent}, ${hl})`, margin: "12px 0" }} />
-            <p style={{ fontSize: Math.round(layout.coverSubtitleFontSize * fs), lineHeight: 1.55, color: C.textSecondary, margin: 0, marginBottom: 18 }}>
-              {truncateText(summary, 80)}
+            <p style={{ fontSize: summaryFontSize, lineHeight: 1.5, color: C.textSecondary, margin: 0, marginBottom: 18 }}>
+              {summary}
             </p>
           </>
         )}
@@ -4388,14 +4401,9 @@ const ReportOpeningPage: React.FC<{
                 {String(i + 1).padStart(2, "0")}
               </span>
               <div style={{ flex: 1, overflow: "hidden" }}>
-                <div style={{ fontSize: Math.round(layout.coverPreviewTitleFontSize * fs), lineHeight: 1.25, fontWeight: 700, marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: previewTitleFontSize, lineHeight: 1.25, fontWeight: 700, marginBottom: 3 }}>
                   {kp.title}
                 </div>
-                {kp.body && (
-                  <div style={{ fontSize: Math.round(layout.coverPreviewDescFontSize * fs), color: C.textMuted, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {truncateText(kp.body, 56)}
-                  </div>
-                )}
               </div>
             </div>
           ))}
@@ -4850,6 +4858,7 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
               fps={fps}
               vstyle={style}
               showDataViz={showDataViz}
+              preserveFullText={isReportSourceBound}
             />
           </Sequence>
         ))

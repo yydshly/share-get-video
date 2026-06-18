@@ -53,6 +53,15 @@ def _emphasis_terms(title: str) -> list[str]:
     return terms
 
 
+def _item_body(item: dict) -> str:
+    """Read item body across current and legacy/partial plan field names."""
+    for field in ("description", "summary", "text", "content", "body"):
+        value = _clean_text(item.get(field))
+        if value:
+            return value
+    return ""
+
+
 def build_structured_from_information_summary_plan(info_plan: dict) -> dict:
     """Build the minimal structured artifact without parsing serialized text."""
     overview = info_plan.get("overview") if isinstance(info_plan.get("overview"), dict) else {}
@@ -61,7 +70,7 @@ def build_structured_from_information_summary_plan(info_plan: dict) -> dict:
     items = [
         {
             "title": _clean_text(item.get("title")),
-            "body": _clean_text(item.get("description")),
+            "body": _item_body(item),
             "source": "informationSummaryPlan",
         }
         for item in selected_items
@@ -94,8 +103,16 @@ def build_source_bound_plan_from_information_summary(
     shots = []
     source_refs = []
     for idx, item in enumerate(selected_items, 1):
-        title = _clean_text(item.get("title")) or f"信息点 {idx}"
-        description = _clean_text(item.get("description"))
+        description = _item_body(item)
+        title = _clean_text(item.get("title"))
+        if not title and description:
+            # Keep the fallback deterministic and source-bound. Reuse the
+            # parser's title derivation instead of invoking an LLM.
+            from app.video_lab.services.information_structure_service import (
+                _derive_item_title_from_description,
+            )
+            title = _derive_item_title_from_description(description, idx)[0]
+        title = title or f"信息点 {idx}"
         display = description
         evidence = _evidence_list(item)
         if evidence:
