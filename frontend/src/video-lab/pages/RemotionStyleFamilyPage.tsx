@@ -2166,20 +2166,118 @@ function VisualStyleVariantMatrix({
   );
 }
 
-// V1.2.4: Visual Technique Matrix Component
+// V1.2.5+: Visual Technique meta — front-end-only metadata for UI acceptance panel.
+// 状态字段: status=asset_verified, acceptance=visually_unaccepted (deliberately NOT visually_accepted).
+type VisualTechniqueMeta = {
+  name: string;
+  source: string;
+  status: "asset_verified";
+  acceptance: "visually_unaccepted";
+  description: string;
+  suitableFor: string[];
+  observePoints: string[];
+};
+
+const VISUAL_TECHNIQUE_META: Record<string, VisualTechniqueMeta> = {
+  academic_sketch: {
+    name: "学术手绘草稿流",
+    source: "Effect Prototype Gallery / academic",
+    status: "asset_verified",
+    acceptance: "visually_unaccepted",
+    description: "米白纸张、网格线、手绘批注，用于论文解读、AI 原理解释、研究报告摘要。",
+    suitableFor: ["论文解读", "AI 原理解释", "研究报告摘要", "知识类短视频"],
+    observePoints: ["米白纸张是否明显", "网格线是否可见", "是否有手绘批注", "正文是否可读"],
+  },
+  blueprint: {
+    name: "工程蓝图晒图风",
+    source: "Effect Prototype Gallery / blueprint",
+    status: "asset_verified",
+    acceptance: "visually_unaccepted",
+    description: "深蓝晒图纸、工程网格、角标记，用于架构解析、系统设计、技术规格说明。",
+    suitableFor: ["架构解析", "系统设计", "技术规格", "工程原理"],
+    observePoints: ["蓝图感是否明显", "工程网格是否可见", "角标记是否可见", "正文是否可读"],
+  },
+  data_viz_dashboard: {
+    name: "数据动态看板",
+    source: "Effect Prototype Gallery / dataviz",
+    status: "asset_verified",
+    acceptance: "visually_unaccepted",
+    description: "动态图表、柱状图、折线图、圆环图和指标 chip，用于 Benchmark、模型对比、产品数据。",
+    suitableFor: ["AI Benchmark", "模型能力对比", "产品数据", "性能报告"],
+    observePoints: ["是否像数据看板", "图表元素是否明显", "指标 chip 是否可见", "正文是否可读"],
+  },
+  agent_sandbox_25d: {
+    name: "智能体沙盒模拟",
+    source: "Effect Prototype Gallery / sandbox",
+    status: "asset_verified",
+    acceptance: "visually_unaccepted",
+    description: "2.5D 空间、Agent 节点、连接线和数据包，用于多智能体协作、工作流、系统架构说明。",
+    suitableFor: ["Agent 工作流", "多智能体协作", "AI 自动化流程", "系统架构"],
+    observePoints: ["节点是否明显", "连接线是否可见", "是否有数据包流动", "是否有系统沙盒感"],
+  },
+  kinetic_code_typography: {
+    name: "动态代码排版",
+    source: "Effect Prototype Gallery / typography",
+    status: "asset_verified",
+    acceptance: "visually_unaccepted",
+    description: "IDE 背景、代码行、语法高亮、终端日志和光标闪烁，用于开发者内容、API 讲解、代码教程。",
+    suitableFor: ["开发教程", "API 讲解", "代码片段解释", "开源项目摘要"],
+    observePoints: ["是否像代码编辑器", "代码行是否可见", "终端日志是否可见", "正文是否可读"],
+  },
+};
+
+// V1.2.5+: Local-only visual acceptance state — front-end ephemeral, never persisted.
+type LocalVisualAcceptance = "pending" | "accepted" | "partial" | "rejected";
+
+const ACCEPTANCE_LABEL: Record<LocalVisualAcceptance, string> = {
+  pending: "待验收",
+  accepted: "通过",
+  partial: "部分通过",
+  rejected: "不通过",
+};
+
+const ACCEPTANCE_COLOR: Record<LocalVisualAcceptance, { bg: string; fg: string; border: string }> = {
+  pending: { bg: "#f1f5f9", fg: "#64748b", border: "#cbd5e1" },
+  accepted: { bg: "#dcfce7", fg: "#15803d", border: "#86efac" },
+  partial: { bg: "#fef3c7", fg: "#a16207", border: "#fcd34d" },
+  rejected: { bg: "#fee2e2", fg: "#b91c1c", border: "#fca5a5" },
+};
+
+// V1.2.5+: Visual Technique Matrix Component — upgraded to UI acceptance panel
 function VisualTechniqueVariantMatrix({
   result,
   onReload,
   loading,
+  clipSeconds,
+  onClipSecondsChange,
 }: {
   result: VisualTechniqueMatrixResponse | null;
   onReload: () => void;
   loading: boolean;
+  clipSeconds: number;
+  onClipSecondsChange: (s: number) => void;
 }) {
   const resolveUrl = (u: string) =>
     u && u.startsWith("/runtime/")
       ? `${import.meta.env.VITE_API_BASE?.replace(/\/video-lab$/, "") ?? ""}${u}`
       : u || "";
+
+  // Local-only visual acceptance state — UI ephemeral, never persisted to backend.
+  const [localAcceptance, setLocalAcceptance] = useState<Record<string, LocalVisualAcceptance>>({});
+
+  const setAcceptance = (key: string, value: LocalVisualAcceptance) => {
+    setLocalAcceptance((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Summary counts
+  const totalCount = result?.items.length ?? 0;
+  const summary = {
+    accepted: Object.values(localAcceptance).filter((v) => v === "accepted").length,
+    partial: Object.values(localAcceptance).filter((v) => v === "partial").length,
+    rejected: Object.values(localAcceptance).filter((v) => v === "rejected").length,
+    pending: result?.items.filter((it) => !localAcceptance[`${it.family}-${it.visualTechnique}`] ||
+      localAcceptance[`${it.family}-${it.visualTechnique}`] === "pending").length ?? 0,
+  };
 
   return (
     <div
@@ -2203,7 +2301,7 @@ function VisualTechniqueVariantMatrix({
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {result && (
             <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
-              {result.items.filter((it) => it.success).length}/{result.items.length} 成功 · {result.totalElapsedMs}ms
+              {result.items.filter((it) => it.success).length}/{result.items.length} 生成成功 · {result.totalElapsedMs}ms
             </span>
           )}
           <button
@@ -2225,49 +2323,137 @@ function VisualTechniqueVariantMatrix({
         </div>
       </div>
 
-      <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.85rem" }}>
-        当前矩阵用于横向比较 5 种 visualTechnique。这些 technique 来自 Effect Prototype Gallery。
-        这里生成的是 lab-only 样片，不写 Style Sweep，不写 Style Gallery。
-      </p>
+      {/* Smoke Preview Info Card */}
+      <div
+        style={{
+          marginBottom: "1rem",
+          padding: "0.75rem 1rem",
+          background: "#eff6ff",
+          border: "1px solid #bfdbfe",
+          borderRadius: "8px",
+          fontSize: "0.78rem",
+          color: "#1e3a8a",
+          lineHeight: 1.7,
+        }}
+      >
+        <div style={{ fontWeight: 700, marginBottom: "0.3rem", color: "#1e40af" }}>
+          🧪 当前测试模式：2s 冒烟预览（Smoke Preview）
+        </div>
+        <div>Family：<code style={{ background: "#dbeafe", padding: "0.05rem 0.35rem", borderRadius: 3 }}>data_news</code></div>
+        <div>矩阵规模：1 family × 5 visualTechnique = 5 clips</div>
+        <div>目的：快速验证 5 种视觉技法是否能生成、能播放、能形成明显差异</div>
+        <div style={{ color: "#b91c1c", fontWeight: 600, marginTop: "0.2rem" }}>
+          限制：2s 样片不代表完整视频效果；生成成功 ≠ 视觉通过
+        </div>
+        <div>下一步：人工播放每个样片，标记通过 / 部分通过 / 不通过</div>
+      </div>
+
+      {/* Clip length selector */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+        <span style={{ fontSize: "0.78rem", color: "#475569" }}>当前样片时长：</span>
+        {[2, 6, 12].map((s) => (
+          <button
+            key={s}
+            onClick={() => onClipSecondsChange(s)}
+            disabled={loading}
+            style={{
+              background: clipSeconds === s ? "#7c3aed" : "white",
+              color: clipSeconds === s ? "white" : "#475569",
+              border: `1px solid ${clipSeconds === s ? "#7c3aed" : "#cbd5e1"}`,
+              borderRadius: "6px",
+              padding: "0.2rem 0.65rem",
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            {s}s
+          </button>
+        ))}
+        <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>
+          {clipSeconds === 2 ? "（冒烟预览）" : clipSeconds === 6 ? "（视觉预览）" : "（长预览）"}
+        </span>
+      </div>
+
+      {/* Acceptance summary bar */}
+      {result && result.items.length > 0 && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "0.55rem 0.85rem",
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: "8px",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.8rem",
+            flexWrap: "wrap",
+            fontSize: "0.78rem",
+          }}
+        >
+          <span style={{ fontWeight: 700, color: "#1e293b" }}>视觉验收汇总：</span>
+          <span style={{ color: "#15803d" }}>通过 <b>{summary.accepted}</b></span>
+          <span style={{ color: "#a16207" }}>部分通过 <b>{summary.partial}</b></span>
+          <span style={{ color: "#b91c1c" }}>不通过 <b>{summary.rejected}</b></span>
+          <span style={{ color: "#64748b" }}>待验收 <b>{summary.pending}</b></span>
+          <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: "#94a3b8" }}>
+            当前汇总仅保存在前端页面刷新前，用于本轮人工观察
+          </span>
+        </div>
+      )}
 
       {/* Grid */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-          gap: "0.85rem",
+          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+          gap: "1rem",
         }}
       >
         {(result?.items ?? []).map((item) => {
           const hasVideo = item.success && Boolean(item.videoUrl);
+          const key = `${item.family}-${item.visualTechnique}`;
+          const meta = VISUAL_TECHNIQUE_META[item.visualTechnique];
+          const acceptance: LocalVisualAcceptance = localAcceptance[key] ?? "pending";
+          const accColor = ACCEPTANCE_COLOR[acceptance];
+
           return (
             <div
-              key={`${item.family}-${item.visualTechnique}`}
+              key={key}
               style={{
-                border: "1px solid #d4a57430",
+                border: `1px solid ${accColor.border}`,
                 borderRadius: "10px",
                 overflow: "hidden",
                 background: "white",
+                display: "flex",
+                flexDirection: "column",
               }}
             >
-              {/* Header */}
+              {/* Header: family × technique + Chinese name + source */}
               <div
                 style={{
                   background: "linear-gradient(135deg, #d4a57418 0%, #faf7f2 100%)",
-                  borderBottom: "1px solid #d4a57430",
-                  padding: "0.5rem 0.75rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
+                  borderBottom: `1px solid ${accColor.border}`,
+                  padding: "0.55rem 0.75rem",
                 }}
               >
-                <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#92400e" }}>
-                  {item.family}
-                </span>
-                <span style={{ color: "#d4a574", fontSize: "0.65rem" }}>×</span>
-                <span style={{ fontSize: "0.75rem", color: "#b45309", fontFamily: "monospace" }}>
-                  {item.visualTechnique}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.2rem" }}>
+                  <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#92400e" }}>
+                    {item.family}
+                  </span>
+                  <span style={{ color: "#d4a574", fontSize: "0.65rem" }}>×</span>
+                  <span style={{ fontSize: "0.75rem", color: "#b45309", fontFamily: "monospace" }}>
+                    {item.visualTechnique}
+                  </span>
+                </div>
+                {meta && (
+                  <>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#1e293b" }}>
+                      {meta.name}
+                    </div>
+                    <div style={{ fontSize: "0.66rem", color: "#94a3b8" }}>{meta.source}</div>
+                  </>
+                )}
               </div>
 
               {/* Video */}
@@ -2278,7 +2464,7 @@ function VisualTechniqueVariantMatrix({
                     src={resolveUrl(item.videoUrl)}
                     style={{
                       width: "100%",
-                      height: "220px",
+                      height: "200px",
                       objectFit: "contain",
                       display: "block",
                       borderRadius: "6px",
@@ -2288,7 +2474,7 @@ function VisualTechniqueVariantMatrix({
                 ) : (
                   <div
                     style={{
-                      height: "220px",
+                      height: "200px",
                       background: "#f5f0e8",
                       borderRadius: "6px",
                       display: "flex",
@@ -2305,50 +2491,189 @@ function VisualTechniqueVariantMatrix({
                 )}
               </div>
 
-              {/* Footer */}
-              <div style={{
-                padding: "0.35rem 0.75rem",
-                borderTop: "1px solid #d4a57420",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}>
-                {item.success ? (
-                  <span style={{ fontSize: "0.65rem", color: "#16a34a" }}>✓ 成功</span>
-                ) : (
-                  <span style={{ fontSize: "0.65rem", color: "#ef4444" }}>✗ 失败</span>
-                )}
-                <span style={{ fontSize: "0.62rem", color: "#94a3b8" }}>
-                  {item.elapsedMs}ms
-                </span>
+              {/* Status row */}
+              <div
+                style={{
+                  padding: "0.4rem 0.75rem",
+                  borderTop: "1px solid #e2e8f0",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  fontSize: "0.7rem",
+                  flexWrap: "wrap",
+                  gap: "0.3rem",
+                }}
+              >
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <span style={{ color: item.success ? "#16a34a" : "#ef4444", fontWeight: 600 }}>
+                    {item.success ? "✓ 生成成功" : "✗ 生成失败"}
+                  </span>
+                  <span style={{ color: "#94a3b8" }}>·</span>
+                  <span style={{ color: "#94a3b8" }}>视觉：待人工验收</span>
+                </div>
+                <span style={{ color: "#94a3b8" }}>{item.elapsedMs}ms</span>
+              </div>
+
+              {/* Description */}
+              {meta && (
+                <div style={{ padding: "0.5rem 0.75rem 0.3rem", fontSize: "0.72rem", color: "#475569", lineHeight: 1.55 }}>
+                  {meta.description}
+                </div>
+              )}
+
+              {/* Suitable For chips */}
+              {meta && meta.suitableFor.length > 0 && (
+                <div style={{ padding: "0.25rem 0.75rem", display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                  {meta.suitableFor.map((s) => (
+                    <span
+                      key={s}
+                      style={{
+                        fontSize: "0.62rem",
+                        background: "#e0e7ff",
+                        color: "#3730a3",
+                        borderRadius: 999,
+                        padding: "0.1rem 0.5rem",
+                      }}
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Observe points */}
+              {meta && meta.observePoints.length > 0 && (
+                <div
+                  style={{
+                    padding: "0.4rem 0.75rem 0.5rem",
+                    fontSize: "0.7rem",
+                    color: "#475569",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: "#92400e", marginBottom: "0.2rem" }}>观察点：</div>
+                  <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+                    {meta.observePoints.map((p) => (
+                      <li key={p}>{p}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Acceptance buttons */}
+              <div
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  borderTop: "1px solid #e2e8f0",
+                  background: "#fafafa",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.7rem",
+                    color: "#475569",
+                    marginBottom: "0.3rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>本地人工验收：</span>
+                  <span
+                    style={{
+                      background: accColor.bg,
+                      color: accColor.fg,
+                      border: `1px solid ${accColor.border}`,
+                      borderRadius: 999,
+                      padding: "0.05rem 0.5rem",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {ACCEPTANCE_LABEL[acceptance]}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: "0.4rem" }}>
+                  {(["accepted", "partial", "rejected"] as LocalVisualAcceptance[]).map((v) => {
+                    const c = ACCEPTANCE_COLOR[v];
+                    const active = acceptance === v;
+                    return (
+                      <button
+                        key={v}
+                        onClick={() => setAcceptance(key, v)}
+                        style={{
+                          flex: 1,
+                          background: active ? c.bg : "white",
+                          color: active ? c.fg : "#475569",
+                          border: `1px solid ${active ? c.border : "#cbd5e1"}`,
+                          borderRadius: "6px",
+                          padding: "0.3rem 0.4rem",
+                          fontSize: "0.72rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {ACCEPTANCE_LABEL[v]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ fontSize: "0.62rem", color: "#94a3b8", marginTop: "0.3rem" }}>
+                  本地状态：仅当前页面刷新前有效，不写后端，不进入 Style Gallery
+                </div>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Observation hints */}
-      {result && (
+      {/* Acceptance summary footer */}
+      {result && result.items.length > 0 && (
         <div
           style={{
             marginTop: "1rem",
-            padding: "0.85rem 1rem",
-            background: "#faf7f2",
+            padding: "0.7rem 1rem",
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
             borderRadius: "8px",
             fontSize: "0.78rem",
             color: "#475569",
             lineHeight: 1.6,
           }}
         >
-          <div style={{ fontWeight: 600, color: "#92400e", marginBottom: "0.3rem" }}>观察提示：</div>
-          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
-            <li>是否明显摆脱深蓝科技背景，呈现米白纸张质感？</li>
-            <li>是否有网格纸线条和手绘批注元素？</li>
-            <li>文字是否仍然可读？</li>
-            <li>caption_story / data_news / timeline_news 三种 family 下是否都能保持学术草稿质感？</li>
-          </ul>
+          <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: "0.3rem" }}>本轮视觉验收汇总：</div>
+          <div>
+            通过 <b style={{ color: "#15803d" }}>{summary.accepted}</b> ·
+            部分通过 <b style={{ color: "#a16207" }}>{summary.partial}</b> ·
+            不通过 <b style={{ color: "#b91c1c" }}>{summary.rejected}</b> ·
+            待验收 <b style={{ color: "#64748b" }}>{summary.pending}</b>
+            <span style={{ color: "#94a3b8" }}> / 共 {totalCount} 个</span>
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.2rem" }}>
+            当前汇总仅保存在前端页面刷新前，用于本轮人工观察。生成成功不等于视觉通过。
+          </div>
         </div>
       )}
+
+      {/* Extension path */}
+      <div
+        style={{
+          marginTop: "1rem",
+          padding: "0.7rem 1rem",
+          background: "#faf7f2",
+          borderRadius: "8px",
+          fontSize: "0.78rem",
+          color: "#475569",
+          lineHeight: 1.6,
+        }}
+      >
+        <div style={{ fontWeight: 600, color: "#92400e", marginBottom: "0.3rem" }}>扩展路径：</div>
+        <ol style={{ margin: 0, paddingLeft: "1.3rem" }}>
+          <li>2s 冒烟预览：验证是否能生成和形成差异（当前）</li>
+          <li>6~8s 视觉预览：验证动效、可读性和节奏（未来）</li>
+          <li>单 technique × 多 family：验证适配不同版式（未来）</li>
+          <li>完整 Recipe 样片：进入后续 Style Sweep / Style Gallery 候选（未来）</li>
+        </ol>
+      </div>
     </div>
   );
 }
@@ -2375,6 +2700,8 @@ export default function RemotionStyleFamilyPage() {
   const [visualTechniqueMatrixLoading, setVisualTechniqueMatrixLoading] = useState(false);
   const [visualTechniqueMatrixResult, setVisualTechniqueMatrixResult] = useState<VisualTechniqueMatrixResponse | null>(null);
   const [visualTechniqueMatrixError, setVisualTechniqueMatrixError] = useState("");
+  // V1.2.5+: Visual Technique clip length selector (default 2s = smoke preview)
+  const [visualTechniqueClipSeconds, setVisualTechniqueClipSeconds] = useState(2);
 
   const runCompare = async () => {
     setCompareLoading(true);
@@ -2495,7 +2822,7 @@ export default function RemotionStyleFamilyPage() {
         body: JSON.stringify({
           content: "研究显示，新一代 AI 模型在多模态理解、工具调用和复杂推理任务上都有显著提升，但评测指标仍然难以完整衡量真实智能。",
           params: {
-            clipSeconds: 2,
+            clipSeconds: visualTechniqueClipSeconds,
             keyPointCount: 2,
             visualStylePreset: "warm_paper",
             backgroundPreset: "warm_cinematic",
@@ -3038,6 +3365,8 @@ export default function RemotionStyleFamilyPage() {
           result={visualTechniqueMatrixResult}
           onReload={runVisualTechniqueMatrix}
           loading={visualTechniqueMatrixLoading}
+          clipSeconds={visualTechniqueClipSeconds}
+          onClipSecondsChange={setVisualTechniqueClipSeconds}
         />
       </div>
 
