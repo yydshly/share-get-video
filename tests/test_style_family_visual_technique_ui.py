@@ -293,6 +293,42 @@ def test_remotion_lab_effect_prototypes_still_comprehensive():
 # ─── V1.2.9+: full_17 sequential generation ────────────────────────────────────
 
 
+def test_default_preview_profile_is_full_17():
+    """The default useState for visualTechniquePreviewProfileId must be 'full_17'."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    match = re.search(
+        r"useState<VisualTechniquePreviewProfileId>\(\"(\w+)\"\)",
+        source,
+    )
+    assert match is not None, "useState<VisualTechniquePreviewProfileId> not found"
+    default_profile = match.group(1)
+    assert default_profile == "full_17", (
+        f"Default profile must be 'full_17' but got '{default_profile}'"
+    )
+
+
+def test_main_button_text_for_full_17_is_descriptive():
+    """When full_17 is selected, the main run button must say '生成全部 17 个技法样片'."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    assert '生成全部 17 个技法样片' in source, (
+        "Main button text must say '生成全部 17 个技法样片' for full_17 profile"
+    )
+
+
+def test_main_button_shows_sequential_progress_for_full_17():
+    """While running full_17, the button must show '正在生成 N / 17...'."""
+    source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
+
+    assert "正在生成 ${sequentialProgress.current} / ${sequentialProgress.total}..." in source, (
+        "Button must show sequential progress N / 17 during full_17 generation"
+    )
+
+
+
+
+
 def test_full_17_profile_exists_and_uses_all_17_techniques():
     """full_17 profile must exist and use ALL_VISUAL_TECHNIQUES as its visualTechniques."""
     source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")

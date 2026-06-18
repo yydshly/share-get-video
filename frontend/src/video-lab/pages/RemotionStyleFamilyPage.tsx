@@ -2815,7 +2815,9 @@ function VisualTechniqueVariantMatrix({
               ? sequentialProgress
                 ? `正在生成 ${sequentialProgress.current} / ${sequentialProgress.total}...`
                 : `正在生成 ${profile.label}...`
-              : `运行 ${profile.label}`}
+              : previewProfileId === "full_17"
+                ? "生成全部 17 个技法样片"
+                : `运行 ${profile.label}`}
           </button>
         </div>
       </div>
@@ -3447,8 +3449,8 @@ export default function RemotionStyleFamilyPage() {
   const [visualTechniqueMatrixMode, setVisualTechniqueMatrixMode] = useState<"technique_compare" | "family_adaptation">("technique_compare");
   // V1.2.7+: Selected technique for family adaptation mode (default = academic_sketch)
   const [familyAdaptationTechnique, setFamilyAdaptationTechnique] = useState<VisualTechniqueId>("academic_sketch");
-  // V1.2.8+: Preview profile selector (default = visual_6s, not smoke)
-  const [visualTechniquePreviewProfileId, setVisualTechniquePreviewProfileId] = useState<VisualTechniquePreviewProfileId>("visual_6s");
+  // V1.2.9+: Preview profile selector (default = full_17, the primary acceptance action)
+  const [visualTechniquePreviewProfileId, setVisualTechniquePreviewProfileId] = useState<VisualTechniquePreviewProfileId>("full_17");
   // V1.2.8+: Signature of the params used to generate current result — for stale detection
   const [visualTechniqueResultSignature, setVisualTechniqueResultSignature] = useState<string | null>(null);
   // V1.2.9+: Sequential generation progress: null = not running, "N / 17" = in flight
