@@ -1603,7 +1603,9 @@ function BackgroundVariantMatrix({
               cursor: loading ? "wait" : "pointer",
             }}
           >
-            {loading ? "渲染中..." : "重新生成"}
+            {loading
+              ? `渲染中 ${result?.items.length ?? 0}/${MATRIX_FAMILIES.length * MATRIX_BACKGROUNDS.length}`
+              : "重新生成"}
           </button>
         </div>
       </div>
@@ -1824,7 +1826,9 @@ function TransitionVariantMatrix({
               cursor: loading ? "wait" : "pointer",
             }}
           >
-            {loading ? "渲染中..." : "生成转场矩阵"}
+            {loading
+              ? `渲染中 ${result?.items.length ?? 0}/${DEFAULT_TRANSITION_FAMILY.length * MATRIX_TRANSITIONS.length}`
+              : "生成转场矩阵"}
           </button>
         </div>
       </div>
@@ -3245,21 +3249,45 @@ export default function RemotionStyleFamilyPage() {
     setMatrixError("");
     setMatrixResult(null);
     try {
-      const resp = await fetch(`${API_BASE}/style-family/background-matrix`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: "",
-          params: { clipSeconds: 3, keyPointCount: 3 },
-          matrix: {
-            families: MATRIX_FAMILIES.map((family) => family.id),
-            backgroundPresets: MATRIX_BACKGROUNDS.map((background) => background.id),
-          },
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
-      setMatrixResult(data);
+      const startedAt = Date.now();
+      const items: MatrixItem[] = [];
+      for (const family of MATRIX_FAMILIES) {
+        for (const background of MATRIX_BACKGROUNDS) {
+          try {
+            const resp = await fetch(`${API_BASE}/style-family/background-matrix`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                content: "",
+                params: { clipSeconds: 3, keyPointCount: 3 },
+                matrix: {
+                  families: [family.id],
+                  backgroundPresets: [background.id],
+                },
+              }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+            items.push(...data.items);
+          } catch (e) {
+            items.push({
+              family: family.id,
+              backgroundPreset: background.id,
+              success: false,
+              videoUrl: "",
+              experimentId: "",
+              clipSeconds: 3,
+              elapsedMs: 0,
+              message: String(e),
+              warnings: [],
+            });
+          }
+          setMatrixResult({
+            items: [...items],
+            totalElapsedMs: Date.now() - startedAt,
+          });
+        }
+      }
     } catch (e) {
       setMatrixError(String(e));
     } finally {
@@ -3272,25 +3300,49 @@ export default function RemotionStyleFamilyPage() {
     setTransitionMatrixError("");
     setTransitionMatrixResult(null);
     try {
-      const resp = await fetch(`${API_BASE}/style-family/transition-matrix`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: "",
-          params: {
-            clipSeconds: 3,
-            keyPointCount: 3,
-            backgroundPreset: "tech_grid_dark",
-          },
-          matrix: {
-            families: DEFAULT_TRANSITION_FAMILY.map((family) => family.id),
-            transitionStyles: MATRIX_TRANSITIONS.map((transition) => transition.id),
-          },
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
-      setTransitionMatrixResult(data);
+      const startedAt = Date.now();
+      const items: TransitionMatrixItem[] = [];
+      for (const family of DEFAULT_TRANSITION_FAMILY) {
+        for (const transition of MATRIX_TRANSITIONS) {
+          try {
+            const resp = await fetch(`${API_BASE}/style-family/transition-matrix`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                content: "",
+                params: {
+                  clipSeconds: 3,
+                  keyPointCount: 3,
+                  backgroundPreset: "tech_grid_dark",
+                },
+                matrix: {
+                  families: [family.id],
+                  transitionStyles: [transition.id],
+                },
+              }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+            items.push(...data.items);
+          } catch (e) {
+            items.push({
+              family: family.id,
+              transitionStyle: transition.id,
+              success: false,
+              videoUrl: "",
+              experimentId: "",
+              clipSeconds: 3,
+              elapsedMs: 0,
+              message: String(e),
+              warnings: [],
+            });
+          }
+          setTransitionMatrixResult({
+            items: [...items],
+            totalElapsedMs: Date.now() - startedAt,
+          });
+        }
+      }
     } catch (e) {
       setTransitionMatrixError(String(e));
     } finally {

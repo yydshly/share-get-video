@@ -93,7 +93,7 @@ def test_background_matrix_accepts_the_page_default_1x6_request(monkeypatch):
 
 
 def test_remotion_lab_background_matrix_submits_every_listed_background():
-    """The Remotion Lab request must derive its presets from the full UI list."""
+    """The Remotion Lab progressively submits every listed background."""
     source = LAB_PAGE_PATH.read_text(encoding="utf-8")
 
     backgrounds_block = re.search(
@@ -106,5 +106,18 @@ def test_remotion_lab_background_matrix_submits_every_listed_background():
     background_ids = re.findall(r'\bid:\s*"([^"]+)"', backgrounds_block.group(1))
 
     assert set(background_ids) == set(style_family_service.VALID_BACKGROUND_PRESETS)
-    assert "backgroundPresets: BACKGROUNDS.map((background) => background.id)" in source
+    assert "for (const background of BACKGROUNDS)" in source
+    assert "backgroundPresets: [background.id]" in source
+    assert "setResult({" in source
     assert "运行完整背景矩阵（1 family × 6 backgrounds）" in source
+
+
+def test_style_family_background_matrix_progressively_renders_each_item():
+    """The main page updates after each 1×1 request instead of waiting for all six."""
+    source = PAGE_PATH.read_text(encoding="utf-8")
+
+    assert "for (const family of MATRIX_FAMILIES)" in source
+    assert "for (const background of MATRIX_BACKGROUNDS)" in source
+    assert "backgroundPresets: [background.id]" in source
+    assert "setMatrixResult({" in source
+    assert "渲染中 ${result?.items.length ?? 0}/" in source

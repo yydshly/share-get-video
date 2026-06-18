@@ -697,21 +697,40 @@ function TabBackground() {
     setError("");
     setResult(null);
     try {
-      const resp = await fetch(`${API_BASE}/style-family/background-matrix`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: "OpenAI 发布新一代多模态模型，重点提升语音、图像和视频理解能力。",
-          params: { clipSeconds: 2, keyPointCount: 2 },
-          matrix: {
-            families: ["timeline_news"],
-            backgroundPresets: BACKGROUNDS.map((background) => background.id),
-          },
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
-      setResult(data);
+      const startedAt = Date.now();
+      const items: BackgroundMatrixItem[] = [];
+      for (const background of BACKGROUNDS) {
+        try {
+          const resp = await fetch(`${API_BASE}/style-family/background-matrix`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: "OpenAI 发布新一代多模态模型，重点提升语音、图像和视频理解能力。",
+              params: { clipSeconds: 2, keyPointCount: 2 },
+              matrix: {
+                families: ["timeline_news"],
+                backgroundPresets: [background.id],
+              },
+            }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+          items.push(...data.items);
+        } catch (e) {
+          items.push({
+            family: "timeline_news",
+            backgroundPreset: background.id,
+            success: false,
+            videoUrl: "",
+            elapsedMs: 0,
+            message: String(e),
+          });
+        }
+        setResult({
+          items: [...items],
+          totalElapsedMs: Date.now() - startedAt,
+        });
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -777,7 +796,9 @@ function TabBackground() {
             cursor: loading ? "wait" : "pointer",
           }}
         >
-          {loading ? "渲染中..." : "运行完整背景矩阵（1 family × 6 backgrounds）"}
+          {loading
+            ? `渲染中 ${result?.items.length ?? 0}/${BACKGROUNDS.length}`
+            : "运行完整背景矩阵（1 family × 6 backgrounds）"}
         </button>
 
         {error && (
@@ -848,21 +869,40 @@ function TabTransition() {
     setError("");
     setResult(null);
     try {
-      const resp = await fetch(`${API_BASE}/style-family/transition-matrix`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: "OpenAI 发布新一代多模态模型，重点提升语音、图像和视频理解能力。",
-          params: { clipSeconds: 2, keyPointCount: 2, backgroundPreset: "tech_grid_dark" },
-          matrix: {
-            families: ["data_news"],
-            transitionStyles: TRANSITIONS.map((transition) => transition.id),
-          },
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
-      setResult(data);
+      const startedAt = Date.now();
+      const items: TransitionMatrixItem[] = [];
+      for (const transition of TRANSITIONS) {
+        try {
+          const resp = await fetch(`${API_BASE}/style-family/transition-matrix`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: "OpenAI 发布新一代多模态模型，重点提升语音、图像和视频理解能力。",
+              params: { clipSeconds: 2, keyPointCount: 2, backgroundPreset: "tech_grid_dark" },
+              matrix: {
+                families: ["data_news"],
+                transitionStyles: [transition.id],
+              },
+            }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+          items.push(...data.items);
+        } catch (e) {
+          items.push({
+            family: "data_news",
+            transitionStyle: transition.id,
+            success: false,
+            videoUrl: "",
+            elapsedMs: 0,
+            message: String(e),
+          });
+        }
+        setResult({
+          items: [...items],
+          totalElapsedMs: Date.now() - startedAt,
+        });
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -919,7 +959,9 @@ function TabTransition() {
             cursor: loading ? "wait" : "pointer",
           }}
         >
-          {loading ? "渲染中..." : "运行完整转场矩阵（1 family × 8 transitions）"}
+          {loading
+            ? `渲染中 ${result?.items.length ?? 0}/${TRANSITIONS.length}`
+            : "运行完整转场矩阵（1 family × 8 transitions）"}
         </button>
 
         {error && (

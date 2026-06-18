@@ -147,7 +147,7 @@ def test_transition_matrix_accepts_all_supported_transitions(monkeypatch):
 
 
 def test_both_remotion_pages_submit_every_listed_transition():
-    """Both UIs derive transition requests from their complete visible lists."""
+    """Both UIs progressively submit every transition from their visible lists."""
     style_family_source = STYLE_FAMILY_PAGE_PATH.read_text(encoding="utf-8")
     lab_source = LAB_PAGE_PATH.read_text(encoding="utf-8")
 
@@ -174,11 +174,9 @@ def test_both_remotion_pages_submit_every_listed_transition():
 
     assert set(style_family_ids) == expected
     assert set(lab_ids) == expected
-    assert (
-        "transitionStyles: MATRIX_TRANSITIONS.map((transition) => transition.id)"
-        in style_family_source
-    )
-    assert (
-        "transitionStyles: TRANSITIONS.map((transition) => transition.id)"
-        in lab_source
-    )
+    assert "for (const transition of MATRIX_TRANSITIONS)" in style_family_source
+    assert "transitionStyles: [transition.id]" in style_family_source
+    assert "setTransitionMatrixResult({" in style_family_source
+    assert "for (const transition of TRANSITIONS)" in lab_source
+    assert "transitionStyles: [transition.id]" in lab_source
+    assert "setResult({" in lab_source
