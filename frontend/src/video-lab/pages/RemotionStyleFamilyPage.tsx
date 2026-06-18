@@ -2245,10 +2245,16 @@ export const VISUAL_TECHNIQUE_FIXTURES: Readonly<{
 }> = {
   generic_ai_eval: {
     name: "通用 AI 评测",
-    purpose: "通用横向比较，适合快速冒烟测试。",
+    purpose: "通用横向比较，适合快速冒烟测试。6 条带数字要点，便于看清各技法的密度与排版差异。",
     recommendedTechniques: ["academic_sketch", "blueprint", "data_viz_dashboard", "agent_sandbox_25d", "kinetic_code_typography"],
     content:
-      "研究显示，新一代 AI 模型在多模态理解、工具调用和复杂推理任务上都有显著提升，但评测指标仍然难以完整衡量真实智能。",
+      "今日 AI 前沿评测速览：能力评估正从单点分数转向系统级、可信度综合衡量。\n" +
+      "ProReviewer 评审系统突破：将评审建模为马尔可夫决策过程，五个质量维度上超越传统方法 39%。\n依据：依据 1\n" +
+      "购物 AI 助手实测落后：主流模型在真实电商场景通过率仅 57-77%，多轮推理短板明显。\n依据：依据 1\n" +
+      "方言谣言检测取得进展：阿尔及利亚方言混合框架 F1 达 0.84，低资源语言鲁棒性提升。\n依据：依据 1\n" +
+      "同行评审存在展示层攻击：仅改摘要措辞即可实现 75.1% 攻击成功率，暴露评审漏洞。\n依据：依据 1\n" +
+      "开源多模态再下一城：八十亿参数模型接近闭源旗舰，推理成本下降约 60%。\n依据：依据 1\n" +
+      "企业级 AI 加速落地：Anthropic 与 TCS、DXC 合作进入受监管行业，DeepMind 投入千万美元。\n依据：依据 1",
   },
 
   academic_explainer: {
@@ -2256,7 +2262,12 @@ export const VISUAL_TECHNIQUE_FIXTURES: Readonly<{
     purpose: "测试 academic_sketch 是否适合解释概念、推理过程、研究摘要。",
     recommendedTechniques: ["academic_sketch"],
     content:
-      "为什么 AI 评测越来越难？过去只看最终答案，现在还要看推理过程、工具调用和失败修正。真正的评测像观察学生解题，而不是只看分数。",
+      "为什么 AI 评测越来越难？从「看答案」到「看过程」的范式转变。\n" +
+      "只看最终答案的时代结束：传统评测只比对输出，忽略推理是否正确。\n依据：依据 1\n" +
+      "推理过程成为核心：要检查每一步逻辑、是否跳步、是否自洽。\n依据：依据 1\n" +
+      "工具调用纳入考核：能否正确选择并使用外部工具，成功率是关键指标。\n依据：依据 1\n" +
+      "失败修正能力被重视：遇错后能否自我诊断、重新规划，比一次答对更重要。\n依据：依据 1\n" +
+      "评测像观察解题：关注思路与方法，而非仅看一个分数。\n依据：依据 1",
   },
 
   blueprint_architecture: {
@@ -2264,15 +2275,26 @@ export const VISUAL_TECHNIQUE_FIXTURES: Readonly<{
     purpose: "测试 blueprint 是否适合系统架构、模块关系、工程流程。",
     recommendedTechniques: ["blueprint", "agent_sandbox_25d"],
     content:
-      "一个 AI Agent 系统由四层组成：输入层接收任务，规划层拆解步骤，工具层执行动作，记忆层保存上下文。各层通过消息通道连接，形成可追踪的执行链路。",
+      "一个可追踪的 AI Agent 系统由四层构成，通过消息通道连成执行链路。\n" +
+      "输入层 Input：接收任务与上下文，标准化为内部请求格式。\n依据：依据 1\n" +
+      "规划层 Planner：将任务拆解为有序步骤，决定调用顺序与分支。\n依据：依据 1\n" +
+      "工具层 Tools：执行检索、计算、API 等外部动作，返回结构化结果。\n依据：依据 1\n" +
+      "记忆层 Memory：保存中间状态与历史，支持失败回溯与重规划。\n依据：依据 1\n" +
+      "消息通道 Bus：各层统一通道通信，全链路可观测、可追踪。\n依据：依据 1",
   },
 
   data_dashboard: {
     name: "数据看板",
-    purpose: "测试 data_viz_dashboard 是否适合 Benchmark、模型对比、产品数据。",
+    purpose: "测试 data_viz_dashboard 是否适合 Benchmark、模型对比、产品数据。指标密集。",
     recommendedTechniques: ["data_viz_dashboard"],
     content:
-      "模型 A 在多模态理解上提升 24%，工具调用成功率达到 87%，长上下文任务成本下降 31%。这些指标说明模型能力正在从单点问答转向系统级表现。",
+      "模型 A 季度能力评测：六项核心指标全面跃升。\n" +
+      "多模态理解：综合得分提升 24%，图文对齐能力显著增强。\n依据：依据 1\n" +
+      "工具调用：成功率达到 87%，较上代提升 19 个百分点。\n依据：依据 1\n" +
+      "长上下文：百万 token 任务成本下降 31%，吞吐提升 1.8 倍。\n依据：依据 1\n" +
+      "复杂推理：数学与代码基准平均提升 15%，多步任务更稳。\n依据：依据 1\n" +
+      "事实性：幻觉率降至 4.2%，引用准确率达 91%。\n依据：依据 1\n" +
+      "能效比：单位算力产出提升 2.3 倍，推理时延降低 40%。\n依据：依据 1",
   },
 
   agent_sandbox: {
@@ -2280,7 +2302,12 @@ export const VISUAL_TECHNIQUE_FIXTURES: Readonly<{
     purpose: "测试 agent_sandbox_25d 是否适合多智能体协作、工具调用、工作流解释。",
     recommendedTechniques: ["agent_sandbox_25d"],
     content:
-      "Planner 负责拆解任务，Model 负责生成方案，Tool 负责执行外部动作，Memory 负责记录状态。多个 Agent 通过消息通道协作，并在失败时重新规划。",
+      "多智能体协作沙盒：五个角色分工，失败即重规划。\n" +
+      "Planner：拆解目标为子任务，分配给合适的执行体。\n依据：依据 1\n" +
+      "Model：针对子任务生成方案与中间推理。\n依据：依据 1\n" +
+      "Tool：调用外部工具执行动作，回传真实结果。\n依据：依据 1\n" +
+      "Memory：记录每步状态，供回溯与上下文复用。\n依据：依据 1\n" +
+      "Critic：校验结果，失败时触发重规划，成功率提升 28%。\n依据：依据 1",
   },
 
   code_typography: {
@@ -2288,7 +2315,12 @@ export const VISUAL_TECHNIQUE_FIXTURES: Readonly<{
     purpose: "测试 kinetic_code_typography 是否适合 API 讲解、代码流程、开发者内容。",
     recommendedTechniques: ["kinetic_code_typography"],
     content:
-      "调用模型 API 的核心步骤包括：构造 request，发送 prompt，解析 response，处理错误，并将日志写入终端。稳定的错误处理比一次成功调用更重要。",
+      "稳定调用模型 API 的五个关键步骤。\n" +
+      "构造 request：组装 prompt、参数与超时，校验输入。\n依据：依据 1\n" +
+      "发送请求：异步调用，控制并发与速率限制。\n依据：依据 1\n" +
+      "解析 response：提取结果，处理流式分块与截断。\n依据：依据 1\n" +
+      "错误处理：重试与退避，区分可恢复与致命错误。\n依据：依据 1\n" +
+      "写入日志：记录耗时、token、错误码，便于排查。\n依据：依据 1",
   },
 } as const;
 
@@ -2337,19 +2369,19 @@ const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
     acceptanceLevel: "smoke_only",
   },
   visual_6s: {
-    label: "6s 视觉预览",
-    clipSeconds: 6,
-    keyPointCount: 3,
+    label: "8s 视觉预览",
+    clipSeconds: 8,
+    keyPointCount: 4,
     badge: "Review",
     purpose: "观察 family 版式、正文可读性、visualTechnique 特征是否真正展开。建议作为默认人工验收档位。",
     acceptanceLevel: "visual_review",
   },
   deep_12s: {
-    label: "12s 深度预览",
-    clipSeconds: 12,
-    keyPointCount: 4,
+    label: "16s 深度预览",
+    clipSeconds: 16,
+    keyPointCount: 6,
     badge: "Deep",
-    purpose: "观察更完整的动效、转场节奏、内容承载能力。用于准备 Recipe 候选前的深度观察。",
+    purpose: "用富内容（6 条带数字要点）铺满多张卡，观察各技法的密度、排版、数据可视化与转场差异。",
     acceptanceLevel: "deep_review",
   },
 } as const;
@@ -3282,6 +3314,8 @@ export default function RemotionStyleFamilyPage() {
           params: {
             clipSeconds: profile.clipSeconds,
             keyPointCount: profile.keyPointCount,
+            // 结构化 fixture 直接解析，不经 LLM 重排：demo 一致、快、免费
+            useLlmPlan: false,
             visualStylePreset: "warm_paper",
             backgroundPreset: "warm_cinematic",
             transitionStyle: "slide_fade",

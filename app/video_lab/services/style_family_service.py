@@ -14,11 +14,18 @@ from app.video_lab.renderers.frame_preview import render_clip_preview
 
 # Default content used when request.content is empty.
 STYLE_FAMILY_DEFAULT_CONTENT = (
-    "科学研究评审实现突破：ProReviewer系统将评审建模为马尔可夫决策过程，在五个质量维度超越传统方法39%。\n"
+    "今日 AI 前沿评测速览：能力评估正从单点分数转向系统级、可信度综合衡量。\n"
+    "ProReviewer 评审系统突破：将评审建模为马尔可夫决策过程，五个质量维度上超越传统方法 39%。\n"
     "依据：依据 1\n"
-    "购物AI助手落后：主流模型通过率仅57-77%。\n"
+    "购物 AI 助手实测落后：主流模型在真实电商场景通过率仅 57-77%，多轮推理短板明显。\n"
     "依据：依据 1\n"
-    "企业级AI加速落地：Anthropic与TCS合作，DeepMind投资千万美元。\n"
+    "方言谣言检测取得进展：阿尔及利亚方言混合框架 F1 达 0.84，低资源语言鲁棒性提升。\n"
+    "依据：依据 1\n"
+    "同行评审存在展示层攻击：仅改摘要措辞即可实现 75.1% 攻击成功率，暴露评审漏洞。\n"
+    "依据：依据 1\n"
+    "开源多模态再下一城：八十亿参数模型接近闭源旗舰，推理成本下降约 60%。\n"
+    "依据：依据 1\n"
+    "企业级 AI 加速落地：Anthropic 与 TCS、DXC 合作进入受监管行业，DeepMind 投入千万美元。\n"
     "依据：依据 1"
 )
 
