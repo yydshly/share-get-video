@@ -318,15 +318,66 @@ def _split_report_title_desc(text: str) -> tuple[str, str]:
 
 
 def _is_report_item_start(line: str) -> bool:
+    """Returns True only for lines with an explicit 'title：description' pattern."""
     stripped = (line or "").strip()
     if not stripped or _is_report_evidence_line(stripped):
+        return False
+    # Must contain a title-separator to qualify as an explicit item start
+    has_sep = any(sep in stripped for sep in ("：", ":"))
+    if not has_sep:
         return False
     title, desc = _split_report_title_desc(stripped)
     return 3 <= len(title) <= 50 and len(desc) >= 4
 
 
+def _derive_item_title_from_description(description: str, index: int) -> tuple[str, str]:
+    """
+    Derive a compact display title from the description without inventing facts.
+
+    Rules:
+    1. Empty description → ("信息点 N", "fallback")
+    2. Take first sentence (terminated by 。 or ；)
+    3. Further truncate at ，, 、, ：, :, ； if still too long
+    4. Strip trailing punctuation
+    5. Target 6-24 chars; if result too short → "信息点 N"
+    6. No invented entities or judgments
+
+    Returns (title, title_source)
+    """
+    if not (description or "").strip():
+        return f"信息点 {index}", "fallback"
+
+    text = description.strip()
+    # Step 1: cut at first sentence terminator
+    m = re.search(r"[。；]", text)
+    if m:
+        first_sentence = text[: m.start() + 1]
+    else:
+        first_sentence = text
+
+    # Step 2: truncate at commas / colons to get a compact title
+    # Prefer cut at 、, ，, ：, :, ；
+    for sep in ("，", "、", "：", ":", "；"):
+        if sep in first_sentence and len(first_sentence) > 24:
+            first_sentence = first_sentence.split(sep)[0]
+            break
+
+    title = first_sentence.strip().rstrip("。！？;:,：.")
+
+    # Step 3: enforce length bounds
+    if 6 <= len(title) <= 50:
+        return title, "auto_generated"
+
+    # Too short or too long → fallback
+    return f"信息点 {index}", "fallback"
+
+
 def _split_report_item_blocks(text: str) -> list[str]:
-    """Split report item area by explicit item starts, supporting single newlines."""
+    """Split report item area by explicit item starts and blank lines.
+
+    Each no-title paragraph becomes its own block (not merged with neighbors).
+    Explicit "title：desc" lines within a block still create sub-blocks.
+    """
     blocks: list[str] = []
     current: list[str] = []
 
@@ -342,6 +393,7 @@ def _split_report_item_blocks(text: str) -> list[str]:
         if not line:
             flush_current()
             continue
+        # Flush before starting a new block when we already have content AND this line is an explicit item start
         if _is_report_item_start(line) and current:
             flush_current()
         current.append(line)
@@ -370,10 +422,17 @@ def _parse_report_item_paragraph(paragraph: str, index: int) -> dict[str, Any] |
         return None
 
     title, description = _split_report_title_desc(item_text)
+
+    if title:
+        title_source = "explicit"
+    else:
+        title, title_source = _derive_item_title_from_description(description, index)
+
     return {
         "id": f"item-{index}",
         "title": title,
         "description": description,
+        "titleSource": title_source,
         "evidence": evidence,
         "sourceText": paragraph.strip(),
     }

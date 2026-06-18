@@ -1,4 +1,9 @@
-from app.video_lab.services.information_structure_service import generate_information_structure
+from app.video_lab.services.information_structure_service import (
+    generate_information_structure,
+    serialize_for_visual_compose,
+    _derive_item_title_from_description,
+    _split_report_item_blocks,
+)
 
 
 REPORT_INPUT = """今日AI前沿呈现多条并行进展线索：多语言NLP在低资源方言、科学事实检测等领域取得突破，阿尔及利亚方言谣言检测混合框架F1达0.84；AI评估体系向多维化和精细化演进，购物推理、长期搜索、立场复杂度等新基准揭示主流模型显著短板；安全对齐方面，主动调查评审、欺骗检测等新范式推动可扩展监督研究；企业级AI落地加速，Anthropic与TCS/DXC合作进入受监管行业，DeepMind千万美元投入多智能体安全研究。整体来看，研究重心正从单一性能提升转向可信性、可靠性和跨文化鲁棒性的综合评估。
@@ -203,3 +208,207 @@ def test_auto_profile_keeps_existing_service_behavior_available():
     assert result["inputProfile"] == "auto"
     assert "stats" in result
     assert isinstance(result["items"], list)
+
+
+# ─── V1.2: No-title report items ────────────────────────────────────────────────
+
+
+class TestNoTitleReportItems:
+    """Tests for report items without explicit 'title：description' formatting."""
+
+    NO_TITLE_REPORT = """今日 AI 前沿速览：多个模型和产品方向出现更新。
+
+OpenAI 发布新模型，推理能力提升，但成本和调用稳定性仍需要观察。
+依据：官方公告
+
+Claude Code 新增能力，开发者可以更方便地完成代码修改和测试。
+依据：产品文档"""
+
+    MIXED_REPORT = """今日 AI 前沿速览：多个模型和产品方向出现更新。
+
+模型发布：OpenAI 发布新模型，推理能力提升，但成本仍需观察。
+依据：官方公告
+
+Claude Code 新增能力，开发者可以更方便地完成代码修改和测试。
+依据：产品文档"""
+
+    # Two blank-line-separated paragraphs: overview + one no-title item
+    SINGLE_PARAGRAPH_NO_TITLE = """今日 AI 前沿速览。
+
+OpenAI 发布新模型，推理能力提升，但成本仍需观察。"""
+
+    def test_no_title_report_detects_two_items(self):
+        """No-title paragraphs should each become a separate item."""
+        result = generate_information_structure(
+            self.NO_TITLE_REPORT,
+            compression_mode="strict",
+            target_point_count="all",
+            input_profile="report_overview_items",
+        )
+        assert result["stats"]["detectedItemCount"] == 2, (
+            f"Expected 2 items, got {result['stats']['detectedItemCount']}: "
+            f"{[item['title'] for item in result['items']]}"
+        )
+
+    def test_no_title_items_have_auto_generated_title(self):
+        """No-title items should have auto-generated titles."""
+        result = generate_information_structure(
+            self.NO_TITLE_REPORT,
+            compression_mode="strict",
+            target_point_count="all",
+            input_profile="report_overview_items",
+        )
+        for item in result["items"]:
+            assert item.get("title"), f"Item missing title: {item}"
+            assert item["titleSource"] in ("auto_generated", "fallback"), (
+                f"Expected auto_generated/fallback, got {item.get('titleSource')}"
+            )
+
+    def test_no_title_items_preserve_description(self):
+        """Description must remain the full original text, not trimmed for the title."""
+        result = generate_information_structure(
+            self.NO_TITLE_REPORT,
+            compression_mode="strict",
+            target_point_count="all",
+            input_profile="report_overview_items",
+        )
+        descriptions = [item["description"] for item in result["items"]]
+        assert any("成本和调用稳定性" in d for d in descriptions), (
+            f"Description truncated: {descriptions}"
+        )
+        assert any("代码修改和测试" in d for d in descriptions), (
+            f"Description truncated: {descriptions}"
+        )
+
+    def test_no_title_items_attach_evidence(self):
+        """Evidence lines should still attach to their preceding items."""
+        result = generate_information_structure(
+            self.NO_TITLE_REPORT,
+            compression_mode="strict",
+            target_point_count="all",
+            input_profile="report_overview_items",
+        )
+        assert len(result["items"]) == 2
+        # At least one item should have evidence
+        items_with_evidence = [item for item in result["items"] if item.get("evidence")]
+        assert len(items_with_evidence) >= 1, (
+            f"No evidence attached: {[item.get('evidence') for item in result['items']]}"
+        )
+
+    def test_mixed_report_first_item_explicit_second_auto(self):
+        """First item has explicit title, second has auto-generated."""
+        result = generate_information_structure(
+            self.MIXED_REPORT,
+            compression_mode="strict",
+            target_point_count="all",
+            input_profile="report_overview_items",
+        )
+        assert len(result["items"]) == 2
+        assert result["items"][0]["titleSource"] == "explicit", (
+            f"Expected explicit for item 1, got {result['items'][0]['titleSource']}"
+        )
+        assert result["items"][1]["titleSource"] in ("auto_generated", "fallback"), (
+            f"Expected auto_generated for item 2, got {result['items'][1]['titleSource']}"
+        )
+
+    def test_single_paragraph_no_title_produces_item(self):
+        """A single no-title paragraph should produce at least 1 item."""
+        result = generate_information_structure(
+            self.SINGLE_PARAGRAPH_NO_TITLE,
+            compression_mode="strict",
+            target_point_count="all",
+            input_profile="report_overview_items",
+        )
+        # Either overview + 1 item, or 1 item directly
+        total = result["stats"]["detectedItemCount"]
+        assert total >= 1, f"Single paragraph produced 0 items: {result}"
+        # The item should have a title
+        assert any(item.get("title") for item in result["items"]), (
+            f"No item has a title: {result['items']}"
+        )
+        # The item should have a description
+        assert any(item.get("description") for item in result["items"]), (
+            f"No item has a description: {result['items']}"
+        )
+
+
+class TestDeriveItemTitle:
+    """Tests for _derive_item_title_from_description."""
+
+    def test_truncates_at_sentence_terminator(self):
+        title, source = _derive_item_title_from_description(
+            "OpenAI 发布新模型，推理能力提升，但成本仍需观察。", 1
+        )
+        assert source == "auto_generated"
+        assert title == "OpenAI 发布新模型"
+
+    def test_truncates_at_comma_for_long_first_sentence(self):
+        long_desc = "这一变化说明开发者工具正在从代码补全走向任务代理，AI 编程正进入新阶段。"
+        title, source = _derive_item_title_from_description(long_desc, 1)
+        assert source == "auto_generated"
+        # Should cut at the first comma since the sentence is long
+        assert len(title) <= 24, f"Title too long: {title}"
+
+    def test_empty_description_returns_fallback(self):
+        title, source = _derive_item_title_from_description("", 3)
+        assert title == "信息点 3"
+        assert source == "fallback"
+
+    def test_strips_trailing_punctuation(self):
+        title, source = _derive_item_title_from_description(
+            "Claude Code 新增能力，开发者可以更方便地完成代码修改和测试。", 1
+        )
+        assert not title.endswith(("。", "！", "?", "."))
+        assert source == "auto_generated"
+
+
+class TestNoTitleBlockSplitting:
+    """Tests for _split_report_item_blocks with no-title paragraphs."""
+
+    def test_no_title_paragraphs_are_separate_blocks(self):
+        content = (
+            "今日 AI 前沿\n\n"
+            "OpenAI 发布新模型，推理能力提升。\n\n"
+            "Claude Code 新增能力，开发者体验改善。"
+        )
+        blocks = _split_report_item_blocks(content)
+        # Should have 3 blocks: overview + 2 no-title items
+        assert len(blocks) == 3, f"Got {len(blocks)} blocks: {blocks}"
+
+    def test_explicit_items_still_split_correctly(self):
+        content = (
+            "今日 AI 前沿\n\n"
+            "模型发布：OpenAI 发布新模型，推理能力提升。\n\n"
+            "开发工具：Claude Code 新增能力，开发者体验改善。"
+        )
+        blocks = _split_report_item_blocks(content)
+        assert len(blocks) == 3, f"Got {len(blocks)} blocks: {blocks}"
+
+
+class TestSerializeNoTitleItems:
+    """Tests for serialize_for_visual_compose with auto-generated titles."""
+
+    def test_serialize_includes_title_for_no_title_items(self):
+        result = generate_information_structure(
+            "今日 AI 前沿\n\n"
+            "OpenAI 发布新模型，推理能力提升，但成本仍需观察。\n\n"
+            "Claude Code 新增能力，开发者体验改善。",
+            compression_mode="strict",
+            target_point_count="all",
+            input_profile="report_overview_items",
+        )
+        serialized = serialize_for_visual_compose(result)
+        # Should contain 【信息点 1】 and 【信息点 2】 with 标题： lines
+        assert "【信息点 1】" in serialized
+        assert "【信息点 2】" in serialized
+        # Each item should have both 标题 and 描述
+        assert serialized.count("【信息点") == 2, serialized
+        # Each item section should have a 标题 line
+        assert serialized.count("标题：") >= 2, (
+            f"Expected ≥2 标题： lines, got: {serialized}"
+        )
+        # Verify every 标题： is followed by a 描述： for items (not just overview)
+        item_blocks = serialized.split("【信息点")
+        for i, block in enumerate(item_blocks[1:], 1):
+            assert "标题：" in block, f"信息点 {i} missing 标题"
+            assert "描述：" in block, f"信息点 {i} missing 描述"
