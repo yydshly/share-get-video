@@ -232,8 +232,8 @@ const EFFECT_PROTOTYPES = [
     remotionTechniques: ["isometric projection", "spring connectors", "animated packet", "node graph", "CSS 3D / Canvas"],
     futureParameter: "visualTechnique: agent_sandbox_25d",
     priority: "P1" as const,
-    implementationLevel: "prototype_reference" as const,
-    nextStep: "适合第二批实现，复杂度高于 academic_sketch 和 data_viz_dashboard。",
+    implementationLevel: "implemented_minimal" as const,
+    nextStep: "已接入 visualTechnique，可前往视觉技法矩阵生成样片。",
   },
   {
     id: "data_viz_dashboard",
@@ -245,8 +245,8 @@ const EFFECT_PROTOTYPES = [
     remotionTechniques: ["D3/Recharts", "interpolate path", "animated counter", "radial progress", "audio reactive spectrum"],
     futureParameter: "visualTechnique: data_viz_dashboard",
     priority: "P0" as const,
-    implementationLevel: "prototype_reference" as const,
-    nextStep: "优先转为真实 Remotion visualTechnique，适合 AI 数据和模型评测视频。",
+    implementationLevel: "implemented_minimal" as const,
+    nextStep: "已接入 visualTechnique，可前往视觉技法矩阵生成样片。",
   },
   {
     id: "kinetic_code_typography",
@@ -258,8 +258,8 @@ const EFFECT_PROTOTYPES = [
     remotionTechniques: ["character-level typewriter", "syntax highlight", "terminal log animation", "AST span split", "kinetic typography"],
     futureParameter: "visualTechnique: kinetic_code_typography",
     priority: "P1" as const,
-    implementationLevel: "prototype_reference" as const,
-    nextStep: "适合第二批实现，可和技术教程、API 文档、开发者内容结合。",
+    implementationLevel: "implemented_minimal" as const,
+    nextStep: "已接入 visualTechnique，可前往视觉技法矩阵生成样片。",
   },
 ];
 

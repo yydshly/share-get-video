@@ -261,3 +261,228 @@ def test_visual_technique_matrix_endpoint_empty_families_returns_400(monkeypatch
 
     assert resp.status_code == 400
     assert "families filter resulted in empty set" in resp.json()["detail"]
+
+
+# V1.2.5+: 5 visual techniques — academic_sketch, blueprint, data_viz_dashboard,
+# agent_sandbox_25d, kinetic_code_typography
+EXPECTED_TECHNIQUES = {
+    "academic_sketch",
+    "blueprint",
+    "data_viz_dashboard",
+    "agent_sandbox_25d",
+    "kinetic_code_typography",
+}
+
+
+def test_valid_visual_techniques_includes_all_5():
+    """VALID_VISUAL_TECHNIQUES must include all 5 supported techniques."""
+    assert set(style_family_service.VALID_VISUAL_TECHNIQUES) == EXPECTED_TECHNIQUES
+
+
+def test_visual_technique_matrix_supports_data_viz_dashboard(monkeypatch):
+    """Endpoint must accept data_viz_dashboard as a valid visualTechnique."""
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": "exp_dvd",
+            "clipSeconds": 2,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+    client = TestClient(app)
+
+    resp = client.post(
+        "/video-lab/style-family/visual-technique-matrix",
+        json={
+            "content": "test",
+            "params": {"clipSeconds": 2, "keyPointCount": 2},
+            "matrix": {
+                "families": ["data_news"],
+                "visualTechniques": ["data_viz_dashboard"],
+            },
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["visualTechnique"] == "data_viz_dashboard"
+
+
+def test_visual_technique_matrix_supports_agent_sandbox_25d(monkeypatch):
+    """Endpoint must accept agent_sandbox_25d as a valid visualTechnique."""
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": "exp_asb",
+            "clipSeconds": 2,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+    client = TestClient(app)
+
+    resp = client.post(
+        "/video-lab/style-family/visual-technique-matrix",
+        json={
+            "content": "test",
+            "params": {"clipSeconds": 2, "keyPointCount": 2},
+            "matrix": {
+                "families": ["data_news"],
+                "visualTechniques": ["agent_sandbox_25d"],
+            },
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["visualTechnique"] == "agent_sandbox_25d"
+
+
+def test_visual_technique_matrix_supports_kinetic_code_typography(monkeypatch):
+    """Endpoint must accept kinetic_code_typography as a valid visualTechnique."""
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": "exp_kct",
+            "clipSeconds": 2,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+    client = TestClient(app)
+
+    resp = client.post(
+        "/video-lab/style-family/visual-technique-matrix",
+        json={
+            "content": "test",
+            "params": {"clipSeconds": 2, "keyPointCount": 2},
+            "matrix": {
+                "families": ["data_news"],
+                "visualTechniques": ["kinetic_code_typography"],
+            },
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["visualTechnique"] == "kinetic_code_typography"
+
+
+def test_visual_technique_matrix_1x5_returns_5_items(monkeypatch):
+    """1 family × 5 techniques = 5 items (default matrix)."""
+    captured_techniques = []
+
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        captured_techniques.append(params["visualTechnique"])
+        return {
+            "success": True,
+            "clipUrl": f"/runtime/{params['visualTechnique']}.mp4",
+            "experimentId": f"exp_{len(captured_techniques)}",
+            "clipSeconds": 2,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+
+    request = SimpleNamespace(
+        content="Test content",
+        params={"clipSeconds": 2, "keyPointCount": 2},
+        matrix={
+            "families": ["data_news"],
+            "visualTechniques": [
+                "academic_sketch",
+                "blueprint",
+                "data_viz_dashboard",
+                "agent_sandbox_25d",
+                "kinetic_code_typography",
+            ],
+        },
+    )
+
+    result = style_family_service.run_visual_technique_matrix(request)
+    assert len(result["items"]) == 5
+    # All 5 techniques present
+    returned = {item["visualTechnique"] for item in result["items"]}
+    assert returned == EXPECTED_TECHNIQUES
+    # Captured calls include all 5
+    assert set(captured_techniques) == EXPECTED_TECHNIQUES
+
+
+def test_visual_technique_matrix_3x5_over_limit_returns_400(monkeypatch):
+    """3 families × 5 techniques = 15 should exceed MAX_MATRIX_ITEMS=9 and return 400."""
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": "exp_1",
+            "clipSeconds": 2,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+    client = TestClient(app)
+
+    resp = client.post(
+        "/video-lab/style-family/visual-technique-matrix",
+        json={
+            "content": "test",
+            "params": {"clipSeconds": 2, "keyPointCount": 2},
+            "matrix": {
+                "families": ["caption_story", "data_news", "timeline_news"],
+                "visualTechniques": [
+                    "academic_sketch",
+                    "blueprint",
+                    "data_viz_dashboard",
+                    "agent_sandbox_25d",
+                    "kinetic_code_typography",
+                ],
+            },
+        },
+    )
+    assert resp.status_code == 400
+    assert "visual technique matrix is limited to 9 clips" in resp.json()["detail"]
+
+
+def test_visual_technique_matrix_invalid_technique_still_returns_400(monkeypatch):
+    """Unknown techniques should still be filtered out, leading to 400."""
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": "exp_1",
+            "clipSeconds": 2,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+    client = TestClient(app)
+
+    resp = client.post(
+        "/video-lab/style-family/visual-technique-matrix",
+        json={
+            "content": "test",
+            "params": {"clipSeconds": 2, "keyPointCount": 2},
+            "matrix": {
+                "families": ["data_news"],
+                "visualTechniques": ["unknown_visual_technique"],
+            },
+        },
+    )
+    assert resp.status_code == 400
+    assert "visualTechniques filter resulted in empty set" in resp.json()["detail"]

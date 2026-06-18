@@ -2195,10 +2195,10 @@ function VisualTechniqueVariantMatrix({
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.85rem", flexWrap: "wrap" }}>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
-          视觉技法矩阵 · V1.2.4
+          视觉技法矩阵 · V1.2.5
         </h2>
         <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
-          3 family × 1 technique = 3 clips
+          1 family × 5 visual techniques = 5 clips
         </span>
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {result && (
@@ -2226,8 +2226,8 @@ function VisualTechniqueVariantMatrix({
       </div>
 
       <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.85rem" }}>
-        同一内容（Caption Story / Data News / Timeline）× academic_sketch 视觉技法，
-        观察手绘网格纸、纸张质感、学术批注的视觉特征。Lab-only。
+        当前矩阵用于横向比较 5 种 visualTechnique。这些 technique 来自 Effect Prototype Gallery。
+        这里生成的是 lab-only 样片，不写 Style Sweep，不写 Style Gallery。
       </p>
 
       {/* Grid */}
@@ -2502,8 +2502,14 @@ export default function RemotionStyleFamilyPage() {
             transitionStyle: "slide_fade",
           },
           matrix: {
-            families: ["data_news", "timeline_news", "caption_story"],
-            visualTechniques: ["academic_sketch", "blueprint"],
+            families: ["data_news"],
+            visualTechniques: [
+              "academic_sketch",
+              "blueprint",
+              "data_viz_dashboard",
+              "agent_sandbox_25d",
+              "kinetic_code_typography",
+            ],
           },
         }),
       });

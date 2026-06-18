@@ -393,6 +393,42 @@ function getTechniqueSurface(visualTechnique?: string): TechniqueSurface {
       titleShadow: "none",
     };
   }
+  // V1.2.5+: data_viz_dashboard — dark glass cards with cyan/blue accents
+  if (visualTechnique === "data_viz_dashboard") {
+    return {
+      cardBg: "rgba(8,18,38,0.62)",
+      cardBorder: "rgba(80,180,230,0.45)",
+      cardShadow: "0 8px 32px rgba(0,212,255,0.18), 0 4px 14px rgba(0,0,0,0.4)",
+      titleColor: "#e6f7ff",
+      bodyColor: "#9fc5e0",
+      mutedColor: "#6b8eb0",
+      titleShadow: "0 0 22px rgba(80,180,230,0.30)",
+    };
+  }
+  // V1.2.5+: agent_sandbox_25d — violet/cyan glass for multi-agent simulation
+  if (visualTechnique === "agent_sandbox_25d") {
+    return {
+      cardBg: "rgba(18,12,38,0.60)",
+      cardBorder: "rgba(160,120,240,0.50)",
+      cardShadow: "0 8px 30px rgba(140,80,220,0.22), 0 4px 14px rgba(0,0,0,0.45)",
+      titleColor: "#f0e7ff",
+      bodyColor: "#b9a3e0",
+      mutedColor: "#8a78b0",
+      titleShadow: "0 0 22px rgba(160,120,240,0.32)",
+    };
+  }
+  // V1.2.5+: kinetic_code_typography — editor dark panel with green/cyan highlights
+  if (visualTechnique === "kinetic_code_typography") {
+    return {
+      cardBg: "rgba(15,22,28,0.78)",
+      cardBorder: "rgba(120,220,180,0.45)",
+      cardShadow: "0 8px 30px rgba(0,0,0,0.55), 0 0 18px rgba(80,200,160,0.15)",
+      titleColor: "#e8fff5",
+      bodyColor: "#b8d4c5",
+      mutedColor: "#6f8a7a",
+      titleShadow: "0 0 18px rgba(80,220,160,0.25)",
+    };
+  }
   return {
     cardBg: C.card,
     cardBorder: C.border,
@@ -500,6 +536,339 @@ const BackgroundLayer: React.FC<{
           filter: "blur(60px)", opacity: 0.6 + 0.4 * Math.sin(frame / 40),
         }} />
         <FloatingParticles count={10} color="rgba(170,215,245,0.8)" maxSize={3} />
+      </div>
+    );
+  }
+
+  // V1.2.5+: data_viz_dashboard — 深色数据看板 + 网格 + 动态柱/折线/圆环装饰 + 漂浮指标
+  if (visualTechnique === "data_viz_dashboard") {
+    const accentCyan = "rgba(80,200,235,0.85)";
+    const accentPurple = "rgba(150,110,235,0.78)";
+    const gridCol = "rgba(80,180,230,0.10)";
+    const gridColMajor = "rgba(80,180,230,0.22)";
+    // Frame-driven bar heights (deterministic per index)
+    const bars = Array.from({ length: 8 }).map((_, i) => {
+      const h = 18 + ((i * 13 + frame * 0.6) % 60);
+      return h;
+    });
+    // Line path oscillates with frame
+    const linePts = Array.from({ length: 12 }).map((_, i) => {
+      const x = (i / 11) * 100;
+      const y = 50 + Math.sin((frame / 24) + i * 0.7) * 22 + ((i * 7) % 9);
+      return `${x},${y}`;
+    }).join(" ");
+    // Floating metric chips
+    const chips = [
+      { top: "8%", left: "62%", label: "98.7%", color: accentCyan },
+      { top: "22%", left: "12%", label: "+24.3K", color: accentPurple },
+      { top: "70%", left: "70%", label: "QPS 12.4k", color: accentCyan },
+    ];
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: "#070d1a", overflow: "hidden" }}>
+        {/* Base radial glow */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse at 30% 20%, rgba(60,150,220,0.22) 0%, transparent 60%), radial-gradient(ellipse at 75% 80%, rgba(140,90,220,0.20) 0%, transparent 65%)",
+        }} />
+        {/* Faint grid */}
+        <div style={{
+          position: "absolute", inset: "-3%",
+          backgroundImage: `
+            linear-gradient(90deg, ${gridCol} 1px, transparent 1px),
+            linear-gradient(0deg, ${gridCol} 1px, transparent 1px),
+            linear-gradient(90deg, ${gridColMajor} 1px, transparent 1px),
+            linear-gradient(0deg, ${gridColMajor} 1px, transparent 1px)
+          `,
+          backgroundSize: "24px 24px, 24px 24px, 120px 120px, 120px 120px",
+          opacity: 0.85,
+        }} />
+        {/* Bar chart (top-left) */}
+        <div style={{
+          position: "absolute", top: "10%", left: "6%", width: "32%", height: "26%",
+          border: "1px solid rgba(80,180,230,0.35)", borderRadius: 8,
+          background: "rgba(8,18,38,0.45)", padding: "0.4rem 0.5rem",
+        }}>
+          <div style={{ fontSize: "0.6rem", color: accentCyan, fontFamily: "monospace", marginBottom: 4 }}>USERS · 24H</div>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", height: "calc(100% - 16px)", gap: 4 }}>
+            {bars.map((h, i) => (
+              <div key={i} style={{
+                flex: 1, height: `${h}%`,
+                background: `linear-gradient(180deg, ${accentCyan} 0%, ${accentPurple} 100%)`,
+                borderRadius: "2px 2px 0 0",
+                opacity: 0.85,
+                boxShadow: `0 0 ${4 + (i % 3) * 2}px ${accentCyan}`,
+              }} />
+            ))}
+          </div>
+        </div>
+        {/* Line chart (bottom-left) */}
+        <div style={{
+          position: "absolute", bottom: "10%", left: "6%", width: "44%", height: "28%",
+          border: "1px solid rgba(80,180,230,0.30)", borderRadius: 8,
+          background: "rgba(8,18,38,0.40)", padding: "0.4rem 0.6rem",
+        }}>
+          <div style={{ fontSize: "0.6rem", color: accentPurple, fontFamily: "monospace", marginBottom: 4 }}>METRIC TREND</div>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: "calc(100% - 16px)" }}>
+            <polyline points={linePts} fill="none" stroke={accentCyan} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ filter: `drop-shadow(0 0 3px ${accentCyan})` }} />
+            {linePts.split(" ").map((p, i) => {
+              const [x, y] = p.split(",");
+              return <circle key={i} cx={x} cy={y} r="1.4" fill={accentPurple} />;
+            })}
+          </svg>
+        </div>
+        {/* Donut chart (right) */}
+        <div style={{
+          position: "absolute", top: "12%", right: "8%", width: "26%", height: "32%",
+          border: "1px solid rgba(80,180,230,0.30)", borderRadius: 8,
+          background: "rgba(8,18,38,0.40)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <svg viewBox="0 0 60 60" style={{ width: "70%", height: "70%" }}>
+            <circle cx="30" cy="30" r="22" fill="none" stroke="rgba(80,180,230,0.18)" strokeWidth="6" />
+            <circle cx="30" cy="30" r="22" fill="none" stroke={accentCyan} strokeWidth="6"
+              strokeDasharray={`${30 + Math.sin(frame / 20) * 18} 138`}
+              strokeLinecap="round" transform="rotate(-90 30 30)"
+              style={{ filter: `drop-shadow(0 0 4px ${accentCyan})` }} />
+            <circle cx="30" cy="30" r="14" fill="none" stroke={accentPurple} strokeWidth="4"
+              strokeDasharray={`${20 + Math.cos(frame / 25) * 12} 88`}
+              strokeLinecap="round" transform="rotate(90 30 30)" />
+            <text x="30" y="33" textAnchor="middle" fontSize="9" fill={accentCyan} fontFamily="monospace" fontWeight={700}>
+              {Math.round(60 + Math.sin(frame / 30) * 8)}%
+            </text>
+          </svg>
+        </div>
+        {/* Floating metric chips */}
+        {chips.map((c, i) => (
+          <div key={i} style={{
+            position: "absolute", top: c.top, left: c.left,
+            background: "rgba(8,18,38,0.65)", border: `1px solid ${c.color}`,
+            borderRadius: 6, padding: "0.25rem 0.5rem",
+            fontSize: "0.65rem", color: c.color, fontFamily: "monospace",
+            boxShadow: `0 0 12px ${c.color}40`,
+            transform: `translateY(${Math.sin((frame + i * 20) / 25) * 3}px)`,
+          }}>{c.label}</div>
+        ))}
+        <FloatingParticles count={12} color={accentCyan} maxSize={2.5} />
+      </div>
+    );
+  }
+
+  // V1.2.5+: agent_sandbox_25d — 2.5D 智能体沙盒（isometric grid + agent nodes + 数据包）
+  if (visualTechnique === "agent_sandbox_25d") {
+    const accentViolet = "rgba(160,120,240,0.95)";
+    const accentCyan2 = "rgba(120,220,235,0.95)";
+    const gridCol2 = "rgba(170,140,240,0.18)";
+    // Isometric grid: rotated lines
+    const isoLines: React.CSSProperties = {
+      position: "absolute", inset: "-10%",
+      backgroundImage: `
+        linear-gradient(60deg, ${gridCol2} 1px, transparent 1px),
+        linear-gradient(120deg, ${gridCol2} 1px, transparent 1px)
+      `,
+      backgroundSize: "48px 48px",
+      opacity: 0.75,
+    };
+    // Agent node positions (isometric layout)
+    const nodes = [
+      { x: 28, y: 38, label: "planner", color: accentViolet, size: 64 },
+      { x: 56, y: 32, label: "model",   color: accentCyan2,  size: 56 },
+      { x: 72, y: 56, label: "tool",    color: accentViolet, size: 52 },
+      { x: 40, y: 64, label: "memory",  color: accentCyan2,  size: 50 },
+      { x: 18, y: 60, label: "user",    color: accentViolet, size: 46 },
+    ];
+    // Animated packets along edges
+    const packets = [
+      { from: 0, to: 1, phase: 0.0,  color: accentCyan2 },
+      { from: 1, to: 2, phase: 0.3,  color: accentViolet },
+      { from: 0, to: 3, phase: 0.5,  color: accentCyan2 },
+      { from: 3, to: 4, phase: 0.7,  color: accentViolet },
+      { from: 4, to: 0, phase: 0.85, color: accentCyan2 },
+    ];
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: "#0c0820", overflow: "hidden" }}>
+        {/* Base radial violet glow */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse at 50% 50%, rgba(120,80,200,0.30) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(80,200,220,0.18) 0%, transparent 60%)",
+        }} />
+        {/* Isometric grid floor */}
+        <div style={{ ...isoLines, transform: "perspective(800px) rotateX(48deg)", transformOrigin: "center center" }} />
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(180deg, transparent 0%, rgba(12,8,32,0.4) 60%, rgba(12,8,32,0.85) 100%)",
+        }} />
+        {/* Edges (lines) */}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+          {nodes.map((a, i) =>
+            nodes.slice(i + 1).map((b, j) => {
+              const dx = b.x - a.x;
+              const dy = b.y - a.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist > 38) return null;
+              return (
+                <line key={`${i}-${j}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                  stroke="rgba(170,140,240,0.30)" strokeWidth="0.25" strokeDasharray="0.8 0.8" />
+              );
+            })
+          )}
+        </svg>
+        {/* Animated packets */}
+        {packets.map((p, i) => {
+          const a = nodes[p.from];
+          const b = nodes[p.to];
+          const t = (frame / 60 + p.phase) % 1;
+          const x = a.x + (b.x - a.x) * t;
+          const y = a.y + (b.y - a.y) * t;
+          return (
+            <div key={`pk-${i}`} style={{
+              position: "absolute",
+              left: `${x}%`, top: `${y}%`,
+              width: 6, height: 6, borderRadius: "50%",
+              background: p.color,
+              boxShadow: `0 0 10px ${p.color}, 0 0 18px ${p.color}`,
+              transform: "translate(-50%, -50%)",
+            }} />
+          );
+        })}
+        {/* Agent nodes */}
+        {nodes.map((n, i) => (
+          <div key={i} style={{
+            position: "absolute", left: `${n.x}%`, top: `${n.y}%`,
+            transform: `translate(-50%, -50%) perspective(600px) rotateX(8deg) translateY(${Math.sin((frame + i * 20) / 30) * 1.5}px)`,
+            width: n.size, height: n.size,
+            background: "radial-gradient(circle, rgba(30,20,60,0.85) 30%, rgba(12,8,32,0.6) 100%)",
+            border: `1.5px solid ${n.color}`,
+            borderRadius: "50%",
+            boxShadow: `0 0 ${10 + i * 2}px ${n.color}80, inset 0 0 12px ${n.color}40`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexDirection: "column", color: n.color, fontFamily: "monospace",
+            fontSize: "0.55rem", fontWeight: 600,
+          }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.color, marginBottom: 2,
+              boxShadow: `0 0 6px ${n.color}` }} />
+            {n.label}
+          </div>
+        ))}
+        {/* Small label tag (top-left) */}
+        <div style={{
+          position: "absolute", top: "6%", left: "6%",
+          background: "rgba(18,12,38,0.7)", border: "1px solid rgba(160,120,240,0.5)",
+          borderRadius: 4, padding: "0.2rem 0.5rem",
+          fontSize: "0.6rem", color: accentViolet, fontFamily: "monospace",
+          letterSpacing: "0.05em",
+        }}>AGENT_SANDBOX_25D · v0.1</div>
+        <FloatingParticles count={8} color="rgba(160,120,240,0.7)" maxSize={2.5} />
+      </div>
+    );
+  }
+
+  // V1.2.5+: kinetic_code_typography — IDE 背景 + 伪代码行 + syntax highlight + 终端日志 + cursor 闪烁
+  if (visualTechnique === "kinetic_code_typography") {
+    const editorBg = "#0d1117";
+    const editorPanel = "rgba(13,17,23,0.78)";
+    const border = "rgba(120,220,180,0.30)";
+    const synKeyword = "#ff7b72";
+    const synString = "#a5d6ff";
+    const synFn = "#d2a8ff";
+    const synComment = "#7d8590";
+    const synNum = "#79c0ff";
+    // Pseudo code lines
+    const codeLines = [
+      [{ k: "kw", t: "function" }, { k: "fn", t: " agent" }, { k: "t", t: "(" }, { k: "t", t: "input" }, { k: "t", t: ") {" }],
+      [{ k: "kw", t: "  const" }, { k: "t", t: " plan = " }, { k: "fn", t: "plan" }, { k: "t", t: "(" }, { k: "s", t: "\"summarize\"" }, { k: "t", t: ");" }],
+      [{ k: "kw", t: "  for" }, { k: "t", t: " (item " }, { k: "kw", t: "of" }, { k: "t", t: " input) {" }],
+      [{ k: "kw", t: "    yield" }, { k: "fn", t: " tool" }, { k: "t", t: "." }, { k: "fn", t: "call" }, { k: "t", t: "(" }, { k: "s", t: "\"\"" }, { k: "t", t: ", item);" }],
+      [{ k: "t", t: "  }" }],
+      [{ k: "t", t: "}" }],
+    ];
+    // Terminal log lines
+    const logs = [
+      { c: "ok", t: "✓ tool.search ok  87ms" },
+      { c: "ok", t: "✓ model.generate ok 412ms" },
+      { c: "warn", t: "· retry attempt 1/3" },
+      { c: "ok", t: "✓ cache.hit ratio 0.42" },
+    ];
+    const cursorVisible = Math.floor(frame / 12) % 2 === 0;
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: editorBg, overflow: "hidden" }}>
+        {/* Subtle gradient */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse at 20% 10%, rgba(80,200,160,0.10) 0%, transparent 50%), radial-gradient(ellipse at 80% 90%, rgba(120,220,235,0.08) 0%, transparent 55%)",
+        }} />
+        {/* Editor panel (right) */}
+        <div style={{
+          position: "absolute", top: "8%", right: "6%", width: "50%", height: "70%",
+          background: editorPanel, border: `1px solid ${border}`, borderRadius: 8,
+          padding: "0.6rem 0.8rem", boxShadow: "0 0 24px rgba(80,200,160,0.12)",
+          fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
+        }}>
+          {/* Editor tab bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8, paddingBottom: 6, borderBottom: `1px solid ${border}` }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ff5f56" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ffbd2e" }} />
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#27c93f" }} />
+            <span style={{ marginLeft: 10, fontSize: "0.6rem", color: "rgba(180,200,190,0.7)" }}>agent.ts</span>
+          </div>
+          {/* Code lines */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {codeLines.map((line, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", fontSize: "0.62rem", lineHeight: 1.4 }}>
+                <span style={{ width: 18, textAlign: "right", marginRight: 8, color: synComment, opacity: 0.6 }}>{i + 1}</span>
+                {line.map((tok, j) => {
+                  const col = tok.k === "kw" ? synKeyword : tok.k === "s" ? synString : tok.k === "fn" ? synFn : tok.k === "n" ? synNum : "#c9d1d9";
+                  return <span key={j} style={{ color: col }}>{tok.t}</span>;
+                })}
+                {i === 3 && cursorVisible && (
+                  <span style={{
+                    display: "inline-block", width: 6, height: 11, marginLeft: 1,
+                    background: synFn, boxShadow: `0 0 6px ${synFn}`,
+                  }} />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Terminal panel (left) */}
+        <div style={{
+          position: "absolute", bottom: "8%", left: "6%", width: "40%", height: "32%",
+          background: editorPanel, border: `1px solid ${border}`, borderRadius: 8,
+          padding: "0.5rem 0.7rem", boxShadow: "0 0 24px rgba(80,200,160,0.10)",
+          fontFamily: "ui-monospace, 'SF Mono', Consolas, monospace",
+          display: "flex", flexDirection: "column",
+        }}>
+          <div style={{ fontSize: "0.6rem", color: synComment, marginBottom: 4, borderBottom: `1px solid ${border}`, paddingBottom: 4 }}>
+            ▶ terminal
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {logs.map((l, i) => (
+              <div key={i} style={{
+                fontSize: "0.58rem",
+                color: l.c === "ok" ? "#7ee787" : l.c === "warn" ? "#d29922" : "#c9d1d9",
+                opacity: 0.9,
+              }}>{l.t}</div>
+            ))}
+            <div style={{ fontSize: "0.58rem", color: synComment, display: "flex", alignItems: "center" }}>
+              <span style={{ color: "#7ee787", marginRight: 4 }}>$</span>
+              <span>run</span>
+              {cursorVisible && (
+                <span style={{
+                  display: "inline-block", width: 5, height: 10, marginLeft: 2,
+                  background: "#7ee787", boxShadow: "0 0 5px #7ee787",
+                }} />
+              )}
+            </div>
+          </div>
+        </div>
+        {/* Small label */}
+        <div style={{
+          position: "absolute", top: "6%", left: "6%",
+          background: "rgba(13,17,23,0.7)", border: `1px solid ${border}`,
+          borderRadius: 4, padding: "0.2rem 0.5rem",
+          fontSize: "0.6rem", color: "rgba(120,220,180,0.9)", fontFamily: "ui-monospace, monospace",
+          letterSpacing: "0.05em",
+        }}>KINETIC_CODE_TYPOGRAPHY · v0.1</div>
       </div>
     );
   }

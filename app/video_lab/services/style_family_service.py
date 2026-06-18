@@ -419,6 +419,9 @@ VALID_VISUAL_TECHNIQUE_MATRIX_FAMILIES = [
 VALID_VISUAL_TECHNIQUES = [
     "academic_sketch",
     "blueprint",
+    "data_viz_dashboard",
+    "agent_sandbox_25d",
+    "kinetic_code_typography",
 ]
 
 
@@ -427,6 +430,8 @@ def run_visual_technique_matrix(request) -> dict[str, Any]:
     V1.2.4: Visual Technique Matrix — family × visualTechnique clips.
 
     First technique: academic_sketch — paper-like background, grid lines, hand-drawn annotations.
+    V1.2.5: + blueprint (engineering blueprint, cyan grid, registration ticks)
+    V1.2.5+: + data_viz_dashboard, agent_sandbox_25d, kinetic_code_typography
 
     Lab-only: does NOT write Style Sweep job, Style Gallery sample, or promote.
     All clips are temporary lab assets.

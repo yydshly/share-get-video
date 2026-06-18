@@ -171,8 +171,15 @@ def build_remotion_props(
     if visual_style_preset in ("light_editorial", "warm_paper", "bold_magazine"):
         style["visualStylePreset"] = visual_style_preset
     # V1.2.4: Visual technique — academic_sketch (paper) / blueprint (engineering)
+    # V1.2.5+: + data_viz_dashboard, agent_sandbox_25d, kinetic_code_typography
     visual_technique = rstyle.get("visualTechnique") or params.get("visualTechnique")
-    if visual_technique in ("academic_sketch", "blueprint"):
+    if visual_technique in (
+        "academic_sketch",
+        "blueprint",
+        "data_viz_dashboard",
+        "agent_sandbox_25d",
+        "kinetic_code_typography",
+    ):
         style["visualTechnique"] = visual_technique
     if card_stack_peek_frames is not None:
         try:
