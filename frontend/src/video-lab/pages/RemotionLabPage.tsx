@@ -211,114 +211,178 @@ const EFFECT_PROTOTYPES = [
   },
 ];
 
-const FUTURE_EFFECT_DIRECTIONS = [
+const FUTURE_EFFECT_DIRECTIONS: typeof EFFECT_PROTOTYPES = [
+  // All prototype techniques are now implemented. Future directions would go here.
+];
+
+const IMPLEMENTED_PROTOTYPES = [
   {
     id: "whiteboard_explainer",
-    name: "白板解释",
-    priority: "P0" as const,
-    visualKeywords: ["白板", "手绘箭头", "图解", "逐步揭示"],
-    suitableFor: ["概念解释", "教学视频", "商业解释"],
+    name: "白板解释动画",
+    source: "V1.2.3 / prototype",
+    summary: "白板手绘风格，点网格背景 + 手绘圆形/箭头 + 步骤编号逐步揭示。",
+    visualKeywords: ["白板", "手绘箭头", "点网格", "逐步揭示", "步骤动画"],
+    suitableFor: ["概念解释", "教学视频", "商业解释", "AI 原理拆解"],
+    remotionTechniques: ["dot-grid background", "hand-drawn circles", "dashed arrows", "step label chips", "wobble animation"],
     futureParameter: "visualTechnique: whiteboard_explainer",
+    priority: "P0" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "low" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 whiteboard_explainer 样片。",
   },
   {
     id: "benchmark_ranking",
     name: "Benchmark 排行榜",
-    priority: "P0" as const,
-    visualKeywords: ["排名", "分数对比", "柱状图", "竞争态势"],
-    suitableFor: ["AI 模型对比", "产品横评", "性能报告"],
+    source: "V1.2.3 / prototype",
+    summary: "AI 模型横评排行榜，动态分数条 + 排名标签 + 竞争态势可视化。",
+    visualKeywords: ["排名", "分数条", "动态增长", "竞争态势", "模型对比"],
+    suitableFor: ["AI 模型对比", "产品横评", "性能报告", "GitHub Star 对比"],
+    remotionTechniques: ["horizontal bar chart", "rank emoji labels", "frame-driven animation", "pulse glow"],
     futureParameter: "visualTechnique: benchmark_ranking",
+    priority: "P0" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "medium" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 benchmark_ranking 样片。",
   },
   {
     id: "architecture_diagram",
     name: "系统架构拆解",
-    priority: "P0" as const,
-    visualKeywords: ["架构图", "模块", "连线", "层次结构"],
-    suitableFor: ["系统设计", "技术分享", "架构演进"],
+    source: "V1.2.3 / prototype",
+    summary: "模块方块 + 层级结构 + SVG 连线 + 输入/输出标签动画。",
+    visualKeywords: ["架构图", "模块方块", "连线", "层级结构", "数据流"],
+    suitableFor: ["系统设计", "技术分享", "架构演进", "Agent 系统解析"],
+    remotionTechniques: ["module boxes", "SVG arrows", "phase highlight", "DATA/RESULT labels"],
     futureParameter: "visualTechnique: architecture_diagram",
+    priority: "P0" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "high" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 architecture_diagram 样片。",
   },
   {
     id: "product_demo_flow",
     name: "产品演示流程",
-    priority: "P1" as const,
-    visualKeywords: ["产品界面", "操作流程", "引导高亮", "点击效果"],
-    suitableFor: ["产品介绍", "功能演示", "使用教程"],
+    source: "V1.2.3 / prototype",
+    summary: "模拟 UI 面板 + 按钮/输入框卡片 + 点击高亮 + 流程箭头。",
+    visualKeywords: ["产品界面", "操作流程", "引导高亮", "点击效果", "功能引导"],
+    suitableFor: ["产品介绍", "功能演示", "使用教程", "新手指南"],
+    remotionTechniques: ["mock UI panels", "button cards", "flow arrows", "phase highlight"],
     futureParameter: "visualTechnique: product_demo_flow",
+    priority: "P1" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "medium" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 product_demo_flow 样片。",
   },
   {
     id: "launch_countdown",
     name: "发布倒计时",
-    priority: "P1" as const,
-    visualKeywords: ["倒计时", "数字跳动", "发射", "紧张感"],
-    suitableFor: ["产品发布", "活动预告", "事件揭幕"],
+    source: "V1.2.3 / prototype",
+    summary: "大数字倒计时 + 进度环 + 发射感强节奏 + 末期红色警告闪烁。",
+    visualKeywords: ["倒计时", "进度环", "发射", "紧张感", "大数字"],
+    suitableFor: ["产品发布", "活动预告", "事件揭幕", "发布视频"],
+    remotionTechniques: ["giant number", "progress ring", "pulse flash", "color shift at low numbers"],
     futureParameter: "visualTechnique: launch_countdown",
+    priority: "P1" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "low" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 launch_countdown 样片。",
   },
   {
     id: "map_timeline",
     name: "地图时间线",
-    priority: "P1" as const,
-    visualKeywords: ["地图", "路径", "时间线", "地点标记"],
-    suitableFor: ["旅行回顾", "事件演进", "地理叙事"],
+    source: "V1.2.3 / prototype",
+    summary: "风格化地图 + 路径连接 + 地点标记 + 路线推进动画。",
+    visualKeywords: ["地图", "路径", "地点标记", "路线推进", "地理叙事"],
+    suitableFor: ["旅行回顾", "事件演进", "地理叙事", "项目里程碑"],
+    remotionTechniques: ["stylized map", "SVG route path", "marker dots", "glow trail"],
     futureParameter: "visualTechnique: map_timeline",
+    priority: "P1" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "medium" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 map_timeline 样片。",
   },
   {
     id: "audio_visualizer",
     name: "音频波形可视化",
-    priority: "P1" as const,
-    visualKeywords: ["波形", "频谱", "音频反应", "音乐可视化"],
-    suitableFor: ["音乐视频", "播客摘要", "声音叙事"],
+    source: "V1.2.3 / prototype",
+    summary: "32 频谱柱 + frame-driven 动态波形 + 中心标题 + 节奏脉冲。",
+    visualKeywords: ["波形", "频谱柱", "音频响应", "节奏脉冲", "音乐可视化"],
+    suitableFor: ["音乐视频", "播客摘要", "声音叙事", "AI 资讯摘要"],
+    remotionTechniques: ["spectrum bars", "frame-driven height", "radial gradient bg", "center title"],
     futureParameter: "visualTechnique: audio_visualizer",
+    priority: "P1" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "medium" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 audio_visualizer 样片。",
   },
   {
     id: "tiktok_caption_story",
     name: "逐词字幕短视频",
-    priority: "P1" as const,
-    visualKeywords: ["逐词高亮", "字幕同步", "口播节奏", "快节奏"],
-    suitableFor: ["社交媒体", "观点短评", "资讯摘要"],
+    source: "V1.2.3 / prototype",
+    summary: "大字幕 + 逐词高亮 + 口播节奏 + 关键词放大 + 社交短视频排版。",
+    visualKeywords: ["逐词高亮", "字幕同步", "口播节奏", "快节奏", "社交短视频"],
+    suitableFor: ["社交媒体", "观点短评", "资讯摘要", "AI 资讯快剪"],
+    remotionTechniques: ["word-by-word highlight", "scale animation", "bottom info bar", "black bg"],
     futureParameter: "visualTechnique: tiktok_caption_story",
+    priority: "P1" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "low" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 tiktok_caption_story 样片。",
   },
   {
     id: "magazine_headline",
     name: "杂志标题冲击",
-    priority: "P1" as const,
-    visualKeywords: ["大标题", "杂志排版", "高对比", "视觉冲击"],
-    suitableFor: ["新闻爆点", "观点表达", "品牌宣传"],
+    source: "V1.2.3 / prototype",
+    summary: "超大标题 + 粗体排版 + 强色块 + 高对比 + 新闻爆点感。",
+    visualKeywords: ["大标题", "杂志排版", "高对比", "色块", "爆点"],
+    suitableFor: ["新闻爆点", "观点表达", "品牌宣传", "突发资讯"],
+    remotionTechniques: ["giant word stack", "color block accent", "red/orange highlight", "thick divider line"],
     futureParameter: "visualTechnique: magazine_headline",
+    priority: "P1" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "low" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 magazine_headline 样片。",
   },
   {
     id: "capability_radar",
     name: "能力雷达图",
-    priority: "P1" as const,
-    visualKeywords: ["雷达图", "多维能力", "面积填充", "对比"],
-    suitableFor: ["AI 模型能力", "产品功能对比", "人才评估"],
+    source: "V1.2.3 / prototype",
+    summary: "SVG 雷达图 + 多维指标 + 面积填充 + 维度标签动画。",
+    visualKeywords: ["雷达图", "多维能力", "面积填充", "能力对比", "蜘蛛图"],
+    suitableFor: ["AI 模型能力", "产品功能对比", "人才评估", "多维对比"],
+    remotionTechniques: ["SVG radar polygon", "grid rings", "axis labels", "fill animation"],
     futureParameter: "visualTechnique: capability_radar",
+    priority: "P1" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "medium" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 capability_radar 样片。",
   },
   {
     id: "timeline_recap",
     name: "事件时间线复盘",
-    priority: "P1" as const,
-    visualKeywords: ["时间线", "里程碑", "复盘", "因果关系"],
-    suitableFor: ["年度总结", "项目回顾", "事件梳理"],
+    source: "V1.2.3 / prototype",
+    summary: "横向时间线 + 里程碑 + 当前节点高亮 + 复盘感。",
+    visualKeywords: ["时间线", "里程碑", "复盘", "因果关系", "年度总结"],
+    suitableFor: ["年度总结", "项目回顾", "事件梳理", "AI 发展时间线"],
+    remotionTechniques: ["horizontal axis", "milestone dots", "current-node highlight", "Q1/Q2/Q3/Q4 labels"],
     futureParameter: "visualTechnique: timeline_recap",
+    priority: "P1" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "medium" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 timeline_recap 样片。",
   },
   {
     id: "lottie_icon_story",
     name: "图标动画叙事",
-    priority: "P2" as const,
-    visualKeywords: ["Lottie", "图标动画", "叙事逻辑", "精炼表达"],
-    suitableFor: ["品牌视频", "产品介绍", "概念解释"],
+    source: "V1.2.3 / prototype",
+    summary: "CSS 图标动画 + 三段叙事 + 图标 + 文案组合（无外部 Lottie 依赖）。",
+    visualKeywords: ["图标动画", "叙事逻辑", "精炼表达", "CSS 动画", "图标+文案"],
+    suitableFor: ["品牌视频", "产品介绍", "概念解释", "功能展示"],
+    remotionTechniques: ["CSS icon bounce", "3-phase narrative", "scale keyframes", "glow border"],
     futureParameter: "visualTechnique: lottie_icon_story",
+    priority: "P2" as const,
+    implementationLevel: "implemented_minimal" as const,
     complexity: "high" as const,
+    nextStep: "已接入视觉技法矩阵，可直接生成 lottie_icon_story 样片。",
   },
 ];
 
@@ -381,18 +445,18 @@ function TabEffectPrototype() {
         </div>
       </div>
 
-      {/* Area 1: five implemented visual technique prototypes */}
+      {/* Area 1: all implemented visual technique prototypes */}
       <div>
         <div style={{ marginBottom: "0.75rem" }}>
           <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
-            已接入的效果样机（5 种）
+            已接入的效果样机（{[...EFFECT_PROTOTYPES, ...IMPLEMENTED_PROTOTYPES].length} 种）
           </h2>
           <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.3rem 0 0" }}>
-            以下 5 种效果均已接入 visualTechnique 最小真实渲染。卡片用于说明设计意图，实际视频效果请前往视觉技法矩阵生成并验收。
+            以下 {[...EFFECT_PROTOTYPES, ...IMPLEMENTED_PROTOTYPES].length} 种效果均已接入 visualTechnique 最小真实渲染。卡片用于说明设计意图，实际视频效果请前往视觉技法矩阵生成并验收。
           </p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
-          {EFFECT_PROTOTYPES.map((proto) => {
+          {[...EFFECT_PROTOTYPES, ...IMPLEMENTED_PROTOTYPES].map((proto) => {
             const implLevel: string = proto.implementationLevel;
             const lv = levelBg[implLevel] ?? levelBg.prototype_reference;
             return (
@@ -479,7 +543,7 @@ function TabEffectPrototype() {
                           textAlign: "center",
                         }}
                       >
-                        前往生成 5 种技法对比样片
+                        前往生成 {[...EFFECT_PROTOTYPES, ...IMPLEMENTED_PROTOTYPES].length} 种技法对比样片
                       </Link>
                     </div>
                   ) : (
@@ -494,52 +558,6 @@ function TabEffectPrototype() {
         </div>
       </div>
 
-      {/* Area 2: Future directions map */}
-      <div>
-        <div style={{ marginBottom: "0.75rem" }}>
-          <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
-            更多 Remotion 效果方向地图
-          </h2>
-          <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.3rem 0 0" }}>
-            这些方向用于后续扩展 visualTechnique，不在本阶段实现。
-          </p>
-        </div>
-        {(["P0", "P1", "P2"] as const).map((p) => {
-          const groupLabel = p === "P0" ? "近期优先" : p === "P1" ? "下一轮" : "高级探索";
-          const items = FUTURE_EFFECT_DIRECTIONS.filter((d) => d.priority === p);
-          if (!items.length) return null;
-          return (
-            <div key={p} style={{ marginBottom: "1.25rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.6rem" }}>
-                <span style={{ background: priorityColor[p], color: "white", borderRadius: 999, padding: "0.15rem 0.55rem", fontSize: "0.72rem", fontWeight: 700 }}>{p}</span>
-                <span style={{ fontSize: "0.88rem", fontWeight: 600, color: "#334155" }}>{groupLabel}</span>
-                <span style={{ fontSize: "0.72rem", color: "#94a3b8" }}>（{items.length} 个方向）</span>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.65rem" }}>
-                {items.map((dir) => (
-                  <div
-                    key={dir.id}
-                    style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: "0.75rem", background: "white" }}
-                  >
-                    <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#1e293b", marginBottom: "0.3rem" }}>{dir.name}</div>
-                    <div style={{ fontSize: "0.7rem", fontFamily: "monospace", color: "#7c3aed", marginBottom: "0.35rem" }}>{dir.futureParameter}</div>
-                    <div style={{ display: "flex", gap: "0.35rem", marginBottom: "0.3rem", flexWrap: "wrap" }}>
-                      <span style={{ background: "#f8fafc", color: "#64748b", border: "1px solid #e2e8f0", borderRadius: 4, padding: "0.05rem 0.35rem", fontSize: "0.65rem" }}>
-                        {dir.complexity}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.2rem" }}>
-                      {dir.visualKeywords.slice(0, 3).map((kw) => (
-                        <span key={kw} style={{ background: "#f5f3ff", color: "#7c3aed", border: "1px solid #ddd6fe", borderRadius: 3, padding: "0.05rem 0.3rem", fontSize: "0.65rem" }}>{kw}</span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }

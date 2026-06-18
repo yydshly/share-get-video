@@ -265,12 +265,25 @@ def test_visual_technique_matrix_endpoint_empty_families_returns_400(monkeypatch
 
 # V1.2.5+: 5 visual techniques — academic_sketch, blueprint, data_viz_dashboard,
 # agent_sandbox_25d, kinetic_code_typography
+# V1.2.3: + 12 prototype techniques
 EXPECTED_TECHNIQUES = {
     "academic_sketch",
     "blueprint",
     "data_viz_dashboard",
     "agent_sandbox_25d",
     "kinetic_code_typography",
+    "whiteboard_explainer",
+    "benchmark_ranking",
+    "architecture_diagram",
+    "product_demo_flow",
+    "launch_countdown",
+    "map_timeline",
+    "audio_visualizer",
+    "tiktok_caption_story",
+    "magazine_headline",
+    "capability_radar",
+    "timeline_recap",
+    "lottie_icon_story",
 }
 
 
@@ -379,7 +392,7 @@ def test_visual_technique_matrix_supports_kinetic_code_typography(monkeypatch):
 
 
 def test_visual_technique_matrix_1x5_returns_5_items(monkeypatch):
-    """1 family × 5 techniques = 5 items (default matrix)."""
+    """1 family × 5 techniques = 5 items (original 5 baseline techniques)."""
     captured_techniques = []
 
     def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
@@ -413,11 +426,18 @@ def test_visual_technique_matrix_1x5_returns_5_items(monkeypatch):
 
     result = style_family_service.run_visual_technique_matrix(request)
     assert len(result["items"]) == 5
-    # All 5 techniques present
+    # All 5 original techniques present
+    original_5 = {
+        "academic_sketch",
+        "blueprint",
+        "data_viz_dashboard",
+        "agent_sandbox_25d",
+        "kinetic_code_typography",
+    }
     returned = {item["visualTechnique"] for item in result["items"]}
-    assert returned == EXPECTED_TECHNIQUES
+    assert returned == original_5
     # Captured calls include all 5
-    assert set(captured_techniques) == EXPECTED_TECHNIQUES
+    assert set(captured_techniques) == original_5
 
 
 def test_visual_technique_matrix_3x5_over_limit_returns_400(monkeypatch):

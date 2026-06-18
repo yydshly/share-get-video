@@ -64,12 +64,25 @@ export type VisualStylePreset = "light_editorial" | "warm_paper" | "bold_magazin
 // V1.2.4: Visual technique —特色表现技法
 // V1.2.5: + blueprint（深蓝晒图纸 + 白色工程线，与 academic_sketch 暖纸冷暖对照）
 // V1.2.5+: + data_viz_dashboard, agent_sandbox_25d, kinetic_code_typography
+// V1.2.3: + 12 new prototype techniques for Remotion Lab effect prototype library
 export type VisualTechnique =
   | "academic_sketch"
   | "blueprint"
   | "data_viz_dashboard"
   | "agent_sandbox_25d"
-  | "kinetic_code_typography";
+  | "kinetic_code_typography"
+  | "whiteboard_explainer"
+  | "benchmark_ranking"
+  | "architecture_diagram"
+  | "product_demo_flow"
+  | "launch_countdown"
+  | "map_timeline"
+  | "audio_visualizer"
+  | "tiktok_caption_story"
+  | "magazine_headline"
+  | "capability_radar"
+  | "timeline_recap"
+  | "lottie_icon_story";
 
 export type RemotionStyle = {
   accentColor?: string;     // 主题强调色（标号/分隔线/数据条/图标）

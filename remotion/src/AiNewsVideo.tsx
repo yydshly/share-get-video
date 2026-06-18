@@ -121,6 +121,19 @@ const VisualTechniqueContentProbeLayer: React.FC<{
     data_viz_dashboard: { bg: "rgba(8,18,38,0.88)", color: "#50c8f0", border: "rgba(80,180,230,0.5)" },
     agent_sandbox_25d: { bg: "rgba(18,12,38,0.88)", color: "#c090f0", border: "rgba(160,120,240,0.5)" },
     kinetic_code_typography: { bg: "rgba(13,17,23,0.88)", color: "#78e0b8", border: "rgba(120,220,180,0.5)" },
+    // V1.2.3: prototype techniques
+    whiteboard_explainer: { bg: "rgba(248,249,250,0.92)", color: "#334155", border: "rgba(100,116,139,0.5)" },
+    benchmark_ranking: { bg: "rgba(13,17,23,0.88)", color: "#58a6ff", border: "rgba(88,166,255,0.5)" },
+    architecture_diagram: { bg: "rgba(13,17,23,0.88)", color: "#a371f7", border: "rgba(163,113,247,0.5)" },
+    product_demo_flow: { bg: "rgba(15,23,42,0.88)", color: "#38bdf8", border: "rgba(56,189,248,0.5)" },
+    launch_countdown: { bg: "rgba(3,7,18,0.92)", color: "#f97316", border: "rgba(249,115,22,0.5)" },
+    map_timeline: { bg: "rgba(26,46,26,0.88)", color: "#4ade80", border: "rgba(74,222,128,0.5)" },
+    audio_visualizer: { bg: "rgba(10,10,15,0.88)", color: "#a78bfa", border: "rgba(167,139,250,0.5)" },
+    tiktok_caption_story: { bg: "rgba(0,0,0,0.92)", color: "#ffffff", border: "rgba(255,255,255,0.3)" },
+    magazine_headline: { bg: "rgba(10,10,10,0.88)", color: "#ef4444", border: "rgba(239,68,68,0.5)" },
+    capability_radar: { bg: "rgba(13,17,23,0.88)", color: "#a78bfa", border: "rgba(167,139,250,0.5)" },
+    timeline_recap: { bg: "rgba(15,23,42,0.88)", color: "#fbbf24", border: "rgba(251,191,36,0.5)" },
+    lottie_icon_story: { bg: "rgba(15,23,42,0.88)", color: "#818cf8", border: "rgba(129,140,248,0.5)" },
   };
   const chipStyle = techniqueChipColors[visualTechnique ?? ""] ?? { bg: "rgba(20,20,30,0.85)", color: "#a0a0b0", border: "rgba(120,120,140,0.4)" };
 
@@ -1350,6 +1363,612 @@ const BackgroundLayer: React.FC<{
           fontSize: "0.68rem", color: "rgba(120,220,180,0.95)", fontFamily: "ui-monospace, monospace",
           fontWeight: 700, letterSpacing: "0.08em",
         }}>KINETIC_CODE_TYPOGRAPHY · v0.3</div>
+      </div>
+    );
+  }
+
+  // V1.2.3: whiteboard_explainer — white board with hand-drawn dots, circles, arrows, step reveals
+  if (visualTechnique === "whiteboard_explainer") {
+    const wbBg = "#f8f9fa";
+    const dotColor = "rgba(100,100,100,0.22)";
+    const strokeColor = "#334155";
+    const accentColor2 = "#3b82f6";
+    const wobble = Math.sin(frame / 25) * 0.6;
+    // Three step circles that appear sequentially
+    const step1Visible = frame >= 8;
+    const step2Visible = frame >= 18;
+    const step3Visible = frame >= 28;
+    const arrowX = (f: number) => 30 + Math.sin(f / 20) * 1.5;
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: wbBg, overflow: "hidden" }}>
+        {/* Dot grid */}
+        <div style={{
+          position: "absolute", inset: "-5%",
+          backgroundImage: `radial-gradient(circle, ${dotColor} 1.5px, transparent 1.5px)`,
+          backgroundSize: "28px 28px",
+        }} />
+        {/* Hand-drawn circle 1 */}
+        {step1Visible && (
+          <div style={{
+            position: "absolute", top: "18%", left: `${20 + wobble * 0.5}%`,
+            width: 180, height: 120,
+            border: `2.5px solid ${strokeColor}`,
+            borderRadius: "50% 45% 55% 48%",
+            opacity: Math.min(1, (frame - 8) / 6),
+          }} />
+        )}
+        {/* Hand-drawn circle 2 */}
+        {step2Visible && (
+          <div style={{
+            position: "absolute", top: "20%", left: "42%",
+            width: 200, height: 130,
+            border: `2.5px solid ${accentColor2}`,
+            borderRadius: "45% 52% 48% 55%",
+            opacity: Math.min(1, (frame - 18) / 6),
+          }} />
+        )}
+        {/* Arrow from circle1 to circle2 */}
+        {step2Visible && (
+          <div style={{
+            position: "absolute", top: "28%", left: `${32 + wobble * 0.3}%`, width: 80,
+            height: 2,
+            background: `${strokeColor}`,
+            transform: `rotate(${-8 + wobble * 2}deg)`,
+            opacity: Math.min(1, (frame - 18) / 6),
+          }}>
+            <div style={{
+              position: "absolute", right: -6, top: -4,
+              width: 0, height: 0,
+              borderLeft: `8px solid ${strokeColor}`,
+              borderTop: "5px solid transparent",
+              borderBottom: "5px solid transparent",
+            }} />
+          </div>
+        )}
+        {/* Step labels */}
+        {step1Visible && (
+          <div style={{
+            position: "absolute", top: "18%", left: `${20 + wobble * 0.5}%`,
+            background: strokeColor, color: "#fff", borderRadius: 6,
+            padding: "3px 10px", fontSize: 11, fontWeight: 700, fontFamily: "cursive",
+            opacity: Math.min(1, (frame - 8) / 6),
+          }}>Step 1</div>
+        )}
+        {step2Visible && (
+          <div style={{
+            position: "absolute", top: "20%", left: "42%",
+            background: accentColor2, color: "#fff", borderRadius: 6,
+            padding: "3px 10px", fontSize: 11, fontWeight: 700, fontFamily: "cursive",
+            opacity: Math.min(1, (frame - 18) / 6),
+          }}>Step 2</div>
+        )}
+        {step3Visible && (
+          <div style={{
+            position: "absolute", top: "38%", left: "64%",
+            background: "#ef4444", color: "#fff", borderRadius: 6,
+            padding: "3px 10px", fontSize: 11, fontWeight: 700, fontFamily: "cursive",
+            opacity: Math.min(1, (frame - 28) / 6),
+          }}>Step 3</div>
+        )}
+        {/* Connecting lines */}
+        {step3Visible && (
+          <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 2 }}
+            viewBox="0 0 100 100" preserveAspectRatio="none">
+            <path d="M 28 35 Q 36 38 44 40" stroke={strokeColor} strokeWidth="0.6" fill="none" strokeDasharray="1.5 1" />
+            <path d="M 50 38 Q 58 36 66 42" stroke={accentColor2} strokeWidth="0.6" fill="none" strokeDasharray="1.5 1" />
+          </svg>
+        )}
+      </div>
+    );
+  }
+
+  // V1.2.3: benchmark_ranking — horizontal bar chart with rank labels and score animation
+  if (visualTechnique === "benchmark_ranking") {
+    const bmBg = "#0d1117";
+    const bars = [
+      { label: "Model A", score: 0.92, color: "#58a6ff" },
+      { label: "Model B", score: 0.85, color: "#3fb950" },
+      { label: "Model C", score: 0.78, color: "#f0883e" },
+      { label: "Model D", score: 0.61, color: "#8b949e" },
+    ];
+    const barAppear = [6, 12, 18, 24];
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: bmBg, overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 30% 60%, rgba(88,166,255,0.06) 0%, transparent 60%)" }} />
+        {/* Title */}
+        <div style={{ position: "absolute", top: "6%", left: "6%", fontSize: 11, color: "#8b949e", fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+          BENCHMARK RANKING
+        </div>
+        {bars.map((bar, i) => {
+          const progress = interpolate(frame, [barAppear[i], barAppear[i] + 18], [0, bar.score], { extrapolateRight: "clamp" });
+          const rankLabel = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+          return (
+            <div key={i} style={{ position: "absolute", top: `${18 + i * 18}%`, left: "6%", right: "6%" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: "#c9d1d9", fontWeight: 700, width: 55 }}>{bar.label}</span>
+                <span style={{ fontSize: 11, color: bar.color }}>{rankLabel}</span>
+                <span style={{ fontSize: 12, color: "#8b949e", marginLeft: "auto" }}>{(progress * 100).toFixed(0)}%</span>
+              </div>
+              <div style={{ height: 10, background: "rgba(255,255,255,0.08)", borderRadius: 5, overflow: "hidden" }}>
+                <div style={{
+                  width: `${progress * 100}%`,
+                  height: "100%",
+                  background: `linear-gradient(90deg, ${bar.color}88, ${bar.color})`,
+                  borderRadius: 5,
+                  boxShadow: `0 0 8px ${bar.color}66`,
+                }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // V1.2.3: architecture_diagram — module boxes with hierarchy, arrows, and input/output labels
+  if (visualTechnique === "architecture_diagram") {
+    const archBg = "#0d1117";
+    const boxColor = "rgba(88,166,255,0.15)";
+    const borderColor = "#58a6ff";
+    const arrowColor = "#3fb950";
+    const boxBorder = "rgba(88,166,255,0.40)";
+    const modules = [
+      { x: 50, y: 18, w: 80, h: 30, label: "Input Layer", color: "#58a6ff" },
+      { x: 50, y: 44, w: 80, h: 30, label: "Processing", color: "#a371f7" },
+      { x: 50, y: 70, w: 80, h: 30, label: "Output Layer", color: "#3fb950" },
+    ];
+    const phase = Math.floor(frame / 30) % 3;
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: archBg, overflow: "hidden" }}>
+        {/* Subtle grid */}
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: `linear-gradient(rgba(88,166,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(88,166,255,0.04) 1px, transparent 1px)`,
+          backgroundSize: "40px 40px",
+        }} />
+        {modules.map((m, i) => {
+          const appear = interpolate(frame, [5 + i * 8, 13 + i * 8], [0, 1], { extrapolateRight: "clamp" });
+          const active = (i === phase);
+          return (
+            <div key={i} style={{
+              position: "absolute",
+              left: `calc(${m.x}% - ${m.w / 2}px)`,
+              top: `${m.y}%`,
+              width: m.w, height: m.h,
+              background: active ? `${m.color}22` : boxColor,
+              border: `1.5px solid ${active ? m.color : boxBorder}`,
+              borderRadius: 8,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 11, fontWeight: 700, color: m.color,
+              fontFamily: "monospace",
+              boxShadow: active ? `0 0 14px ${m.color}44` : "none",
+              opacity: appear,
+            }}>
+              {m.label}
+            </div>
+          );
+        })}
+        {/* Arrows between boxes */}
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+          <defs>
+            <marker id="arrowArch" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L6,3 z" fill="#3fb950" />
+            </marker>
+          </defs>
+          <line x1="50%" y1="32%" x2="50%" y2="40%" stroke="#3fb950" strokeWidth="1.5" markerEnd="url(#arrowArch)" opacity={interpolate(frame, [12, 20], [0, 1], { extrapolateRight: "clamp" })} />
+          <line x1="50%" y1="58%" x2="50%" y2="66%" stroke="#3fb950" strokeWidth="1.5" markerEnd="url(#arrowArch)" opacity={interpolate(frame, [20, 28], [0, 1], { extrapolateRight: "clamp" })} />
+          <text x="55%" y="36%" fill="#8b949e" fontSize="8" fontFamily="monospace">DATA</text>
+          <text x="55%" y="62%" fill="#8b949e" fontSize="8" fontFamily="monospace">RESULT</text>
+        </svg>
+      </div>
+    );
+  }
+
+  // V1.2.3: product_demo_flow — mock UI panels with buttons, cards and flow arrows
+  if (visualTechnique === "product_demo_flow") {
+    const demoBg = "#0f172a";
+    const panelBg = "rgba(30,41,59,0.85)";
+    const accent = "#38bdf8";
+    const btnColor = "#3b82f6";
+    const phase = Math.floor(frame / 20) % 4;
+    const panels = [
+      { x: 10, y: 20, label: "Dashboard", icon: "▣" },
+      { x: 38, y: 20, label: "Settings", icon: "⚙" },
+      { x: 65, y: 20, label: "Analytics", icon: "◉" },
+    ];
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: demoBg, overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 40%, rgba(56,189,248,0.05) 0%, transparent 65%)" }} />
+        {/* Header bar */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 32, background: "rgba(15,23,42,0.95)", borderBottom: "1px solid rgba(56,189,248,0.2)", display: "flex", alignItems: "center", paddingLeft: 16, gap: 12 }}>
+          {["●", "●", "●"].map((c, i) => (
+            <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: ["#ef4444", "#f59e0b", "#22c55e"][i] }} />
+          ))}
+          <div style={{ marginLeft: 8, fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>ProductName v2.0</div>
+        </div>
+        {panels.map((p, i) => {
+          const active = (i === phase);
+          return (
+            <div key={i} style={{
+              position: "absolute", top: `${p.y}%`, left: `${p.x}%`, width: 140, height: 90,
+              background: panelBg,
+              border: `1.5px solid ${active ? accent : "rgba(56,189,248,0.2)"}`,
+              borderRadius: 10,
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+              boxShadow: active ? `0 0 16px rgba(56,189,248,0.3)` : "none",
+            }}>
+              <div style={{ fontSize: 24 }}>{p.icon}</div>
+              <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>{p.label}</div>
+              <div style={{ background: btnColor, borderRadius: 4, padding: "2px 12px", fontSize: 9, color: "#fff", fontWeight: 700 }}>CLICK</div>
+            </div>
+          );
+        })}
+        {/* Flow arrows between panels */}
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+          <defs><marker id="arrowDemo" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L0,5 L5,2.5 z" fill={accent} /></marker></defs>
+          <line x1="36%" y1="30%" x2="46%" y2="30%" stroke={accent} strokeWidth="1.5" strokeDasharray="3 2" markerEnd="url(#arrowDemo)" opacity={phase >= 1 ? 1 : 0.3} />
+          <line x1="62%" y1="30%" x2="72%" y2="30%" stroke={accent} strokeWidth="1.5" strokeDasharray="3 2" markerEnd="url(#arrowDemo)" opacity={phase >= 2 ? 1 : 0.3} />
+        </svg>
+      </div>
+    );
+  }
+
+  // V1.2.3: launch_countdown — giant numbers, progress ring, launch flash
+  if (visualTechnique === "launch_countdown") {
+    const lcBg = "#030712";
+    const countNum = Math.max(0, 10 - Math.floor(frame / 6));
+    const isLast = countNum <= 3;
+    const flashVisible = frame % 36 < 6;
+    const ringProgress = Math.min(1, (frame % 36) / 36);
+    const cx = 50, cy = 48, r = 18;
+    const dashOffset = 2 * Math.PI * r * (1 - ringProgress);
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: lcBg, overflow: "hidden" }}>
+        {/* Flash overlay */}
+        {flashVisible && (
+          <div style={{
+            position: "absolute", inset: 0,
+            background: `rgba(249,115,22,${0.08 * (1 - (frame % 36) / 6)})`,
+            zIndex: 10,
+          }} />
+        )}
+        {/* Progress ring */}
+        <svg style={{ position: "absolute", left: `calc(${cx}% - 80px)`, top: `calc(${cy}% - 80px)`, width: 160, height: 160 }}>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(249,115,22,0.15)" strokeWidth="3" />
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f97316" strokeWidth="3"
+            strokeDasharray={`${2 * Math.PI * r}`}
+            strokeDashoffset={dashOffset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${cx} ${cy})`}
+            style={{ filter: "drop-shadow(0 0 6px #f97316)" }}
+          />
+        </svg>
+        {/* Giant countdown number */}
+        <div style={{
+          position: "absolute", left: "50%", top: "42%", transform: "translate(-50%, -50%)",
+          fontSize: 72, fontWeight: 900, fontFamily: "monospace",
+          color: isLast ? "#ef4444" : "#f8fafc",
+          textShadow: isLast ? "0 0 30px rgba(239,68,68,0.6)" : "0 0 20px rgba(249,115,22,0.4)",
+          letterSpacing: "-0.02em",
+        }}>
+          {countNum}
+        </div>
+        <div style={{
+          position: "absolute", bottom: "18%", left: "50%", transform: "translateX(-50%)",
+          fontSize: 11, color: "#f97316", fontFamily: "monospace", letterSpacing: "0.15em", textTransform: "uppercase",
+        }}>
+          {isLast ? "🔥 LAUNCH IMMINENT" : "T-MINUS"}
+        </div>
+      </div>
+    );
+  }
+
+  // V1.2.3: map_timeline — stylized map with route path and location markers
+  if (visualTechnique === "map_timeline") {
+    const mapBg = "#1a2e1a";
+    const routeColor = "#4ade80";
+    const markerColor = "#f97316";
+    const dotColor = "rgba(74,222,128,0.12)";
+    const waypoints = [
+      { x: 18, y: 65, label: "起点", phase: 0 },
+      { x: 38, y: 45, label: "节点 A", phase: 1 },
+      { x: 58, y: 35, label: "节点 B", phase: 2 },
+      { x: 78, y: 28, label: "终点", phase: 3 },
+    ];
+    const markerAppear = (p: number) => interpolate(frame, [5 + p * 12, 11 + p * 12], [0, 1], { extrapolateRight: "clamp" });
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: mapBg, overflow: "hidden" }}>
+        {/* Subtle dot grid */}
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: `radial-gradient(circle, ${dotColor} 1.5px, transparent 1.5px)`,
+          backgroundSize: "24px 24px",
+        }} />
+        {/* Route path SVG */}
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 1 }}>
+          <defs>
+            <marker id="mapArrow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+              <path d="M0,0 L0,5 L5,2.5 z" fill={routeColor} />
+            </marker>
+          </defs>
+          <path d={`M ${waypoints.map((w, i) => `${w.x}% ${w.y}%`).join(" L ")}`}
+            stroke={routeColor} strokeWidth="1.8" fill="none" strokeDasharray="5 3"
+            markerEnd="url(#mapArrow)" />
+        </svg>
+        {/* Waypoint markers */}
+        {waypoints.map((w, i) => (
+          <div key={i} style={{
+            position: "absolute", left: `${w.x}%`, top: `${w.y}%`, transform: "translate(-50%, -50%)",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+            opacity: markerAppear(w.phase),
+          }}>
+            <div style={{
+              width: 14, height: 14, borderRadius: "50%", background: markerColor,
+              boxShadow: `0 0 10px ${markerColor}`,
+              border: "2px solid #fff",
+            }} />
+            <div style={{ fontSize: 9, color: "#86efac", fontFamily: "monospace", fontWeight: 700, background: "rgba(0,0,0,0.6)", borderRadius: 3, padding: "1px 5px" }}>
+              {w.label}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // V1.2.3: audio_visualizer — waveform bars with center title overlay
+  if (visualTechnique === "audio_visualizer") {
+    const avBg = "#0a0a0f";
+    const barCount = 32;
+    const bars = Array.from({ length: barCount }, (_, i) => {
+      const phase = (i / barCount) * Math.PI * 2;
+      const height = 20 + 60 * Math.abs(Math.sin(frame / 8 + phase));
+      return height;
+    });
+    const barColors = ["#a78bfa", "#818cf8", "#6366f1", "#4f46e5"];
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: avBg, overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 50%, rgba(99,102,241,0.08) 0%, transparent 65%)" }} />
+        {/* Title overlay */}
+        <div style={{ position: "absolute", top: "22%", left: "50%", transform: "translateX(-50%)", fontSize: 11, color: "rgba(167,139,250,0.6)", fontFamily: "monospace", letterSpacing: "0.15em", textTransform: "uppercase", zIndex: 2 }}>
+          NOW PLAYING
+        </div>
+        <div style={{ position: "absolute", top: "32%", left: "50%", transform: "translateX(-50%)", fontSize: 22, fontWeight: 900, color: "#f1f5f9", fontFamily: "sans-serif", zIndex: 2, textAlign: "center", textShadow: "0 0 20px rgba(99,102,241,0.4)" }}>
+          AI 前沿动态
+        </div>
+        {/* Spectrum bars — bottom half */}
+        <div style={{ position: "absolute", bottom: "12%", left: "8%", right: "8%", height: "35%", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 3 }}>
+          {bars.map((h, i) => (
+            <div key={i} style={{
+              flex: 1,
+              height: `${h}%`,
+              background: `linear-gradient(180deg, ${barColors[i % barColors.length]} 0%, rgba(99,102,241,0.3) 100%)`,
+              borderRadius: "2px 2px 0 0",
+              boxShadow: `0 0 4px ${barColors[i % barColors.length]}66`,
+            }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // V1.2.3: tiktok_caption_story — large subtitle with word-by-word highlight
+  if (visualTechnique === "tiktok_caption_story") {
+    const tcBg = "#000000";
+    const words = ["AI", "正在", "改变", "内容", "创作"];
+    const activeWord = Math.floor(frame / 15) % words.length;
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: tcBg, overflow: "hidden" }}>
+        {/* Subtle gradient background */}
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 60%, rgba(255,255,255,0.04) 0%, transparent 65%)" }} />
+        {/* Word-by-word caption */}
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "12px", maxWidth: "80%" }}>
+          {words.map((w, i) => {
+            const isActive = i === activeWord;
+            const isPast = i < activeWord;
+            return (
+              <div key={i} style={{
+                fontSize: isActive ? 52 : 36,
+                fontWeight: 900,
+                color: isActive ? "#ffffff" : isPast ? "#555555" : "#888888",
+                transition: "all 0.2s",
+                textShadow: isActive ? "0 0 24px rgba(255,255,255,0.5)" : "none",
+                transform: isActive ? "scale(1.08)" : "scale(1)",
+              }}>
+                {w}
+              </div>
+            );
+          })}
+        </div>
+        {/* Bottom bar */}
+        <div style={{ position: "absolute", bottom: "14%", left: "8%", right: "8%", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.15)" }} />
+          <div>
+            <div style={{ fontSize: 13, color: "#ffffff", fontWeight: 700 }}>AI 前沿 · 速览</div>
+            <div style={{ fontSize: 10, color: "#666666" }}>关注获取更多 AI 资讯</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // V1.2.3: magazine_headline — giant bold headline with color block and high contrast
+  if (visualTechnique === "magazine_headline") {
+    const mhBg = "#0a0a0a";
+    const flashColor = "#ef4444";
+    const phase = Math.floor(frame / 40) % 2;
+    const titleWords = ["AI", "改变", "一切"];
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: mhBg, overflow: "hidden" }}>
+        {/* Bold color block left accent */}
+        <div style={{
+          position: "absolute", left: 0, top: 0, bottom: 0, width: "6%",
+          background: phase === 0 ? flashColor : "#f97316",
+          boxShadow: `0 0 40px ${phase === 0 ? flashColor : "#f97316"}88`,
+        }} />
+        {/* Issue label */}
+        <div style={{ position: "absolute", top: "6%", right: "6%", fontSize: 10, color: "#666666", fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+          VOL.42 · ISSUE 6
+        </div>
+        {/* Giant headline */}
+        <div style={{ position: "absolute", top: "20%", left: "10%", right: "6%" }}>
+          {titleWords.map((w, i) => (
+            <div key={i} style={{
+              fontSize: i === 1 ? 88 : 72,
+              fontWeight: 900,
+              color: i === 1 ? flashColor : "#f8fafc",
+              lineHeight: 1.0,
+              textShadow: i === 1 ? `0 0 40px ${flashColor}66` : "0 2px 20px rgba(0,0,0,0.8)",
+              letterSpacing: "-0.02em",
+            }}>
+              {w}
+            </div>
+          ))}
+        </div>
+        {/* Bottom accent line */}
+        <div style={{ position: "absolute", bottom: "15%", left: "10%", right: "10%", height: 3, background: "rgba(239,68,68,0.4)" }} />
+        <div style={{ position: "absolute", bottom: "15%", left: "10%", width: "20%", height: 3, background: flashColor }} />
+      </div>
+    );
+  }
+
+  // V1.2.3: capability_radar — radar/spider chart with multi-dimensional metrics
+  if (visualTechnique === "capability_radar") {
+    const crBg = "#0d1117";
+    const crAccent = "#a78bfa";
+    const crFill = "rgba(167,139,250,0.18)";
+    const crGrid = "rgba(167,139,250,0.12)";
+    const dims = ["推理", "记忆", "工具", "多模", "安全", "效率"];
+    const values = [0.95, 0.78, 0.88, 0.72, 0.83, 0.69];
+    const n = dims.length;
+    const cx = 50, cy = 48, r = 22;
+    const phase = Math.min(1, frame / 40);
+    const toXY = (angle: number, dist: number) => {
+      const rad = (angle - 90) * Math.PI / 180;
+      return { x: cx + dist * Math.cos(rad), y: cy + dist * Math.sin(rad) };
+    };
+    const gridLevels = [0.25, 0.5, 0.75, 1.0];
+    const angleStep = 360 / n;
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: crBg, overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 40%, rgba(167,139,250,0.05) 0%, transparent 60%)" }} />
+        <svg style={{ position: "absolute", left: "10%", top: "8%", width: "80%", height: "80%" }} viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+          {/* Grid rings */}
+          {gridLevels.map((level, gi) => (
+            <polygon key={gi} points={Array.from({ length: n }, (_, i) => {
+              const a = i * angleStep;
+              const p = toXY(a, level * r);
+              return `${p.x} ${p.y}`;
+            }).join(" ")} fill="none" stroke={crGrid} strokeWidth="0.4" />
+          ))}
+          {/* Axis lines */}
+          {dims.map((_, i) => {
+            const p = toXY(i * angleStep, r);
+            return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke={crGrid} strokeWidth="0.4" />;
+          })}
+          {/* Data polygon */}
+          <polygon points={Array.from({ length: n }, (_, i) => {
+            const a = i * angleStep;
+            const p = toXY(a, values[i] * r * phase);
+            return `${p.x} ${p.y}`;
+          }).join(" ")} fill={crFill} stroke={crAccent} strokeWidth="0.8" />
+          {/* Axis labels */}
+          {dims.map((label, i) => {
+            const p = toXY(i * angleStep, r + 6);
+            return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize="4.5" fill="#a78bfa" fontFamily="monospace">{label}</text>;
+          })}
+        </svg>
+      </div>
+    );
+  }
+
+  // V1.2.3: timeline_recap — horizontal timeline with milestone markers and current-node highlight
+  if (visualTechnique === "timeline_recap") {
+    const trBg = "#0f172a";
+    const trAccent = "#fbbf24";
+    const milestones = [
+      { label: "Q1", event: "产品立项", x: 15 },
+      { label: "Q2", event: "Beta 发布", x: 38 },
+      { label: "Q3", event: "正式上线", x: 62 },
+      { label: "Q4", event: "100万用户", x: 85 },
+    ];
+    const highlightIdx = Math.floor(frame / 22) % milestones.length;
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: trBg, overflow: "hidden" }}>
+        {/* Title */}
+        <div style={{ position: "absolute", top: "10%", left: "8%", fontSize: 10, color: "#94a3b8", fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+          TIMELINE RECAP · 2024
+        </div>
+        {/* Timeline axis */}
+        <div style={{ position: "absolute", top: "50%", left: "8%", right: "8%", height: 2, background: "rgba(148,163,184,0.2)" }} />
+        {milestones.map((m, i) => {
+          const isHighlight = i === highlightIdx;
+          const isPast = i < highlightIdx;
+          return (
+            <div key={i} style={{
+              position: "absolute", left: `${m.x}%`, top: "50%", transform: "translate(-50%, -50%)",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+            }}>
+              <div style={{
+                width: isHighlight ? 18 : 12, height: isHighlight ? 18 : 12, borderRadius: "50%",
+                background: isHighlight ? trAccent : isPast ? "#3b82f6" : "rgba(148,163,184,0.4)",
+                border: `2px solid ${isHighlight ? trAccent : isPast ? "#3b82f6" : "rgba(148,163,184,0.4)"}`,
+                boxShadow: isHighlight ? `0 0 16px ${trAccent}` : "none",
+                transition: "all 0.3s",
+              }} />
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: isHighlight ? trAccent : "#64748b", fontWeight: 700, fontFamily: "monospace" }}>{m.label}</div>
+                <div style={{ fontSize: 11, color: isHighlight ? "#f8fafc" : "#94a3b8", fontWeight: isHighlight ? 700 : 400, marginTop: 2 }}>{m.event}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // V1.2.3: lottie_icon_story — CSS icon animation with three-part narrative and icon+text combos
+  if (visualTechnique === "lottie_icon_story") {
+    const liBg = "#0f172a";
+    const iconBg = "rgba(99,102,241,0.15)";
+    const iconBorder = "rgba(99,102,241,0.5)";
+    const phase = Math.floor(frame / 25) % 3;
+    const icons = ["⚡", "🔗", "🚀"];
+    const labels = ["快速生成", "智能组合", "无缝发布"];
+    const descriptions = ["多模型并行采样", "自动选择最优结果", "一键发布到多平台"];
+    const SCALE_KEYFRAMES = [0.5, 1.1, 1.0];
+    const scale = interpolate(frame % 25, [0, 8, 16], [SCALE_KEYFRAMES[0], SCALE_KEYFRAMES[1], SCALE_KEYFRAMES[2]], { extrapolateRight: "clamp" });
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: liBg, overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 40%, rgba(99,102,241,0.07) 0%, transparent 65%)" }} />
+        {/* Icon + text narrative */}
+        {icons.map((icon, i) => {
+          const isActive = i === phase;
+          return (
+            <div key={i} style={{
+              position: "absolute",
+              left: `${15 + i * 28}%`,
+              top: "50%",
+              transform: `translate(-50%, -50%) scale(${isActive ? scale : 0.85})`,
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+              opacity: isActive ? 1 : 0.35,
+              transition: "opacity 0.4s",
+            }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: 14,
+                background: isActive ? iconBg : "rgba(99,102,241,0.06)",
+                border: `2px solid ${isActive ? iconBorder : "rgba(99,102,241,0.2)"}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 26,
+                boxShadow: isActive ? "0 0 20px rgba(99,102,241,0.35)" : "none",
+              }}>
+                {icon}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: isActive ? "#f1f5f9" : "#64748b", textAlign: "center" }}>{labels[i]}</div>
+              <div style={{ fontSize: 9, color: isActive ? "#94a3b8" : "#475569", textAlign: "center", maxWidth: 80 }}>{descriptions[i]}</div>
+            </div>
+          );
+        })}
       </div>
     );
   }

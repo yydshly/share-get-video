@@ -429,11 +429,25 @@ VALID_VISUAL_TECHNIQUE_MATRIX_FAMILIES = [
 ]
 
 VALID_VISUAL_TECHNIQUES = [
+    # V1.2.4/1.2.5: existing
     "academic_sketch",
     "blueprint",
     "data_viz_dashboard",
     "agent_sandbox_25d",
     "kinetic_code_typography",
+    # V1.2.3: prototype techniques — minimal CSS/SVG backgrounds for Remotion Lab
+    "whiteboard_explainer",
+    "benchmark_ranking",
+    "architecture_diagram",
+    "product_demo_flow",
+    "launch_countdown",
+    "map_timeline",
+    "audio_visualizer",
+    "tiktok_caption_story",
+    "magazine_headline",
+    "capability_radar",
+    "timeline_recap",
+    "lottie_icon_story",
 ]
 
 

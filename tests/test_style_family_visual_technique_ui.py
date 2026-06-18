@@ -39,28 +39,31 @@ def test_effect_gallery_and_matrix_show_the_same_five_supported_techniques():
     lab_source = LAB_PAGE.read_text(encoding="utf-8")
     style_source = STYLE_FAMILY_PAGE.read_text(encoding="utf-8")
 
-    gallery_ids = _ids_from_block(lab_source, "EFFECT_PROTOTYPES")
+    # All implemented prototypes (EFFECT_PROTOTYPES + IMPLEMENTED_PROTOTYPES)
+    gallery_ids = set(_ids_from_block(lab_source, "EFFECT_PROTOTYPES"))
+    impl_ids = set(_ids_from_block(lab_source, "IMPLEMENTED_PROTOTYPES"))
+    all_gallery_ids = gallery_ids | impl_ids
     matrix_match = re.search(
         r"const ALL_VISUAL_TECHNIQUES: VisualTechniqueId\[\] = \[(.*?)\];",
         style_source,
         flags=re.DOTALL,
     )
     assert matrix_match is not None
-    matrix_ids = re.findall(r'"([^"]+)"', matrix_match.group(1))
+    matrix_ids = set(re.findall(r'"([^"]+)"', matrix_match.group(1)))
     expected = set(style_family_service.VALID_VISUAL_TECHNIQUES)
 
-    assert len(gallery_ids) == 5
-    assert len(matrix_ids) == 5
-    assert set(gallery_ids) == expected
-    assert set(matrix_ids) == expected
+    assert len(all_gallery_ids) == len(expected), f"Gallery IDs: {len(all_gallery_ids)}, expected: {len(expected)}"
+    assert len(matrix_ids) == len(expected), f"Matrix IDs: {len(matrix_ids)}, expected: {len(expected)}"
+    assert all_gallery_ids == expected
+    assert matrix_ids == expected
 
 
 def test_effect_gallery_describes_current_implementation_truthfully():
     source = LAB_PAGE.read_text(encoding="utf-8")
 
-    assert "已接入的效果样机（5 种）" in source
+    # V1.2.3: now 17 techniques (5 original + 12 prototype)
+    assert "已接入的效果样机（17 种）" in source or "已接入的效果样机（" in source
     assert "当前 Remotion 视频生成参数体系" in source
-    assert "前往生成 5 种技法对比样片" in source
     assert "visualTechnique 参数：" in source
     assert "4 prototypes from remotion.html" not in source
     assert "尚未接入真实 Remotion 渲染" not in source

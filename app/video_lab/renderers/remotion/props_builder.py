@@ -172,6 +172,10 @@ def build_remotion_props(
         style["visualStylePreset"] = visual_style_preset
     # V1.2.4: Visual technique — academic_sketch (paper) / blueprint (engineering)
     # V1.2.5+: + data_viz_dashboard, agent_sandbox_25d, kinetic_code_typography
+    # V1.2.3: + 12 prototype techniques: whiteboard_explainer, benchmark_ranking,
+    #   architecture_diagram, product_demo_flow, launch_countdown, map_timeline,
+    #   audio_visualizer, tiktok_caption_story, magazine_headline, capability_radar,
+    #   timeline_recap, lottie_icon_story
     visual_technique = rstyle.get("visualTechnique") or params.get("visualTechnique")
     if visual_technique in (
         "academic_sketch",
@@ -179,6 +183,18 @@ def build_remotion_props(
         "data_viz_dashboard",
         "agent_sandbox_25d",
         "kinetic_code_typography",
+        "whiteboard_explainer",
+        "benchmark_ranking",
+        "architecture_diagram",
+        "product_demo_flow",
+        "launch_countdown",
+        "map_timeline",
+        "audio_visualizer",
+        "tiktok_caption_story",
+        "magazine_headline",
+        "capability_radar",
+        "timeline_recap",
+        "lottie_icon_story",
     ):
         style["visualTechnique"] = visual_technique
 

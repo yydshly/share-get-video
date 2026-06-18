@@ -2245,7 +2245,20 @@ export type VisualTechniqueFixtureId =
   | "blueprint_architecture"
   | "data_dashboard"
   | "agent_sandbox"
-  | "code_typography";
+  | "code_typography"
+  // V1.2.3: prototype technique fixtures
+  | "whiteboard_explainer"
+  | "benchmark_ranking"
+  | "architecture_diagram"
+  | "product_demo_flow"
+  | "launch_countdown"
+  | "map_timeline"
+  | "audio_visualizer"
+  | "tiktok_caption_story"
+  | "magazine_headline"
+  | "capability_radar"
+  | "timeline_recap"
+  | "lottie_icon_story";
 
 export const VISUAL_TECHNIQUE_FIXTURES: Readonly<{
   [K in VisualTechniqueFixtureId]: {
@@ -2334,15 +2347,126 @@ export const VISUAL_TECHNIQUE_FIXTURES: Readonly<{
       "错误处理：重试与退避，区分可恢复与致命错误。\n依据：依据 1\n" +
       "写入日志：记录耗时、token、错误码，便于排查。\n依据：依据 1",
   },
+
+  // V1.2.3: prototype technique fixtures — minimal content for matrix generation
+  whiteboard_explainer: {
+    name: "白板解释",
+    purpose: "白板手绘风格，适合概念解释和教学。",
+    recommendedTechniques: ["whiteboard_explainer"],
+    content: "AI 评测的三个关键维度。\n准确性：输出结果是否正确。\n依据：依据 1\n" +
+      "效率：推理速度和资源消耗。\n依据：依据 1\n" +
+      "鲁棒性：对抗扰动的稳定性。\n依据：依据 1",
+  },
+  benchmark_ranking: {
+    name: "Benchmark 排行",
+    purpose: "排行榜风格，适合 AI 模型横评。",
+    recommendedTechniques: ["benchmark_ranking"],
+    content: "主流模型能力横评。\n模型 A：综合得分 0.92。\n依据：依据 1\n" +
+      "模型 B：综合得分 0.85。\n依据：依据 1\n" +
+      "模型 C：综合得分 0.78。\n依据：依据 1",
+  },
+  architecture_diagram: {
+    name: "架构拆解",
+    purpose: "架构图风格，适合系统设计和技术分享。",
+    recommendedTechniques: ["architecture_diagram"],
+    content: "AI 系统三层架构。\n输入层：接收用户请求。\n依据：依据 1\n" +
+      "处理层：模型推理和业务逻辑。\n依据：依据 1\n" +
+      "输出层：返回结构化结果。\n依据：依据 1",
+  },
+  product_demo_flow: {
+    name: "产品演示",
+    purpose: "产品 UI 风格，适合功能演示。",
+    recommendedTechniques: ["product_demo_flow"],
+    content: "AI 产品三大功能。\n智能搜索：自然语言理解。\n依据：依据 1\n" +
+      "自动摘要：一键生成摘要。\n依据：依据 1\n" +
+      "数据可视化：图表自动生成。\n依据：依据 1",
+  },
+  launch_countdown: {
+    name: "发布倒计时",
+    purpose: "倒计时风格，适合产品发布和活动预告。",
+    recommendedTechniques: ["launch_countdown"],
+    content: "AI 产品发布倒计时。\n新版本即将发布。\n依据：依据 1\n" +
+      "重大功能升级。\n依据：依据 1\n" +
+      "立即体验。\n依据：依据 1",
+  },
+  map_timeline: {
+    name: "地图时间线",
+    purpose: "地图路径风格，适合事件演进和旅行回顾。",
+    recommendedTechniques: ["map_timeline"],
+    content: "AI 技术发展时间线。\n起点：早期规则系统。\n依据：依据 1\n" +
+      "节点 A：机器学习突破。\n依据：依据 1\n" +
+      "节点 B：大模型时代。\n依据：依据 1",
+  },
+  audio_visualizer: {
+    name: "音频可视化",
+    purpose: "频谱波形风格，适合音乐和播客内容。",
+    recommendedTechniques: ["audio_visualizer"],
+    content: "AI 前沿动态。\n今日 AI 资讯速览。\n依据：依据 1\n" +
+      "模型发布。\n依据：依据 1\n" +
+      "技术突破。\n依据：依据 1",
+  },
+  tiktok_caption_story: {
+    name: "逐词字幕",
+    purpose: "字幕高亮风格，适合社交短视频。",
+    recommendedTechniques: ["tiktok_caption_story"],
+    content: "AI 正在改变内容创作。\n依据：依据 1\n" +
+      "自动化生成。\n依据：依据 1\n" +
+      "效率提升。\n依据：依据 1",
+  },
+  magazine_headline: {
+    name: "杂志标题",
+    purpose: "大字报风格，适合突发新闻和观点表达。",
+    recommendedTechniques: ["magazine_headline"],
+    content: "AI 改变一切。\n依据：依据 1\n" +
+      "技术革命。\n依据：依据 1\n" +
+      "行业变革。\n依据：依据 1",
+  },
+  capability_radar: {
+    name: "能力雷达图",
+    purpose: "雷达图风格，适合多维能力对比。",
+    recommendedTechniques: ["capability_radar"],
+    content: "AI 模型六维能力评估。\n推理能力。\n依据：依据 1\n" +
+      "记忆能力。\n依据：依据 1\n" +
+      "工具调用。\n依据：依据 1",
+  },
+  timeline_recap: {
+    name: "时间线复盘",
+    purpose: "时间线风格，适合年度总结和项目回顾。",
+    recommendedTechniques: ["timeline_recap"],
+    content: "2024 AI 发展回顾。\nQ1：产品立项。\n依据：依据 1\n" +
+      "Q2：Beta 发布。\n依据：依据 1\n" +
+      "Q3：正式上线。\n依据：依据 1",
+  },
+  lottie_icon_story: {
+    name: "图标动画叙事",
+    purpose: "图标动画风格，适合品牌视频和功能展示。",
+    recommendedTechniques: ["lottie_icon_story"],
+    content: "AI 产品三大特性。\n快速生成。\n依据：依据 1\n" +
+      "智能组合。\n依据：依据 1\n" +
+      "无缝发布。\n依据：依据 1",
+  },
 } as const;
 
 // V1.2.7+: Visual Technique ID — used for family adaptation matrix
+// V1.2.3: + 12 prototype techniques
 export type VisualTechniqueId =
   | "academic_sketch"
   | "blueprint"
   | "data_viz_dashboard"
   | "agent_sandbox_25d"
-  | "kinetic_code_typography";
+  | "kinetic_code_typography"
+  | "whiteboard_explainer"
+  | "benchmark_ranking"
+  | "architecture_diagram"
+  | "product_demo_flow"
+  | "launch_countdown"
+  | "map_timeline"
+  | "audio_visualizer"
+  | "tiktok_caption_story"
+  | "magazine_headline"
+  | "capability_radar"
+  | "timeline_recap"
+  | "lottie_icon_story";
 
 const ALL_VISUAL_TECHNIQUES: VisualTechniqueId[] = [
   "academic_sketch",
@@ -2350,6 +2474,18 @@ const ALL_VISUAL_TECHNIQUES: VisualTechniqueId[] = [
   "data_viz_dashboard",
   "agent_sandbox_25d",
   "kinetic_code_typography",
+  "whiteboard_explainer",
+  "benchmark_ranking",
+  "architecture_diagram",
+  "product_demo_flow",
+  "launch_countdown",
+  "map_timeline",
+  "audio_visualizer",
+  "tiktok_caption_story",
+  "magazine_headline",
+  "capability_radar",
+  "timeline_recap",
+  "lottie_icon_story",
 ];
 
 const VISUAL_TECHNIQUE_FIXTURE_MAP: Record<VisualTechniqueId, VisualTechniqueFixtureId> = {
@@ -2358,6 +2494,19 @@ const VISUAL_TECHNIQUE_FIXTURE_MAP: Record<VisualTechniqueId, VisualTechniqueFix
   data_viz_dashboard: "data_dashboard",
   agent_sandbox_25d: "agent_sandbox",
   kinetic_code_typography: "code_typography",
+  // V1.2.3: prototype technique fixtures
+  whiteboard_explainer: "whiteboard_explainer",
+  benchmark_ranking: "benchmark_ranking",
+  architecture_diagram: "architecture_diagram",
+  product_demo_flow: "product_demo_flow",
+  launch_countdown: "launch_countdown",
+  map_timeline: "map_timeline",
+  audio_visualizer: "audio_visualizer",
+  tiktok_caption_story: "tiktok_caption_story",
+  magazine_headline: "magazine_headline",
+  capability_radar: "capability_radar",
+  timeline_recap: "timeline_recap",
+  lottie_icon_story: "lottie_icon_story",
 };
 
 // V1.2.7+: Family list for adaptation testing (limited to 3 to avoid MAX_MATRIX_ITEMS overflow)
