@@ -389,6 +389,11 @@ def run_visual_style_matrix(request) -> dict[str, Any]:
                 "remotionFamily": family_id,
                 "keyPointCount": key_point_count,
                 "visualStylePreset": preset,
+                # V1.2.3: Lab-only debug flag — shows STYLE + FAMILY tag in rendered output
+                "remotionStyle": {
+                    **params.get("remotionStyle", {}),
+                    "showVisualStyleDebugLabel": True,
+                },
             }
             result = render_clip_preview(
                 content=content,

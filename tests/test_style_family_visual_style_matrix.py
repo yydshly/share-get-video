@@ -56,6 +56,11 @@ def test_visual_style_matrix_passes_preset_params(monkeypatch):
         call["params"]["remotionFamily"] in ("data_news", "dashboard_brief")
         for call in captured
     )
+    # V1.2.3: Lab debug label should be injected by the matrix service
+    assert all(
+        call["params"].get("remotionStyle", {}).get("showVisualStyleDebugLabel") is True
+        for call in captured
+    )
 
 
 def test_visual_style_matrix_3x3_at_limit(monkeypatch):
@@ -88,6 +93,39 @@ def test_visual_style_matrix_3x3_at_limit(monkeypatch):
     result = style_family_service.run_visual_style_matrix(request)
     assert len(result["items"]) == 9
     assert call_count[0] == 9
+
+
+def test_visual_style_matrix_bold_magazine_is_valid_preset(monkeypatch):
+    """bold_magazine is a valid visualStylePreset and should be accepted."""
+    captured = []
+
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        captured.append(params)
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": f"exp_{len(captured)}",
+            "clipSeconds": clip_seconds,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+
+    request = SimpleNamespace(
+        content="Test",
+        params={"clipSeconds": 2, "keyPointCount": 2},
+        matrix={
+            "families": ["data_news"],
+            "visualStylePresets": ["bold_magazine"],
+        },
+    )
+
+    result = style_family_service.run_visual_style_matrix(request)
+    assert len(result["items"]) == 1
+    assert result["items"][0]["visualStylePreset"] == "bold_magazine"
+    assert captured[0]["visualStylePreset"] == "bold_magazine"
 
 
 def test_visual_style_matrix_invalid_preset_returns_error(monkeypatch):

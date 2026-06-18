@@ -313,3 +313,80 @@ class TestBackgroundPresetAndCardStackPeekFrames:
         assert props["style"]["cardStackPeekFrames"] == 18
         assert props["style"]["accentColor"] == "#8b5cf6"
         assert props["remotionFamily"] == "card_stack"
+
+
+class TestVisualStylePresetInProps:
+    """V1.2.3: Tests that visualStylePreset is correctly passed through build_remotion_props."""
+
+    def test_visual_style_preset_light_editorial_from_remotion_style(self):
+        """visualStylePreset=light_editorial from remotionStyle dict ends up in props.style."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionStyle": {
+                "visualStylePreset": "light_editorial",
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["visualStylePreset"] == "light_editorial"
+        assert props["contentDebug"]["style"]["visualStylePreset"] == "light_editorial"
+
+    def test_visual_style_preset_warm_paper_from_remotion_style(self):
+        """visualStylePreset=warm_paper from remotionStyle dict ends up in props.style."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionStyle": {
+                "visualStylePreset": "warm_paper",
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["visualStylePreset"] == "warm_paper"
+
+    def test_visual_style_preset_bold_magazine_from_remotion_style(self):
+        """visualStylePreset=bold_magazine from remotionStyle dict ends up in props.style."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionStyle": {
+                "visualStylePreset": "bold_magazine",
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["visualStylePreset"] == "bold_magazine"
+
+    def test_visual_style_preset_from_top_level_params(self):
+        """visualStylePreset from top-level params (not remotionStyle dict) is also accepted."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "visualStylePreset": "light_editorial",
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["visualStylePreset"] == "light_editorial"
+
+    def test_visual_style_preset_unknown_value_ignored(self):
+        """Unknown visualStylePreset values are silently ignored (not written to style)."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionStyle": {
+                "visualStylePreset": "not_a_real_preset",
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert "visualStylePreset" not in props.get("style", {})
+
+    def test_visual_style_preset_and_background_preset_together(self):
+        """visualStylePreset and backgroundPreset can be set simultaneously."""
+        structured = {"lead": "测试", "subtitle": "AI"}
+        key_points = {"keyPoints": [{"title": "T", "body": "B", "source": "S"}]}
+        params = {
+            "remotionStyle": {
+                "visualStylePreset": "bold_magazine",
+                "backgroundPreset": "glass_dashboard",
+            },
+        }
+        props = _build_props(structured, key_points, params)
+        assert props["style"]["visualStylePreset"] == "bold_magazine"
+        assert props["style"]["backgroundPreset"] == "glass_dashboard"

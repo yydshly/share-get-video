@@ -787,6 +787,57 @@ function getTechniqueSurface(visualTechnique?: string): TechniqueSurface {
   };
 }
 
+// V1.2.3: Visual Style Preset surface — card/typography/texture tokens for the three aesthetic families.
+// Called when visualTechnique is absent so visualStylePreset drives the full card look.
+function getVisualStyleSurface(visualStylePreset?: string): TechniqueSurface {
+  switch (visualStylePreset) {
+    case "light_editorial":
+      // 浅色编辑 / 白底 / 轻量资讯排版 — 干净明亮，不允许深色科技底
+      return {
+        cardBg: "rgba(255,255,255,0.92)",
+        cardBorder: "rgba(226,232,240,0.80)",
+        cardShadow: "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)",
+        titleColor: "#0f172a",
+        bodyColor: "#334155",
+        mutedColor: "#94a3b8",
+        titleShadow: "none",
+      };
+    case "warm_paper":
+      // 暖纸报告 / 米黄纸张 / 轻纸纹 / 棕色文字 — 温暖纸张质感，不允许深色科技底
+      return {
+        cardBg: "rgba(250,246,240,0.95)",
+        cardBorder: "rgba(168,140,100,0.45)",
+        cardShadow: "0 6px 28px rgba(120,90,50,0.14), 0 2px 8px rgba(120,90,50,0.08)",
+        titleColor: "#292524",
+        bodyColor: "#44403c",
+        mutedColor: "#78716c",
+        titleShadow: "none",
+      };
+    case "bold_magazine":
+      // 高对比杂志 / 强黑白或深色 / 大字 / 红橙强调 — 强视觉冲击，不允许小标签变色
+      return {
+        cardBg: "rgba(10,10,10,0.95)",
+        cardBorder: "rgba(239,68,68,0.60)",
+        cardShadow: "0 8px 40px rgba(0,0,0,0.70), 0 0 60px rgba(239,68,68,0.15)",
+        titleColor: "#fafafa",
+        bodyColor: "#e4e4e7",
+        mutedColor: "#a1a1aa",
+        titleShadow: "0 0 30px rgba(249,115,22,0.35)",
+      };
+    default:
+      // Falls back to getTechniqueSurface's default (dark tech)
+      return {
+        cardBg: C.card,
+        cardBorder: C.border,
+        cardShadow: `0 0 80px ${C.glow}, 0 24px 60px rgba(0,0,0,0.6)`,
+        titleColor: C.textPrimary,
+        bodyColor: C.textSecondary,
+        mutedColor: C.textMuted,
+        titleShadow: "0 0 40px rgba(59, 130, 246, 0.25)",
+      };
+  }
+}
+
 // V1.2.4: visualTechnique === "academic_sketch" uses paper background
 const BackgroundLayer: React.FC<{
   preset?: BackgroundPreset;
@@ -1870,7 +1921,9 @@ const CoverPage: React.FC<{
   // V1.2.2: Now shows up to 6 keypoint previews with descriptions, using layout config for density
   const layout = getLayoutConfig(vstyle?.aspectRatioLayoutMode);
   const maxItems = Math.min(layout.coverMaxPreviewItems, keyPoints.length);
-  const surface = getTechniqueSurface(vstyle?.visualTechnique);
+  const surface = vstyle?.visualTechnique
+    ? getTechniqueSurface(vstyle?.visualTechnique)
+    : getVisualStyleSurface(vstyle?.visualStylePreset);
   return (
     <AbsoluteFill
       style={{
@@ -1881,7 +1934,7 @@ const CoverPage: React.FC<{
       }}
     >
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
       {/* Glow accent */}
       <div
         style={{
@@ -2138,7 +2191,9 @@ const KeyPointCard: React.FC<{
   );
 
   // V1.2.5: 卡片表面随 visualTechnique 自适应（academic_sketch → 米纸/墨色，与纸张背景成体系）
-  const surface = getTechniqueSurface(vstyle?.visualTechnique);
+  const surface = vstyle?.visualTechnique
+    ? getTechniqueSurface(vstyle?.visualTechnique)
+    : getVisualStyleSurface(vstyle?.visualStylePreset);
 
   return (
     <AbsoluteFill
@@ -2150,7 +2205,7 @@ const KeyPointCard: React.FC<{
       }}
     >
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
       {/* Card container - 82% width, compact height driven by layout config */}
       <div
         style={{
@@ -2895,7 +2950,7 @@ const TimelineNewsLayout: React.FC<{
       }}
     >
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
       {/* V0.8.9: 顶部小标题 — 标识 Timeline News 范式 */}
       <div
         style={{
@@ -3238,7 +3293,7 @@ const DashboardBriefLayout: React.FC<{
   return (
     <AbsoluteFill style={{ background: "transparent", padding: "58px 50px" }}>
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
       <div style={{ position: "relative", zIndex: 1, height: "100%", display: "flex", flexDirection: "column", gap: 22 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -3421,7 +3476,7 @@ const CaptionStoryLayout: React.FC<{
   return (
     <AbsoluteFill style={{ background: "transparent", padding: "72px 58px", justifyContent: "center" }}>
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <div style={{ color: accent, fontSize: 18, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase", marginBottom: 38 }}>
           Caption Story · {String(activeIndex + 1).padStart(2, "0")} / {keyPoints.length}
@@ -3543,7 +3598,9 @@ const SummaryPage: React.FC<{
   // Default: timeline style (original behavior)
   const [listFadeStart, listFadeEnd] = scaleFrames([10, 30]);
   const listOpacity = interpolate(frame, [listFadeStart, listFadeEnd], [0, 1], { extrapolateRight: "clamp" });
-  const surface = getTechniqueSurface(vstyle?.visualTechnique);
+  const surface = vstyle?.visualTechnique
+    ? getTechniqueSurface(vstyle?.visualTechnique)
+    : getVisualStyleSurface(vstyle?.visualStylePreset);
 
   return (
     <AbsoluteFill
@@ -3555,7 +3612,7 @@ const SummaryPage: React.FC<{
       }}
     >
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
       {/* Glow */}
       <div
         style={{
@@ -3670,7 +3727,7 @@ const ReportOpeningPage: React.FC<{
   return (
     <AbsoluteFill style={{ background: "transparent", padding: 72, color: C.textPrimary, fontFamily: "sans-serif" }}>
       {/* V1.2.1.4: Background layer */}
-      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualTechnique={vstyle?.visualTechnique} />
+      <BackgroundLayer preset={vstyle?.backgroundPreset} accent={accent} highlight={hl} visualStylePreset={vstyle?.visualStylePreset} visualTechnique={vstyle?.visualTechnique} />
       <div style={{
         position: "relative",
         height: "100%",
@@ -4019,6 +4076,49 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
     <AbsoluteFill style={{ background: "transparent" }}>
       {/* V1.2.1.4: Programmatic background layer at root — individual pages can override */}
       <BackgroundLayer preset={style?.backgroundPreset} accent={style?.accentColor} highlight={style?.highlightColor} visualStylePreset={style?.visualStylePreset} visualTechnique={style?.visualTechnique} />
+      {/* V1.2.3: Lab-only visual style debug label — shows preset + family tag in corner */}
+      {style?.showVisualStyleDebugLabel === true && (
+        <div style={{
+          position: "absolute",
+          top: 12,
+          right: 16,
+          zIndex: 9999,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: 4,
+          pointerEvents: "none",
+        }}>
+          <div style={{
+            background: "rgba(0,0,0,0.72)",
+            border: "1px solid rgba(255,255,255,0.18)",
+            borderRadius: 6,
+            padding: "3px 9px",
+            fontSize: 10,
+            fontFamily: "monospace",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            color: "#fafafa",
+            textTransform: "uppercase",
+          }}>
+            STYLE {style?.visualStylePreset ?? "—"}
+          </div>
+          <div style={{
+            background: "rgba(0,0,0,0.72)",
+            border: "1px solid rgba(255,255,255,0.18)",
+            borderRadius: 6,
+            padding: "3px 9px",
+            fontSize: 10,
+            fontFamily: "monospace",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            color: "#94a3b8",
+            textTransform: "uppercase",
+          }}>
+            FAMILY {remotionFamily}
+          </div>
+        </div>
+      )}
       {/* V1.2.4: Academic sketch annotation overlay */}
       {style?.visualTechnique === "academic_sketch" && <AcademicSketchLayer accent={style?.accentColor} highlight={style?.highlightColor} />}
       {/* V1.2.3: Lab-only content probe — only renders when explicitly enabled for Visual Technique Matrix */}

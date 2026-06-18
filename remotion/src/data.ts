@@ -99,6 +99,8 @@ export type RemotionStyle = {
   visualTechniqueContentProbe?: boolean;
   visualTechniqueFixtureId?: string;
   visualTechniqueMatrixMode?: "technique_compare" | "family_adaptation";
+  // V1.2.3: Lab-only debug label — shows STYLE + FAMILY tag in the rendered output
+  showVisualStyleDebugLabel?: boolean;
 };
 
 // V0.6.2: Remotion family — selects visual presentation paradigm
