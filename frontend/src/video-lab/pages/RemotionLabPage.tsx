@@ -203,7 +203,7 @@ const EFFECT_PROTOTYPES = [
     summary: "模拟手绘网格纸、动态墨水晕开、手写公式与手绘图表风格。",
     visualKeywords: ["网格纸", "手写公式", "手绘图表", "墨水晕开", "纸张质感", "粗糙线条", "研究笔记"],
     suitableFor: ["论文解读", "AI 原理解释", "技术概念拆解", "研究报告摘要", "知识类短视频"],
-    remotionTechniques: ["SVG filter", "Rough.js 风格", "frame wobble", "spring", "handwritten typography", "paper grid background"],
+    remotionTechniques: ["CSS graph-paper grid", "frame wobble", "paper grain", "margin lines", "warm paper surface"],
     futureParameter: "visualTechnique: academic_sketch",
     priority: "P0" as const,
     implementationLevel: "implemented_minimal" as const,
@@ -216,7 +216,7 @@ const EFFECT_PROTOTYPES = [
     summary: "深蓝晒图纸 + 白色工程网格 + 角标记，深蓝亮字卡片，工程冷调，与 academic_sketch 暖纸冷暖对照。",
     visualKeywords: ["晒图纸", "工程网格", "角标记", "蓝图蓝", "白色细线", "技术图纸", "CAD 感"],
     suitableFor: ["架构解析", "系统设计", "技术规格", "工程/产品原理", "硬核技术短视频"],
-    remotionTechniques: ["engineering grid", "registration ticks", "frame wobble", "cyan glow", "translucent panel"],
+    remotionTechniques: ["CSS engineering grid", "registration ticks", "frame wobble", "cyan glow", "floating particles"],
     futureParameter: "visualTechnique: blueprint",
     priority: "P0" as const,
     implementationLevel: "implemented_minimal" as const,
@@ -229,7 +229,7 @@ const EFFECT_PROTOTYPES = [
     summary: "使用等距视图展示 Agent 节点、通讯路径、数据包流动和系统逻辑流向。",
     visualKeywords: ["等距视图", "Agent 节点", "通讯路径", "拓扑图", "数据包流动", "多智能体协作", "系统模拟"],
     suitableFor: ["Agent 工作流", "AI 自动化流程", "多模型协作", "软件系统架构", "Video Lab 自身能力展示"],
-    remotionTechniques: ["isometric projection", "spring connectors", "animated packet", "node graph", "CSS 3D / Canvas"],
+    remotionTechniques: ["CSS perspective grid", "SVG connectors", "frame-driven packets", "agent node graph", "floating particles"],
     futureParameter: "visualTechnique: agent_sandbox_25d",
     priority: "P1" as const,
     implementationLevel: "implemented_minimal" as const,
@@ -242,7 +242,7 @@ const EFFECT_PROTOTYPES = [
     summary: "展示动态图表、指标增长、圆环图、频谱波形和仪表盘式数据解读。",
     visualKeywords: ["数据增长", "折线图", "圆环图", "仪表盘", "动态指标", "频谱波形", "Benchmark"],
     suitableFor: ["AI Benchmark", "模型能力对比", "产品数据", "GitHub Star 增长", "成本变化", "性能报告"],
-    remotionTechniques: ["D3/Recharts", "interpolate path", "animated counter", "radial progress", "audio reactive spectrum"],
+    remotionTechniques: ["inline SVG charts", "frame-driven bars", "animated polyline", "radial progress", "metric chips"],
     futureParameter: "visualTechnique: data_viz_dashboard",
     priority: "P0" as const,
     implementationLevel: "implemented_minimal" as const,
@@ -255,7 +255,7 @@ const EFFECT_PROTOTYPES = [
     summary: "模拟 IDE 代码书写、逐字高亮、终端日志和技术金句排版。",
     visualKeywords: ["代码编辑器", "打字机", "语法高亮", "终端日志", "逐字入场", "技术金句", "开发者风格"],
     suitableFor: ["API 讲解", "开发教程", "代码片段解释", "技术产品介绍", "开源项目摘要"],
-    remotionTechniques: ["character-level typewriter", "syntax highlight", "terminal log animation", "AST span split", "kinetic typography"],
+    remotionTechniques: ["pseudo-code lines", "syntax color spans", "terminal log panel", "blinking cursor", "frame-driven reveal"],
     futureParameter: "visualTechnique: kinetic_code_typography",
     priority: "P1" as const,
     implementationLevel: "implemented_minimal" as const,
@@ -401,7 +401,7 @@ function TabEffectPrototype() {
         }}
       >
         <h2 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "0.6rem", marginTop: 0 }}>
-          未来 Remotion 视频生成参数体系
+          当前 Remotion 视频生成参数体系
         </h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.5rem", marginBottom: "0.85rem" }}>
           {[
@@ -418,7 +418,7 @@ function TabEffectPrototype() {
           ))}
         </div>
         <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 8, padding: "0.6rem 0.85rem", fontSize: "0.8rem", lineHeight: 1.6 }}>
-          <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>未来接入路径：</div>
+          <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>当前验证路径：</div>
           <div style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
             Effect Prototype Gallery → visualTechnique → remotion-style-family 生成样片 → 人工观察 → 候选进入 Style Sweep → 稳定后进入 Style Gallery
           </div>
@@ -426,20 +426,21 @@ function TabEffectPrototype() {
         <div style={{ marginTop: "0.75rem", padding: "0.6rem 0.85rem", background: "rgba(0,0,0,0.18)", borderRadius: 8, fontSize: "0.78rem" }}>
           <div style={{ fontWeight: 600, marginBottom: "0.3rem" }}>效果样机库定位</div>
           <div style={{ lineHeight: 1.55, opacity: 0.9 }}>
-            效果样机库<strong>不是正式渲染模板</strong>。它用于收集 Remotion 可实现的视觉技法、动态效果和表现方向。
-            后续经过人工筛选后，才会转成 <code style={{ background: "rgba(255,255,255,0.15)", padding: "1px 5px", borderRadius: 3 }}>visualTechnique</code> 参数，再进入 remotion-style-family 做真实视频渲染。
+            效果样机库<strong>不是正式生产模板</strong>。当前 5 种样机已转成
+            {" "}<code style={{ background: "rgba(255,255,255,0.15)", padding: "1px 5px", borderRadius: 3 }}>visualTechnique</code>
+            {" "}参数并接入真实 Remotion 最小渲染；仍需在视觉技法矩阵中完成人工验收后，才可进入 Style Sweep / Style Gallery。
           </div>
         </div>
       </div>
 
-      {/* Area 1: 4 prototypes from remotion.html */}
+      {/* Area 1: five implemented visual technique prototypes */}
       <div>
         <div style={{ marginBottom: "0.75rem" }}>
           <h2 style={{ fontSize: "1.05rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
-            来自 remotion.html 的效果原型
+            已接入的效果样机（5 种）
           </h2>
           <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "0.3rem 0 0" }}>
-            这些是已经有视觉样机参考的效果方向，目前作为 prototype_reference 收录，尚未接入真实 Remotion 渲染。
+            以下 5 种效果均已接入 visualTechnique 最小真实渲染。卡片用于说明设计意图，实际视频效果请前往视觉技法矩阵生成并验收。
           </p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
@@ -502,7 +503,7 @@ function TabEffectPrototype() {
                     </div>
                   </div>
                   <div style={{ background: lv.bg, borderRadius: 6, padding: "0.4rem 0.6rem", fontSize: "0.72rem" }}>
-                    <span style={{ fontWeight: 600, color: lv.color }}>futureParameter: </span>
+                    <span style={{ fontWeight: 600, color: lv.color }}>visualTechnique 参数：</span>
                     <code style={{ color: lv.color, fontFamily: "monospace", fontSize: "0.7rem" }}>{proto.futureParameter}</code>
                   </div>
                   <div style={{ background: "#f8fafc", borderRadius: 6, padding: "0.4rem 0.6rem", fontSize: "0.72rem", color: "#475569", lineHeight: 1.5 }}>
@@ -530,12 +531,12 @@ function TabEffectPrototype() {
                           textAlign: "center",
                         }}
                       >
-                        前往生成 academic_sketch 样片
+                        前往生成 5 种技法对比样片
                       </Link>
                     </div>
                   ) : (
                     <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "#b45309" }}>
-                      ⚠ 当前状态：{implLevel === "prototype_reference" ? "prototype_reference — 尚未接入真实 Remotion 渲染" : implLevel}
+                      ⚠ 当前状态：{implLevel === "prototype_reference" ? "prototype_reference — 尚未完成真实渲染接入" : implLevel}
                     </span>
                   )}
                 </div>
@@ -704,7 +705,7 @@ function TabBackground() {
           params: { clipSeconds: 2, keyPointCount: 2 },
           matrix: {
             families: ["timeline_news"],
-            backgroundPresets: ["tech_grid_dark", "warm_cinematic", "neon_circuit"],
+            backgroundPresets: BACKGROUNDS.map((background) => background.id),
           },
         }),
       });
@@ -776,7 +777,7 @@ function TabBackground() {
             cursor: loading ? "wait" : "pointer",
           }}
         >
-          {loading ? "渲染中..." : "运行最小背景矩阵（1 family × 3 backgrounds）"}
+          {loading ? "渲染中..." : "运行完整背景矩阵（1 family × 6 backgrounds）"}
         </button>
 
         {error && (
@@ -855,7 +856,7 @@ function TabTransition() {
           params: { clipSeconds: 2, keyPointCount: 2, backgroundPreset: "tech_grid_dark" },
           matrix: {
             families: ["data_news"],
-            transitionStyles: ["push", "wipe", "glitch"],
+            transitionStyles: TRANSITIONS.map((transition) => transition.id),
           },
         }),
       });
@@ -918,7 +919,7 @@ function TabTransition() {
             cursor: loading ? "wait" : "pointer",
           }}
         >
-          {loading ? "渲染中..." : "运行最小转场矩阵（1 family × 3 transitions）"}
+          {loading ? "渲染中..." : "运行完整转场矩阵（1 family × 8 transitions）"}
         </button>
 
         {error && (

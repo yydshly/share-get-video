@@ -10,7 +10,7 @@
 //         Three.js Ranking / Bar + Line Chart / Travel Route Map / Transparent CTA overlay
 
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -1010,8 +1010,6 @@ const tdCenterStyle: React.CSSProperties = {
 // V1.2.3: Background Variant Matrix Component
 const MATRIX_FAMILIES = [
   { id: "timeline_news", name: "Timeline", color: "#0891b2" },
-  { id: "dashboard_brief", name: "Dashboard", color: "#f59e0b" },
-  { id: "caption_story", name: "Caption Story", color: "#ec4899" },
 ];
 
 const MATRIX_BACKGROUNDS = [
@@ -1040,13 +1038,8 @@ const MATRIX_TRANSITIONS = [
   { id: "glitch", label: "glitch" },
 ];
 
-// V1.2.4: Default transition matrix — limited to 1 family × 3 transitions = 3 clips (within MAX_MATRIX_ITEMS=9)
+// V1.2.4: Full transition gallery — 1 family × 8 transitions stays within MAX_MATRIX_ITEMS=9.
 const DEFAULT_TRANSITION_FAMILY = [{ id: "data_news", name: "Data News", color: "#7c3aed" }];
-const DEFAULT_TRANSITION_STYLES = [
-  { id: "push", label: "push" },
-  { id: "wipe", label: "wipe" },
-  { id: "glitch", label: "glitch" },
-];
 
 // V1.2.4: Visual Style Preset Matrix constants
 const VISUAL_STYLE_MATRIX_FAMILIES = [
@@ -1556,7 +1549,7 @@ function BackgroundVariantMatrix({
       ? `${import.meta.env.VITE_API_BASE?.replace(/\/video-lab$/, "") ?? ""}${u}`
       : u || "";
 
-  // Build 3×3 grid: rows = families, cols = backgrounds
+  // Build the full background gallery with one fixed family.
   const grid = MATRIX_FAMILIES.map((fam) => ({
     family: fam,
     cells: MATRIX_BACKGROUNDS.map((bg) => ({
@@ -1587,7 +1580,7 @@ function BackgroundVariantMatrix({
           背景差异化实验 · V1.2.3
         </h2>
         <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
-          3 family × 3 background = 9 clips
+          1 family × 6 backgrounds = 6 clips
         </span>
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {result && (
@@ -1615,15 +1608,15 @@ function BackgroundVariantMatrix({
       </div>
 
       <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.85rem" }}>
-        同一内容（Timeline / Dashboard / Caption Story）× 3 种背景，观察背景能否让同一种 family 呈现不同的视觉氛围。
+        固定 Timeline family 和同一内容，完整展示当前 6 种背景样式，重点观察每种背景的视觉氛围与正文可读性。
         Lab-only，不写 Style Sweep job 或 Style Gallery sample。
       </p>
 
-      {/* 3×3 Responsive Grid — each cell gets more space */}
+      {/* Full background gallery — wraps on narrow screens so every style remains visible */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${MATRIX_BACKGROUNDS.length}, minmax(150px, 1fr))`,
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
           gap: "0.65rem",
         }}
       >
@@ -1736,10 +1729,10 @@ function BackgroundVariantMatrix({
         >
           <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: "0.3rem" }}>观察提示：</div>
           <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
-            <li>三种背景在同一 family 中是否肉眼可区分？</li>
+            <li>六种背景在同一 family 中是否肉眼可区分？</li>
             <li>背景是否遮挡正文文字？文字仍可读吗？</li>
             <li>9:16 画面中背景与内容的关系是否协调？</li>
-            <li>family 结构差异（Timeline 时间线 / Dashboard 指标卡 / Caption 大字）在不同背景下是否仍可辨识？</li>
+            <li>Timeline 时间线结构在每种背景下是否仍清晰可辨？</li>
           </ul>
         </div>
       )}
@@ -1808,7 +1801,7 @@ function TransitionVariantMatrix({
           转场差异化实验 · V1.2.4
         </h2>
         <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
-          1 family × 3 transitions = 3 clips
+          1 family × 8 transitions = 8 clips
         </span>
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {result && (
@@ -1836,16 +1829,15 @@ function TransitionVariantMatrix({
       </div>
 
       <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.85rem" }}>
-        基于现有背景差异化实验框架，固定内容和背景，横向比较 slide_fade / fade / slide / push / wipe / zoom_blur。
+        固定 Data News family、内容和背景，完整展示 slide_fade / fade / slide / push / wipe / zoom_blur / flip / glitch。
         Lab-only，不写 Style Sweep job 或 Style Gallery sample。
       </p>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${MATRIX_TRANSITIONS.length}, minmax(150px, 1fr))`,
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
           gap: "0.65rem",
-          overflowX: "auto",
         }}
       >
         {grid.map((row) =>
@@ -2451,6 +2443,10 @@ function VisualTechniqueVariantMatrix({
   // Local-only visual acceptance state — UI ephemeral, never persisted to backend.
   const [localAcceptance, setLocalAcceptance] = useState<Record<string, LocalVisualAcceptance>>({});
 
+  useEffect(() => {
+    setLocalAcceptance({});
+  }, [resultSignature]);
+
   const setAcceptance = (key: string, value: LocalVisualAcceptance) => {
     setLocalAcceptance((prev) => ({ ...prev, [key]: value }));
   };
@@ -2694,7 +2690,7 @@ function VisualTechniqueVariantMatrix({
           )}
           {profile.acceptanceLevel === "deep_review" && (
             <div style={{ fontSize: "0.68rem", color: "#b45309", marginTop: "0.2rem" }}>
-              ℹ 注意：12s 渲染耗时长，适合深度观察，不建议频繁批量运行。
+              ℹ 注意：16s 渲染耗时长，适合深度观察，不建议频繁批量运行。
             </div>
           )}
         </div>
@@ -2706,7 +2702,10 @@ function VisualTechniqueVariantMatrix({
           当前仍是 lab-only，不进入 Style Sweep，不进入 Style Gallery。
         </div>
         <div style={{ marginTop: "0.2rem", color: "#7c3aed", fontSize: "0.72rem", fontWeight: 600 }}>
-          内容探针：已开启 · 每个样片会强制显示标题、要点和 family 结构，用于判断是否只是背景换皮。
+          内容探针：{matrixMode === "family_adaptation" ? "已开启" : "已关闭"} ·
+          {matrixMode === "family_adaptation"
+            ? " Family 适配测试会显示结构探针，用于判断是否只是背景换皮。"
+            : " Technique 横向比较优先展示五种真实技法本身，避免探针遮挡底层视觉效果。"}
         </div>
 
         {/* Technique selector for family adaptation mode */}
@@ -2912,7 +2911,7 @@ function VisualTechniqueVariantMatrix({
                     {item.success ? "✓ 生成成功" : "✗ 生成失败"}
                   </span>
                   <span style={{ color: "#94a3b8" }}>·</span>
-                  <span style={{ color: "#94a3b8" }}>视觉：待人工验收</span>
+                  <span style={{ color: accColor.fg }}>视觉：{ACCEPTANCE_LABEL[acceptance]}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.1rem" }}>
                   <span style={{ color: "#94a3b8", fontSize: "0.68rem" }}>{item.elapsedMs}ms</span>
@@ -3049,6 +3048,7 @@ function VisualTechniqueVariantMatrix({
                       <button
                         key={v}
                         onClick={() => setAcceptance(key, v)}
+                        disabled={isResultStale || !item.success}
                         style={{
                           flex: 1,
                           background: active ? c.bg : "white",
@@ -3058,7 +3058,8 @@ function VisualTechniqueVariantMatrix({
                           padding: "0.3rem 0.4rem",
                           fontSize: "0.72rem",
                           fontWeight: 600,
-                          cursor: "pointer",
+                          cursor: isResultStale || !item.success ? "not-allowed" : "pointer",
+                          opacity: isResultStale || !item.success ? 0.55 : 1,
                         }}
                       >
                         {ACCEPTANCE_LABEL[v]}
@@ -3071,7 +3072,7 @@ function VisualTechniqueVariantMatrix({
                 </div>
                 {profile.acceptanceLevel === "smoke_only" && (
                   <div style={{ fontSize: "0.62rem", color: "#b91c1c", marginTop: "0.25rem", fontWeight: 600 }}>
-                    ⚠ 2s 仅为冒烟预览，请谨慎标记通过，最终结论请使用 6s/12s。
+                    ⚠ 2s 仅为冒烟预览，请谨慎标记通过，最终结论请使用 8s/16s。
                   </div>
                 )}
               </div>
@@ -3125,9 +3126,10 @@ function VisualTechniqueVariantMatrix({
       >
         <div style={{ fontWeight: 600, color: "#92400e", marginBottom: "0.3rem" }}>扩展路径：</div>
         <ol style={{ margin: 0, paddingLeft: "1.3rem" }}>
-          <li>2s 冒烟预览：验证是否能生成和形成差异（当前）</li>
-          <li>6~8s 视觉预览：验证动效、可读性和节奏（未来）</li>
-          <li>单 technique × 多 family：验证适配不同版式（未来）</li>
+          <li>2s 冒烟预览：验证是否能生成和形成差异</li>
+          <li>8s 视觉预览：验证动效、可读性和节奏（当前默认）</li>
+          <li>16s 深度预览：验证富内容下的排版与节奏</li>
+          <li>单 technique × 多 family：验证适配不同版式（当前已支持）</li>
           <li>完整 Recipe 样片：进入后续 Style Sweep / Style Gallery 候选（未来）</li>
         </ol>
       </div>
@@ -3233,7 +3235,7 @@ export default function RemotionStyleFamilyPage() {
           },
           matrix: {
             families: DEFAULT_TRANSITION_FAMILY.map((family) => family.id),
-            transitionStyles: DEFAULT_TRANSITION_STYLES.map((transition) => transition.id),
+            transitionStyles: MATRIX_TRANSITIONS.map((transition) => transition.id),
           },
         }),
       });
@@ -3319,8 +3321,9 @@ export default function RemotionStyleFamilyPage() {
             visualStylePreset: "warm_paper",
             backgroundPreset: "warm_cinematic",
             transitionStyle: "slide_fade",
-            // V1.2.3: Lab-only content probe for Visual Technique Matrix
-            visualTechniqueContentProbe: true,
+            // Technique compare must expose the real five techniques without a large
+            // diagnostic overlay. Family adaptation keeps the structural probe.
+            visualTechniqueContentProbe: visualTechniqueMatrixMode === "family_adaptation",
             visualTechniqueFixtureId: visualTechniqueFixtureId,
             visualTechniqueMatrixMode: visualTechniqueMatrixMode,
           },
