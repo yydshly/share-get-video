@@ -181,6 +181,19 @@ def build_remotion_props(
         "kinetic_code_typography",
     ):
         style["visualTechnique"] = visual_technique
+
+    # V1.2.3: Lab-only visual technique content probe — only passed via Visual Technique Matrix
+    if params.get("visualTechniqueContentProbe") is True:
+        style["visualTechniqueContentProbe"] = True
+
+    fixture_id = params.get("visualTechniqueFixtureId")
+    if isinstance(fixture_id, str):
+        style["visualTechniqueFixtureId"] = fixture_id
+
+    matrix_mode = params.get("visualTechniqueMatrixMode")
+    if matrix_mode in ("technique_compare", "family_adaptation"):
+        style["visualTechniqueMatrixMode"] = matrix_mode
+
     if card_stack_peek_frames is not None:
         try:
             style["cardStackPeekFrames"] = max(0, min(45, int(card_stack_peek_frames)))

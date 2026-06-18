@@ -79,6 +79,350 @@ const HighlightedText: React.FC<{
   );
 };
 
+// V1.2.3: Visual Technique Content Probe Layer — lab-only overlay for Visual Technique Matrix
+// Renders a visible content layer so reviewers can tell whether visualTechnique is just a
+// background swap or genuinely affects content structure.
+const VisualTechniqueContentProbeLayer: React.FC<{
+  title: string;
+  keyPoints: KeyPoint[];
+  visualTechnique?: string;
+  remotionFamily?: string;
+  fixtureId?: string;
+  matrixMode?: string;
+}> = ({ title, keyPoints, visualTechnique, remotionFamily, fixtureId, matrixMode }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  // Fade in after frame 10, stay visible
+  const opacity = interpolate(frame, [10, 20], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+
+  // Probe content — always show 3 points (fallback if not enough)
+  const probePoints = [
+    keyPoints[0]?.title ?? "核心观点一",
+    keyPoints[1]?.title ?? "核心观点二",
+    keyPoints[2]?.title ?? "核心观点三",
+  ];
+
+  // Fixture title mapping
+  const fixtureTitles: Record<string, string> = {
+    academic_explainer: "为什么 AI 评测越来越难？",
+    blueprint_architecture: "AI Agent 系统四层架构",
+    data_dashboard: "模型能力指标看板",
+    agent_sandbox: "多智能体协作流程",
+    code_typography: "模型 API 调用步骤",
+    generic_ai_eval: "AI 模型能力评测",
+  };
+  const displayTitle = title || fixtureTitles[fixtureId ?? ""] || "Visual Technique Probe";
+
+  // Probe label colors — distinct per technique (non-intrusive, small chips)
+  const techniqueChipColors: Record<string, { bg: string; color: string; border: string }> = {
+    academic_sketch: { bg: "rgba(255,253,247,0.92)", color: "#7a5c3a", border: "rgba(120,90,60,0.5)" },
+    blueprint: { bg: "rgba(12,40,60,0.88)", color: "#a0d4f0", border: "rgba(140,195,235,0.5)" },
+    data_viz_dashboard: { bg: "rgba(8,18,38,0.88)", color: "#50c8f0", border: "rgba(80,180,230,0.5)" },
+    agent_sandbox_25d: { bg: "rgba(18,12,38,0.88)", color: "#c090f0", border: "rgba(160,120,240,0.5)" },
+    kinetic_code_typography: { bg: "rgba(13,17,23,0.88)", color: "#78e0b8", border: "rgba(120,220,180,0.5)" },
+  };
+  const chipStyle = techniqueChipColors[visualTechnique ?? ""] ?? { bg: "rgba(20,20,30,0.85)", color: "#a0a0b0", border: "rgba(120,120,140,0.4)" };
+
+  // Family-specific layout
+  const family = remotionFamily ?? "data_news";
+
+  // Large label font — must be readable in thumbnail
+  const LABEL_FONT = 20;
+  const POINT_FONT = 26;
+  const TITLE_FONT = 36;
+
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 50, pointerEvents: "none", opacity }}>
+      {/* Top-left: title */}
+      <div
+        style={{
+          position: "absolute",
+          top: "5%",
+          left: "5%",
+          right: "5%",
+          background: "rgba(10,10,20,0.78)",
+          border: `1px solid ${chipStyle.border}`,
+          borderRadius: 12,
+          padding: "0.6rem 0.9rem",
+        }}
+      >
+        <div style={{ fontSize: 15, color: "#64748b", marginBottom: 4, fontFamily: "monospace" }}>
+          PROBE · {matrixMode === "family_adaptation" ? "FAMILY ADAPT" : "TECHNIQUE"}
+        </div>
+        <div
+          style={{
+            fontSize: TITLE_FONT,
+            fontWeight: 900,
+            color: "#f8fafc",
+            lineHeight: 1.2,
+            textShadow: "0 0 20px rgba(255,255,255,0.3)",
+          }}
+        >
+          {displayTitle}
+        </div>
+      </div>
+
+      {/* Central content area — family-specific layout */}
+      {family === "data_news" && (
+        /* data_news: info cards with numbered highlights */
+        <div
+          style={{
+            position: "absolute",
+            top: "22%",
+            left: "5%",
+            right: "5%",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          {probePoints.map((pt, i) => (
+            <div
+              key={i}
+              style={{
+                background: "rgba(10,10,20,0.82)",
+                border: `1px solid ${chipStyle.border}`,
+                borderRadius: 10,
+                padding: "0.55rem 0.8rem",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: chipStyle.color,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 16,
+                  fontWeight: 900,
+                  color: "#0a0e1a",
+                  flexShrink: 0,
+                }}
+              >
+                {i + 1}
+              </div>
+              <span
+                style={{
+                  fontSize: POINT_FONT,
+                  fontWeight: 700,
+                  color: chipStyle.color,
+                  lineHeight: 1.3,
+                }}
+              >
+                {pt}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {family === "timeline_news" && (
+        /* timeline_news: vertical/horizontal timeline with steps */
+        <div
+          style={{
+            position: "absolute",
+            top: "22%",
+            left: "8%",
+            right: "8%",
+            display: "flex",
+            flexDirection: "column",
+            gap: 0,
+          }}
+        >
+          {/* Vertical timeline line */}
+          <div
+            style={{
+              position: "absolute",
+              left: 20,
+              top: 20,
+              bottom: 20,
+              width: 2,
+              background: `linear-gradient(180deg, ${chipStyle.color}80, ${chipStyle.color}20)`,
+              borderRadius: 1,
+            }}
+          />
+          {probePoints.map((pt, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 14,
+                marginBottom: 12,
+                paddingLeft: 4,
+              }}
+            >
+              {/* Timeline node */}
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: "50%",
+                  background: chipStyle.color,
+                  border: `3px solid #0a0e1a`,
+                  flexShrink: 0,
+                  marginTop: 4,
+                  boxShadow: `0 0 8px ${chipStyle.color}`,
+                }}
+              />
+              <div
+                style={{
+                  background: "rgba(10,10,20,0.82)",
+                  border: `1px solid ${chipStyle.border}`,
+                  borderRadius: 10,
+                  padding: "0.5rem 0.75rem",
+                  flex: 1,
+                }}
+              >
+                <div style={{ fontSize: 13, color: chipStyle.color, fontFamily: "monospace", marginBottom: 2 }}>
+                  STEP {i + 1}
+                </div>
+                <span style={{ fontSize: POINT_FONT, fontWeight: 700, color: "#f8fafc", lineHeight: 1.3 }}>
+                  {pt}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {family === "caption_story" && (
+        /* caption_story: big narrative — large centered text with strong subtitle feel */
+        <div
+          style={{
+            position: "absolute",
+            top: "24%",
+            left: "6%",
+            right: "6%",
+            background: "rgba(10,10,20,0.80)",
+            border: `1px solid ${chipStyle.border}`,
+            borderRadius: 14,
+            padding: "1.2rem 1rem",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <div style={{ fontSize: 14, color: chipStyle.color, fontFamily: "monospace", letterSpacing: "0.1em" }}>
+            NARRATIVE
+          </div>
+          <div
+            style={{
+              fontSize: POINT_FONT + 4,
+              fontWeight: 900,
+              color: "#f8fafc",
+              textAlign: "center",
+              lineHeight: 1.3,
+              textShadow: "0 0 24px rgba(255,255,255,0.25)",
+            }}
+          >
+            {probePoints[0]}
+          </div>
+          <div
+            style={{
+              width: "60%",
+              height: 1,
+              background: `linear-gradient(90deg, transparent, ${chipStyle.color}80, transparent)`,
+            }}
+          />
+          {probePoints.slice(1).map((pt, i) => (
+            <div
+              key={i}
+              style={{
+                fontSize: POINT_FONT - 2,
+                fontWeight: 600,
+                color: chipStyle.color,
+                textAlign: "center",
+                opacity: 0.85,
+              }}
+            >
+              {pt}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Bottom tags: family + technique + fixture */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: "4%",
+          left: "5%",
+          right: "5%",
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        {/* Family tag */}
+        <div
+          style={{
+            background: "rgba(10,10,20,0.88)",
+            border: "1px solid rgba(140,140,160,0.4)",
+            borderRadius: 8,
+            padding: "0.3rem 0.65rem",
+            fontSize: LABEL_FONT,
+            fontWeight: 700,
+            color: "#c0c0d0",
+            fontFamily: "monospace",
+          }}
+        >
+          {family.toUpperCase()}
+        </div>
+
+        {/* Technique tag */}
+        {visualTechnique && (
+          <div
+            style={{
+              background: chipStyle.bg,
+              border: `1px solid ${chipStyle.border}`,
+              borderRadius: 8,
+              padding: "0.3rem 0.65rem",
+              fontSize: LABEL_FONT,
+              fontWeight: 700,
+              color: chipStyle.color,
+              fontFamily: "monospace",
+            }}
+          >
+            {visualTechnique.toUpperCase()}
+          </div>
+        )}
+
+        {/* Fixture tag */}
+        {fixtureId && (
+          <div
+            style={{
+              background: "rgba(124,58,237,0.18)",
+              border: "1px solid rgba(124,58,237,0.5)",
+              borderRadius: 8,
+              padding: "0.3rem 0.65rem",
+              fontSize: LABEL_FONT,
+              fontWeight: 700,
+              color: "#c4b5fd",
+              fontFamily: "monospace",
+            }}
+          >
+            {fixtureId.toUpperCase()}
+          </div>
+        )}
+
+        {/* Family structure hint */}
+        <div style={{ marginLeft: "auto", fontSize: 13, color: "#64748b", fontFamily: "monospace" }}>
+          {family === "data_news" ? "📊 INFO CARDS" : family === "timeline_news" ? "📅 TIMELINE" : "💬 NARRATIVE"}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // V1.2.5: KineticHeadline — 逐字符错峰浮现（fade + 上移），保留高亮。Remotion 特有的动态文字。
 const KineticHeadline: React.FC<{
   text: string;
@@ -3677,6 +4021,17 @@ export const AiNewsVideo: React.FC<AiNewsVideoProps> = ({
       <BackgroundLayer preset={style?.backgroundPreset} accent={style?.accentColor} highlight={style?.highlightColor} visualStylePreset={style?.visualStylePreset} visualTechnique={style?.visualTechnique} />
       {/* V1.2.4: Academic sketch annotation overlay */}
       {style?.visualTechnique === "academic_sketch" && <AcademicSketchLayer accent={style?.accentColor} highlight={style?.highlightColor} />}
+      {/* V1.2.3: Lab-only content probe — only renders when explicitly enabled for Visual Technique Matrix */}
+      {style?.visualTechniqueContentProbe === true && (
+        <VisualTechniqueContentProbeLayer
+          title={title}
+          keyPoints={keyPoints}
+          visualTechnique={style?.visualTechnique}
+          remotionFamily={remotionFamily}
+          fixtureId={style?.visualTechniqueFixtureId}
+          matrixMode={style?.visualTechniqueMatrixMode}
+        />
+      )}
       {/* Cover / report opening */}
       <Sequence from={0} durationInFrames={coverFrames + safeOverlap}>
         {isReportSourceBound ? (

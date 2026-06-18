@@ -95,6 +95,10 @@ export type RemotionStyle = {
   visualStylePreset?: VisualStylePreset;
   // V1.2.4: Visual technique — academic_sketch (paper-like, grid, hand-drawn)
   visualTechnique?: VisualTechnique;
+  // V1.2.3: Lab-only content probe — forces a visible content layer in Visual Technique Matrix
+  visualTechniqueContentProbe?: boolean;
+  visualTechniqueFixtureId?: string;
+  visualTechniqueMatrixMode?: "technique_compare" | "family_adaptation";
 };
 
 // V0.6.2: Remotion family — selects visual presentation paradigm

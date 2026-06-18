@@ -2673,6 +2673,9 @@ function VisualTechniqueVariantMatrix({
         <div style={{ marginTop: "0.2rem", color: "#64748b", fontSize: "0.72rem" }}>
           当前仍是 lab-only，不进入 Style Sweep，不进入 Style Gallery。
         </div>
+        <div style={{ marginTop: "0.2rem", color: "#7c3aed", fontSize: "0.72rem", fontWeight: 600 }}>
+          内容探针：已开启 · 每个样片会强制显示标题、要点和 family 结构，用于判断是否只是背景换皮。
+        </div>
 
         {/* Technique selector for family adaptation mode */}
         {matrixMode === "family_adaptation" && (
@@ -3282,6 +3285,10 @@ export default function RemotionStyleFamilyPage() {
             visualStylePreset: "warm_paper",
             backgroundPreset: "warm_cinematic",
             transitionStyle: "slide_fade",
+            // V1.2.3: Lab-only content probe for Visual Technique Matrix
+            visualTechniqueContentProbe: true,
+            visualTechniqueFixtureId: visualTechniqueFixtureId,
+            visualTechniqueMatrixMode: visualTechniqueMatrixMode,
           },
           matrix,
         }),

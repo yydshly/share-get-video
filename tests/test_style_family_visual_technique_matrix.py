@@ -486,3 +486,163 @@ def test_visual_technique_matrix_invalid_technique_still_returns_400(monkeypatch
     )
     assert resp.status_code == 400
     assert "visualTechniques filter resulted in empty set" in resp.json()["detail"]
+
+
+# V1.2.3: Tests for lab-only content probe params
+def test_visual_technique_matrix_passes_content_probe_true(monkeypatch):
+    """visualTechniqueContentProbe=True must be passed to render_clip_preview."""
+    captured = []
+
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        captured.append(dict(params))
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": "exp_1",
+            "clipSeconds": clip_seconds,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+
+    request = SimpleNamespace(
+        content="Test content",
+        params={
+            "clipSeconds": 2,
+            "keyPointCount": 2,
+            "visualTechniqueContentProbe": True,
+            "visualTechniqueFixtureId": "academic_explainer",
+            "visualTechniqueMatrixMode": "technique_compare",
+        },
+        matrix={
+            "families": ["data_news"],
+            "visualTechniques": ["academic_sketch"],
+        },
+    )
+
+    result = style_family_service.run_visual_technique_matrix(request)
+    assert len(result["items"]) == 1
+    assert captured[0]["visualTechniqueContentProbe"] is True
+    assert captured[0]["visualTechniqueFixtureId"] == "academic_explainer"
+    assert captured[0]["visualTechniqueMatrixMode"] == "technique_compare"
+
+
+def test_visual_technique_matrix_passes_family_adaptation_mode(monkeypatch):
+    """visualTechniqueMatrixMode=family_adaptation must be passed through."""
+    captured = []
+
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        captured.append(dict(params))
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": "exp_1",
+            "clipSeconds": clip_seconds,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+
+    request = SimpleNamespace(
+        content="Test",
+        params={
+            "clipSeconds": 2,
+            "keyPointCount": 2,
+            "visualTechniqueContentProbe": True,
+            "visualTechniqueFixtureId": "blueprint_architecture",
+            "visualTechniqueMatrixMode": "family_adaptation",
+        },
+        matrix={
+            "families": ["timeline_news"],
+            "visualTechniques": ["blueprint"],
+        },
+    )
+
+    result = style_family_service.run_visual_technique_matrix(request)
+    assert len(result["items"]) == 1
+    assert captured[0]["visualTechniqueMatrixMode"] == "family_adaptation"
+    assert captured[0]["visualTechniqueContentProbe"] is True
+
+
+def test_visual_technique_matrix_content_probe_still_within_limit(monkeypatch):
+    """Content probe params do not affect item count (3x1=3, within MAX_MATRIX_ITEMS=9)."""
+    captured = []
+
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        captured.append(dict(params))
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": "exp_1",
+            "clipSeconds": clip_seconds,
+            "elapsedMs": 10,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+
+    request = SimpleNamespace(
+        content="Test",
+        params={
+            "clipSeconds": 2,
+            "keyPointCount": 2,
+            "visualTechniqueContentProbe": True,
+            "visualTechniqueFixtureId": "agent_sandbox",
+            "visualTechniqueMatrixMode": "family_adaptation",
+        },
+        matrix={
+            "families": ["data_news", "timeline_news", "caption_story"],
+            "visualTechniques": ["agent_sandbox_25d"],
+        },
+    )
+
+    result = style_family_service.run_visual_technique_matrix(request)
+    # 3 families × 1 technique = 3 items
+    assert len(result["items"]) == 3
+    # All items should have content probe params
+    assert all(item["success"] for item in result["items"])
+
+
+def test_visual_technique_matrix_endpoint_with_content_probe(monkeypatch):
+    """Endpoint returns 200 when content probe params are included."""
+    def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
+        return {
+            "success": True,
+            "clipUrl": "/runtime/clip.mp4",
+            "experimentId": "exp_test",
+            "clipSeconds": 2,
+            "elapsedMs": 1,
+            "message": "",
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
+    client = TestClient(app)
+
+    resp = client.post(
+        "/video-lab/style-family/visual-technique-matrix",
+        json={
+            "content": "test",
+            "params": {
+                "clipSeconds": 2,
+                "keyPointCount": 2,
+                "visualTechniqueContentProbe": True,
+                "visualTechniqueFixtureId": "generic_ai_eval",
+                "visualTechniqueMatrixMode": "technique_compare",
+            },
+            "matrix": {
+                "families": ["data_news"],
+                "visualTechniques": ["blueprint"],
+            },
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["success"] is True
