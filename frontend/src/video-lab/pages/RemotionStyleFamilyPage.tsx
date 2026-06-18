@@ -11,6 +11,11 @@
 
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { runBackgroundMatrixJob } from "../utils/backgroundMatrixJob";
+import {
+  VISUAL_STYLE_MATRIX_FAMILIES as SHARED_VISUAL_STYLE_MATRIX_FAMILIES,
+  VISUAL_STYLE_PRESETS as SHARED_VISUAL_STYLE_PRESETS,
+} from "../presets/visualStylePresets";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -1042,19 +1047,6 @@ const MATRIX_TRANSITIONS = [
 // V1.2.4: Full transition gallery — 1 family × 8 transitions stays within MAX_MATRIX_ITEMS=9.
 const DEFAULT_TRANSITION_FAMILY = [{ id: "data_news", name: "Data News", color: "#7c3aed" }];
 
-// V1.2.4: Visual Style Preset Matrix constants
-const VISUAL_STYLE_MATRIX_FAMILIES = [
-  { id: "data_news", name: "Data News", color: "#7c3aed" },
-  { id: "dashboard_brief", name: "Dashboard", color: "#f59e0b" },
-  { id: "caption_story", name: "Caption Story", color: "#ec4899" },
-];
-
-const VISUAL_STYLE_PRESETS = [
-  { id: "light_editorial", label: "light_editorial", desc: "浅色科技媒体" },
-  { id: "warm_paper", label: "warm_paper", desc: "稳妥纸张报告" },
-  { id: "bold_magazine", label: "bold_magazine", desc: "惊艳杂志爆点" },
-];
-
 const CAPABILITY_SUMMARY = [
   { label: "表现范式", value: "5", detail: "Data / Stack / Timeline / Dashboard / Caption" },
   { label: "动态背景", value: "6", detail: "含极光、玻璃、深空、霓虹电路" },
@@ -1974,9 +1966,9 @@ function VisualStyleVariantMatrix({
       ? `${import.meta.env.VITE_API_BASE?.replace(/\/video-lab$/, "") ?? ""}${u}`
       : u || "";
 
-  const grid = VISUAL_STYLE_MATRIX_FAMILIES.map((fam) => ({
+  const grid = SHARED_VISUAL_STYLE_MATRIX_FAMILIES.map((fam) => ({
     family: fam,
-    cells: VISUAL_STYLE_PRESETS.map((preset) => ({
+    cells: SHARED_VISUAL_STYLE_PRESETS.map((preset) => ({
       preset,
       item: result?.items.find(
         (it) => it.family === fam.id && it.visualStylePreset === preset.id
@@ -2001,10 +1993,10 @@ function VisualStyleVariantMatrix({
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.85rem", flexWrap: "wrap" }}>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
-          视觉风格矩阵 · V1.2.4
+          视觉风格矩阵
         </h2>
         <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
-          3 family × 3 visual styles = 9 clips
+          3 种版式 × 3 个已实现风格 = 9 个对照样片
         </span>
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {result && (
@@ -2026,21 +2018,44 @@ function VisualStyleVariantMatrix({
               cursor: loading ? "wait" : "pointer",
             }}
           >
-            {loading ? "渲染中..." : "运行视觉风格矩阵"}
+            {loading
+              ? `渲染中 ${totalItems}/${SHARED_VISUAL_STYLE_MATRIX_FAMILIES.length * SHARED_VISUAL_STYLE_PRESETS.length}`
+              : "运行视觉风格矩阵"}
           </button>
         </div>
       </div>
 
       <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.85rem" }}>
-        同一内容（Data News / Dashboard / Caption Story）× 3 种视觉风格（浅色编辑 / 暖色纸张 / 杂志爆点），
-        观察整体色调、卡片、边框、文字颜色的变化。Lab-only，不写 Style Sweep job 或 Style Gallery sample。
+        这里不是风格目录，而是验证台：保持内容一致，只切换版式与视觉风格，检查同一风格能否跨版式保持稳定辨识度。
+        风格定义与「视觉风格」模块共用同一份配置。
       </p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.65rem", marginBottom: "1rem" }}>
+        {SHARED_VISUAL_STYLE_PRESETS.map((preset) => (
+          <div key={preset.id} style={{ border: `1px solid ${preset.colors.border}`, borderRadius: 10, padding: "0.7rem", background: preset.colors.background, boxShadow: `inset 0 3px 0 ${preset.colors.accent}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: "0.8rem", fontWeight: 800, color: preset.colors.text }}>{preset.label}</div>
+                <div style={{ fontSize: "0.64rem", fontFamily: "monospace", color: preset.colors.accent }}>{preset.id}</div>
+              </div>
+              <div style={{ display: "flex", gap: 3 }}>
+                {[preset.colors.background, preset.colors.surface, preset.colors.accent, preset.colors.highlight].map((color) => (
+                  <span key={color} style={{ width: 14, height: 14, borderRadius: 999, background: color, border: `1px solid ${preset.colors.border}` }} />
+                ))}
+              </div>
+            </div>
+            <div style={{ fontSize: "0.7rem", color: preset.colors.text, opacity: 0.78, marginTop: "0.45rem", lineHeight: 1.45 }}>
+              {preset.evaluationFocus}
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* 3×3 Responsive Grid */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${VISUAL_STYLE_PRESETS.length}, minmax(150px, 1fr))`,
+          gridTemplateColumns: `repeat(${SHARED_VISUAL_STYLE_PRESETS.length}, minmax(150px, 1fr))`,
           gap: "0.65rem",
         }}
       >
@@ -2054,17 +2069,17 @@ function VisualStyleVariantMatrix({
               <div
                 key={`${row.family.id}-${cell.preset.id}`}
                 style={{
-                  border: `1px solid ${row.family.color}30`,
+                  border: `1px solid ${cell.preset.colors.border}`,
                   borderRadius: "10px",
                   overflow: "hidden",
-                  background: "white",
+                  background: cell.preset.colors.background,
                 }}
               >
                 {/* Card header */}
                 <div
                   style={{
-                    background: `linear-gradient(135deg, ${row.family.color}15 0%, ${row.family.color}06 100%)`,
-                    borderBottom: `1px solid ${row.family.color}25`,
+                    background: cell.preset.colors.surface,
+                    borderBottom: `1px solid ${cell.preset.colors.border}`,
                     padding: "0.4rem 0.65rem",
                     display: "flex",
                     alignItems: "center",
@@ -2075,7 +2090,7 @@ function VisualStyleVariantMatrix({
                     {row.family.name}
                   </span>
                   <span style={{ color: "#e2e8f0", fontSize: "0.65rem" }}>×</span>
-                  <span style={{ fontSize: "0.7rem", color: "#64748b" }}>
+                  <span style={{ fontSize: "0.7rem", color: cell.preset.colors.accent, fontWeight: 700 }}>
                     {cell.preset.label}
                   </span>
                 </div>
@@ -2116,7 +2131,7 @@ function VisualStyleVariantMatrix({
                 {/* Footer */}
                 <div style={{
                   padding: "0.3rem 0.65rem",
-                  borderTop: `1px solid ${row.family.color}15`,
+                  borderTop: `1px solid ${cell.preset.colors.border}`,
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
@@ -2153,9 +2168,9 @@ function VisualStyleVariantMatrix({
         >
           <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: "0.3rem" }}>观察提示：</div>
           <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
-            <li>light_editorial 是否明显更白/浅色，bold_magazine 是否明显更黑/高对比。</li>
-            <li>warm_paper 是否呈现暖色米白基调，与其他两者明显不同。</li>
-            <li>同一 family 在 3 种视觉风格下是否仍保持版式可辨识性。</li>
+            <li>横向看同一版式：三个风格的表面色、文字层级和强调色是否明显不同。</li>
+            <li>纵向看同一风格：它在 Data News、Dashboard、Caption Story 中是否保持一致气质。</li>
+            <li>如果样片仍普遍偏蓝，说明版式组件存在未被 visualStylePreset 覆盖的硬编码颜色。</li>
           </ul>
         </div>
       )}
@@ -3249,45 +3264,23 @@ export default function RemotionStyleFamilyPage() {
     setMatrixError("");
     setMatrixResult(null);
     try {
-      const startedAt = Date.now();
-      const items: MatrixItem[] = [];
-      for (const family of MATRIX_FAMILIES) {
-        for (const background of MATRIX_BACKGROUNDS) {
-          try {
-            const resp = await fetch(`${API_BASE}/style-family/background-matrix`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                content: "",
-                params: { clipSeconds: 3, keyPointCount: 3 },
-                matrix: {
-                  families: [family.id],
-                  backgroundPresets: [background.id],
-                },
-              }),
-            });
-            const data = await resp.json();
-            if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
-            items.push(...data.items);
-          } catch (e) {
-            items.push({
-              family: family.id,
-              backgroundPreset: background.id,
-              success: false,
-              videoUrl: "",
-              experimentId: "",
-              clipSeconds: 3,
-              elapsedMs: 0,
-              message: String(e),
-              warnings: [],
-            });
-          }
+      await runBackgroundMatrixJob<MatrixItem>(
+        API_BASE,
+        {
+          content: "",
+          params: { clipSeconds: 3, keyPointCount: 3 },
+          matrix: {
+            families: MATRIX_FAMILIES.map((family) => family.id),
+            backgroundPresets: MATRIX_BACKGROUNDS.map((background) => background.id),
+          },
+        },
+        (job) => {
           setMatrixResult({
-            items: [...items],
-            totalElapsedMs: Date.now() - startedAt,
+            items: job.items,
+            totalElapsedMs: job.totalElapsedMs,
           });
-        }
-      }
+        },
+      );
     } catch (e) {
       setMatrixError(String(e));
     } finally {
@@ -3356,21 +3349,45 @@ export default function RemotionStyleFamilyPage() {
     setVisualStyleMatrixError("");
     setVisualStyleMatrixResult(null);
     try {
-      const resp = await fetch(`${API_BASE}/style-family/visual-style-matrix`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: "OpenAI 发布新一代多模态模型，重点提升语音、图像和视频理解能力。",
-          params: { clipSeconds: 2, keyPointCount: 2 },
-          matrix: {
-            families: VISUAL_STYLE_MATRIX_FAMILIES.map((f) => f.id),
-            visualStylePresets: VISUAL_STYLE_PRESETS.map((p) => p.id),
-          },
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
-      setVisualStyleMatrixResult(data);
+      const startedAt = Date.now();
+      const items: VisualStyleMatrixItem[] = [];
+      for (const family of SHARED_VISUAL_STYLE_MATRIX_FAMILIES) {
+        for (const preset of SHARED_VISUAL_STYLE_PRESETS) {
+          try {
+            const resp = await fetch(`${API_BASE}/style-family/visual-style-matrix`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                content: "OpenAI 发布新一代多模态模型，重点提升语音、图像和视频理解能力。",
+                params: { clipSeconds: 2, keyPointCount: 2 },
+                matrix: {
+                  families: [family.id],
+                  visualStylePresets: [preset.id],
+                },
+              }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+            items.push(...data.items);
+          } catch (e) {
+            items.push({
+              family: family.id,
+              visualStylePreset: preset.id,
+              success: false,
+              videoUrl: "",
+              experimentId: "",
+              clipSeconds: 2,
+              elapsedMs: 0,
+              message: String(e),
+              warnings: [],
+            });
+          }
+          setVisualStyleMatrixResult({
+            items: [...items],
+            totalElapsedMs: Date.now() - startedAt,
+          });
+        }
+      }
     } catch (e) {
       setVisualStyleMatrixError(String(e));
     } finally {

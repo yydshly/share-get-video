@@ -1,49 +1,26 @@
 """Regression tests for the Remotion Style Family background matrix."""
 
 import re
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
+import app.video_lab.background_matrix_jobs as background_matrix_jobs
 import app.video_lab.services.style_family_service as style_family_service
 
 
 PROJECT_ROOT = Path(__file__).parent.parent
-PAGE_PATH = (
-    PROJECT_ROOT
-    / "frontend"
-    / "src"
-    / "video-lab"
-    / "pages"
-    / "RemotionStyleFamilyPage.tsx"
-)
-LAB_PAGE_PATH = (
-    PROJECT_ROOT
-    / "frontend"
-    / "src"
-    / "video-lab"
-    / "pages"
-    / "RemotionLabPage.tsx"
-)
+PAGE_PATH = PROJECT_ROOT / "frontend" / "src" / "video-lab" / "pages" / "RemotionStyleFamilyPage.tsx"
+LAB_PAGE_PATH = PROJECT_ROOT / "frontend" / "src" / "video-lab" / "pages" / "RemotionLabPage.tsx"
 
 
 def test_style_family_page_default_background_matrix_stays_within_backend_limit():
-    """The UI displays every background with one fixed family, within the limit."""
     source = PAGE_PATH.read_text(encoding="utf-8")
-
-    families_block = re.search(
-        r"const MATRIX_FAMILIES = \[(.*?)\];",
-        source,
-        flags=re.DOTALL,
-    )
-    backgrounds_block = re.search(
-        r"const MATRIX_BACKGROUNDS = \[(.*?)\];",
-        source,
-        flags=re.DOTALL,
-    )
+    families_block = re.search(r"const MATRIX_FAMILIES = \[(.*?)\];", source, flags=re.DOTALL)
+    backgrounds_block = re.search(r"const MATRIX_BACKGROUNDS = \[(.*?)\];", source, flags=re.DOTALL)
 
     assert families_block is not None
     assert backgrounds_block is not None
-
     family_ids = re.findall(r'\bid:\s*"([^"]+)"', families_block.group(1))
     background_ids = re.findall(r'\bid:\s*"([^"]+)"', backgrounds_block.group(1))
 
@@ -53,7 +30,6 @@ def test_style_family_page_default_background_matrix_stays_within_backend_limit(
 
 
 def test_background_matrix_accepts_the_page_default_1x6_request(monkeypatch):
-    """The backend accepts and renders all six backgrounds sent by the page."""
     calls = []
 
     def fake_render_clip_preview(*, content, visual_route, params, clip_seconds):
@@ -68,12 +44,7 @@ def test_background_matrix_accepts_the_page_default_1x6_request(monkeypatch):
             "warnings": [],
         }
 
-    monkeypatch.setattr(
-        style_family_service,
-        "render_clip_preview",
-        fake_render_clip_preview,
-    )
-
+    monkeypatch.setattr(style_family_service, "render_clip_preview", fake_render_clip_preview)
     request = SimpleNamespace(
         content="",
         params={"clipSeconds": 3, "keyPointCount": 3},
@@ -87,37 +58,76 @@ def test_background_matrix_accepts_the_page_default_1x6_request(monkeypatch):
 
     assert len(result["items"]) == 6
     assert len(calls) == 6
-    assert {
-        item["backgroundPreset"] for item in result["items"]
-    } == set(style_family_service.VALID_BACKGROUND_PRESETS)
-
-
-def test_remotion_lab_background_matrix_submits_every_listed_background():
-    """The Remotion Lab progressively submits every listed background."""
-    source = LAB_PAGE_PATH.read_text(encoding="utf-8")
-
-    backgrounds_block = re.search(
-        r"const BACKGROUNDS = \[(.*?)\];",
-        source,
-        flags=re.DOTALL,
+    assert {item["backgroundPreset"] for item in result["items"]} == set(
+        style_family_service.VALID_BACKGROUND_PRESETS
     )
+
+
+def test_remotion_lab_background_matrix_uses_async_job():
+    source = LAB_PAGE_PATH.read_text(encoding="utf-8")
+    backgrounds_block = re.search(r"const BACKGROUNDS = \[(.*?)\];", source, flags=re.DOTALL)
 
     assert backgrounds_block is not None
     background_ids = re.findall(r'\bid:\s*"([^"]+)"', backgrounds_block.group(1))
-
     assert set(background_ids) == set(style_family_service.VALID_BACKGROUND_PRESETS)
-    assert "for (const background of BACKGROUNDS)" in source
-    assert "backgroundPresets: [background.id]" in source
+    assert "runBackgroundMatrixJob<BackgroundMatrixItem>" in source
+    assert "backgroundPresets: BACKGROUNDS.map" in source
     assert "setResult({" in source
-    assert "运行完整背景矩阵（1 family × 6 backgrounds）" in source
 
 
-def test_style_family_background_matrix_progressively_renders_each_item():
-    """The main page updates after each 1×1 request instead of waiting for all six."""
+def test_style_family_background_matrix_uses_async_job():
     source = PAGE_PATH.read_text(encoding="utf-8")
 
-    assert "for (const family of MATRIX_FAMILIES)" in source
-    assert "for (const background of MATRIX_BACKGROUNDS)" in source
-    assert "backgroundPresets: [background.id]" in source
+    assert "runBackgroundMatrixJob<MatrixItem>" in source
+    assert "families: MATRIX_FAMILIES.map" in source
+    assert "backgroundPresets: MATRIX_BACKGROUNDS.map" in source
     assert "setMatrixResult({" in source
-    assert "渲染中 ${result?.items.length ?? 0}/" in source
+
+
+def test_background_matrix_job_returns_immediately_and_reports_progress(monkeypatch):
+    calls = []
+
+    def fake_run(request):
+        background = request.matrix["backgroundPresets"][0]
+        calls.append(background)
+        time.sleep(0.02)
+        return {
+            "items": [{
+                "family": request.matrix["families"][0],
+                "backgroundPreset": background,
+                "success": True,
+                "videoUrl": f"/runtime/{background}.mp4",
+                "elapsedMs": 20,
+                "message": "",
+                "warnings": [],
+            }],
+            "totalElapsedMs": 20,
+        }
+
+    monkeypatch.setattr(background_matrix_jobs, "run_background_variant_matrix", fake_run)
+    request = SimpleNamespace(
+        content="test",
+        params={"clipSeconds": 2},
+        matrix={
+            "families": ["timeline_news"],
+            "backgroundPresets": ["tech_grid_dark", "aurora_blue"],
+        },
+    )
+
+    created = background_matrix_jobs.create_background_matrix_job(request)
+    assert created["status"] in {"pending", "running"}
+    assert created["completed"] == 0
+
+    deadline = time.time() + 2
+    job = created
+    while time.time() < deadline:
+        job = background_matrix_jobs.get_background_matrix_job(created["jobId"])
+        if job and job["status"] == "completed":
+            break
+        time.sleep(0.01)
+
+    assert job is not None
+    assert job["status"] == "completed"
+    assert job["completed"] == 2
+    assert len(job["items"]) == 2
+    assert calls == ["tech_grid_dark", "aurora_blue"]

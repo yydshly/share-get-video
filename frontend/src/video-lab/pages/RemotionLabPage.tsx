@@ -4,6 +4,11 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { runBackgroundMatrixJob } from "../utils/backgroundMatrixJob";
+import {
+  VISUAL_STYLE_EXPLORATION_DIRECTIONS,
+  VISUAL_STYLE_PRESETS,
+} from "../presets/visualStylePresets";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/video-lab";
 
@@ -67,63 +72,6 @@ const TRANSITIONS = [
   { id: "zoom_blur", label: "zoom_blur", desc: "镜头推进（实验）" },
   { id: "flip", label: "flip", desc: "翻转（实验）" },
   { id: "glitch", label: "glitch", desc: "故障（实验）" },
-];
-
-const VISUAL_STYLE_DIRECTIONS = [
-  {
-    id: "light_editorial",
-    name: "light_editorial",
-    label: "浅色科技媒体",
-    tone: "浅色科技感，清新活泼",
-    suitable: "轻量资讯、工具推荐、创业公司动态",
-    motion: "中低动效，强调留白和文字可读性",
-    sweepReady: "待探索",
-  },
-  {
-    id: "pastel_glass",
-    name: "pastel_glass",
-    label: "淡色玻璃拟态",
-    tone: "粉蓝淡紫 + 毛玻璃质感",
-    suitable: "女性向内容、生活方式、AI 产品功能介绍",
-    motion: "柔和过渡，轻微模糊动画",
-    sweepReady: "待探索",
-  },
-  {
-    id: "warm_paper",
-    name: "warm_paper",
-    label: "米白纸张报告",
-    tone: "米白纸张纹理 + 暖灰文字",
-    suitable: "企业咨询报告、行业研究报告、正式新闻",
-    motion: "克制动效，静态为主",
-    sweepReady: "待探索",
-  },
-  {
-    id: "apple_keynote",
-    name: "apple_keynote",
-    label: "产品发布会",
-    tone: "深色背景 + 大字标题 + 强调色点缀",
-    suitable: "产品发布、功能演示、科技公司公告",
-    motion: "慢速优雅过渡，镜头感强",
-    sweepReady: "待探索",
-  },
-  {
-    id: "calm_enterprise",
-    name: "calm_enterprise",
-    label: "企业咨询报告",
-    tone: "深蓝灰 + 白色文字，信息密度高",
-    suitable: "企业培训、咨询报告、方案展示",
-    motion: "结构化卡片，强调信息层次",
-    sweepReady: "待探索",
-  },
-  {
-    id: "bold_magazine",
-    name: "bold_magazine",
-    label: "杂志爆点风",
-    tone: "高对比黑白 + 红色强调，大字号",
-    suitable: "突发新闻、观点短评、爆点资讯",
-    motion: "快速切换，冲击感强",
-    sweepReady: "待探索",
-  },
 ];
 
 const CANDIDATE_PRESETS = [
@@ -697,40 +645,23 @@ function TabBackground() {
     setError("");
     setResult(null);
     try {
-      const startedAt = Date.now();
-      const items: BackgroundMatrixItem[] = [];
-      for (const background of BACKGROUNDS) {
-        try {
-          const resp = await fetch(`${API_BASE}/style-family/background-matrix`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              content: "OpenAI 发布新一代多模态模型，重点提升语音、图像和视频理解能力。",
-              params: { clipSeconds: 2, keyPointCount: 2 },
-              matrix: {
-                families: ["timeline_news"],
-                backgroundPresets: [background.id],
-              },
-            }),
+      await runBackgroundMatrixJob<BackgroundMatrixItem>(
+        API_BASE,
+        {
+          content: "OpenAI 发布新一代多模态模型，重点提升语音、图像和视频理解能力。",
+          params: { clipSeconds: 2, keyPointCount: 2 },
+          matrix: {
+            families: ["timeline_news"],
+            backgroundPresets: BACKGROUNDS.map((background) => background.id),
+          },
+        },
+        (job) => {
+          setResult({
+            items: job.items,
+            totalElapsedMs: job.totalElapsedMs,
           });
-          const data = await resp.json();
-          if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
-          items.push(...data.items);
-        } catch (e) {
-          items.push({
-            family: "timeline_news",
-            backgroundPreset: background.id,
-            success: false,
-            videoUrl: "",
-            elapsedMs: 0,
-            message: String(e),
-          });
-        }
-        setResult({
-          items: [...items],
-          totalElapsedMs: Date.now() - startedAt,
-        });
-      }
+        },
+      );
     } catch (e) {
       setError(String(e));
     } finally {
@@ -1027,67 +958,110 @@ function TabVisualStyle() {
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       <div
         style={{
-          background: "#fffbeb",
-          border: "1px solid #fde68a",
+          background: "#eff6ff",
+          border: "1px solid #bfdbfe",
           borderRadius: 12,
           padding: "1rem 1.25rem",
           fontSize: "0.85rem",
-          color: "#92400e",
+          color: "#1e3a8a",
           lineHeight: 1.6,
         }}
       >
-        <strong>视觉风格 ≠ 背景。</strong>视觉风格 = 色彩 + 背景 + 字体 + 卡片 + 布局 + 动效 + 信息密度 + 情绪。
-        以下 6 个方向是建议探索方向，不代表已有实现。
+        <strong>视觉风格目录。</strong>
+        这里定义“视频穿什么衣服”：表面色、文字层级、强调色、卡片质感和运动气质。
+        下方 3 个风格已经接入 Remotion，并与视觉风格矩阵使用同一份配置。
       </div>
 
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", marginBottom: "0.85rem" }}>
+          <h2 style={{ fontSize: "1rem", color: "#1e293b", margin: 0 }}>已实现风格</h2>
+          <span style={{ fontSize: "0.7rem", color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 999, padding: "0.15rem 0.5rem" }}>
+            3 个 · 可进入矩阵实测
+          </span>
+        </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
-        {VISUAL_STYLE_DIRECTIONS.map((dir) => (
+        {VISUAL_STYLE_PRESETS.map((dir) => (
           <div
             key={dir.id}
             style={{
-              background: "white",
-              border: "1px solid #e2e8f0",
+              background: dir.colors.background,
+              border: `1px solid ${dir.colors.border}`,
               borderRadius: 12,
               padding: "1rem",
+              boxShadow: `inset 0 4px 0 ${dir.colors.accent}`,
             }}
           >
-            <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#1e293b", marginBottom: "0.4rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", alignItems: "start" }}>
+              <div>
+            <div style={{ fontSize: "0.92rem", fontWeight: 800, color: dir.colors.text, marginBottom: "0.25rem" }}>
               {dir.label}
             </div>
-            <div style={{ fontSize: "0.7rem", fontFamily: "monospace", color: "#94a3b8", marginBottom: "0.6rem" }}>
-              {dir.name}
+            <div style={{ fontSize: "0.7rem", fontFamily: "monospace", color: dir.colors.accent, marginBottom: "0.6rem" }}>
+              {dir.id} · {dir.shortLabel}
+            </div>
+              </div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[dir.colors.background, dir.colors.surface, dir.colors.accent, dir.colors.highlight].map((color) => (
+                  <span key={color} title={color} style={{ width: 16, height: 16, borderRadius: 999, background: color, border: `1px solid ${dir.colors.border}` }} />
+                ))}
+              </div>
+            </div>
+            <div style={{ fontSize: "0.76rem", color: dir.colors.text, opacity: 0.82, lineHeight: 1.55, marginBottom: "0.7rem" }}>
+              {dir.positioning}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontSize: "0.78rem" }}>
               <div>
-                <span style={{ fontWeight: 600, color: "#64748b" }}>色彩基调：</span>
-                <span style={{ color: "#475569" }}>{dir.tone}</span>
+                <span style={{ fontWeight: 700, color: dir.colors.accent }}>色彩基调：</span>
+                <span style={{ color: dir.colors.text }}>{dir.tone}</span>
               </div>
               <div>
-                <span style={{ fontWeight: 600, color: "#64748b" }}>适合内容：</span>
-                <span style={{ color: "#475569" }}>{dir.suitable}</span>
+                <span style={{ fontWeight: 700, color: dir.colors.accent }}>适合内容：</span>
+                <span style={{ color: dir.colors.text }}>{dir.suitable}</span>
               </div>
               <div>
-                <span style={{ fontWeight: 600, color: "#64748b" }}>动效倾向：</span>
-                <span style={{ color: "#475569" }}>{dir.motion}</span>
+                <span style={{ fontWeight: 700, color: dir.colors.accent }}>动效倾向：</span>
+                <span style={{ color: dir.colors.text }}>{dir.motion}</span>
               </div>
-              <div style={{ marginTop: "0.3rem" }}>
+              <div style={{ marginTop: "0.35rem", padding: "0.55rem 0.65rem", background: dir.colors.surface, border: `1px solid ${dir.colors.border}`, borderRadius: 8, color: dir.colors.text }}>
+                <strong>矩阵观察：</strong>{dir.evaluationFocus}
+              </div>
+              <div style={{ marginTop: "0.15rem" }}>
                 <span
                   style={{
                     fontSize: "0.7rem",
                     fontWeight: 700,
-                    color: "#b45309",
-                    background: "#fef3c7",
-                    border: "1px solid #fde68a",
+                    color: "#15803d",
+                    background: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
                     borderRadius: 999,
                     padding: "0.1rem 0.45rem",
                   }}
                 >
-                  {dir.sweepReady}
+                  已实现 · 可渲染
                 </span>
               </div>
             </div>
           </div>
         ))}
+      </div>
+      </div>
+
+      <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: "1rem 1.1rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", marginBottom: "0.75rem" }}>
+          <h2 style={{ fontSize: "0.95rem", color: "#334155", margin: 0 }}>待探索方向</h2>
+          <span style={{ fontSize: "0.68rem", color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 999, padding: "0.12rem 0.45rem" }}>
+            不进入当前矩阵
+          </span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.7rem" }}>
+          {VISUAL_STYLE_EXPLORATION_DIRECTIONS.map((direction) => (
+            <div key={direction.id} style={{ background: "white", border: "1px dashed #cbd5e1", borderRadius: 10, padding: "0.75rem" }}>
+              <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#475569" }}>{direction.label}</div>
+              <div style={{ fontSize: "0.68rem", fontFamily: "monospace", color: "#94a3b8", margin: "0.2rem 0 0.45rem" }}>{direction.id}</div>
+              <div style={{ fontSize: "0.74rem", color: "#64748b", lineHeight: 1.5 }}>{direction.summary}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <Link
@@ -1106,7 +1080,7 @@ function TabVisualStyle() {
           alignSelf: "flex-start",
         }}
       >
-        前往生成视觉风格矩阵 →
+        用同一内容实测这 3 个风格 →
       </Link>
     </div>
   );

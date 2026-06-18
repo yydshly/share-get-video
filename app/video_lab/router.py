@@ -54,6 +54,10 @@ from app.video_lab.services import (
     extract_style_sample_assets,
 )
 from app.video_lab.services.assets import _safe_get, _artifact_type_value
+from app.video_lab.background_matrix_jobs import (
+    create_background_matrix_job,
+    get_background_matrix_job,
+)
 
 
 router = APIRouter(prefix="/video-lab", tags=["VideoLab"])
@@ -407,6 +411,25 @@ def style_family_background_matrix(request: BackgroundVariantMatrixRequest) -> d
         return run_background_variant_matrix(request)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/style-family/background-matrix-jobs")
+def start_style_family_background_matrix_job(
+    request: BackgroundVariantMatrixRequest,
+) -> dict[str, Any]:
+    """Start a long-running matrix render without holding the request open."""
+    try:
+        return create_background_matrix_job(request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/style-family/background-matrix-jobs/{job_id}")
+def read_style_family_background_matrix_job(job_id: str) -> dict[str, Any]:
+    job = get_background_matrix_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="background matrix job not found")
+    return job
 
 
 @router.post("/style-family/transition-matrix")
