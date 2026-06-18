@@ -62,7 +62,8 @@ export type BackgroundPreset =
 export type VisualStylePreset = "light_editorial" | "warm_paper" | "bold_magazine";
 
 // V1.2.4: Visual technique —特色表现技法
-export type VisualTechnique = "academic_sketch";
+// V1.2.5: + blueprint（深蓝晒图纸 + 白色工程线，与 academic_sketch 暖纸冷暖对照）
+export type VisualTechnique = "academic_sketch" | "blueprint";
 
 export type RemotionStyle = {
   accentColor?: string;     // 主题强调色（标号/分隔线/数据条/图标）

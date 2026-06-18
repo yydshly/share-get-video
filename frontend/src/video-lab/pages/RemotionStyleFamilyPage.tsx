@@ -2502,8 +2502,8 @@ export default function RemotionStyleFamilyPage() {
             transitionStyle: "slide_fade",
           },
           matrix: {
-            families: ["caption_story", "data_news", "timeline_news"],
-            visualTechniques: ["academic_sketch"],
+            families: ["data_news", "timeline_news", "caption_story"],
+            visualTechniques: ["academic_sketch", "blueprint"],
           },
         }),
       });

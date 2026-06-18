@@ -371,6 +371,17 @@ type TechniqueSurface = {
   titleColor: string; bodyColor: string; mutedColor: string; titleShadow: string;
 };
 function getTechniqueSurface(visualTechnique?: string): TechniqueSurface {
+  if (visualTechnique === "blueprint") {
+    return {
+      cardBg: "rgba(12,40,60,0.58)",
+      cardBorder: "rgba(140,195,235,0.55)",
+      cardShadow: "0 8px 30px rgba(0,0,0,0.45)",
+      titleColor: "#eaf6ff",
+      bodyColor: "#b6d4ec",
+      mutedColor: "#86aacb",
+      titleShadow: "0 0 24px rgba(120,190,235,0.35)",
+    };
+  }
   if (visualTechnique === "academic_sketch") {
     return {
       cardBg: "rgba(255,253,247,0.93)",
@@ -449,6 +460,46 @@ const BackgroundLayer: React.FC<{
           position: "absolute", inset: 0,
           background: "radial-gradient(ellipse at center, transparent 60%, rgba(160,140,100,0.15) 100%)",
         }} />
+      </div>
+    );
+  }
+
+  // V1.2.5: blueprint — 蓝图晒图纸 + 白色工程网格 + 角标记 + 漂浮粒子（冷调，与 academic 暖纸对照）
+  if (visualTechnique === "blueprint") {
+    const lineMinor = "rgba(175,215,245,0.16)";
+    const lineMajor = "rgba(190,225,250,0.36)";
+    const ink = "rgba(205,232,252,0.75)";
+    const wob = Math.sin(frame / 30) * 0.8;
+    const cornerStyle: React.CSSProperties = { position: "absolute", width: 30, height: 30 };
+    return (
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, background: "#0d3a5c", overflow: "hidden" }}>
+        {/* deep blueprint vignette */}
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 38%, #14507a 0%, #0a3354 55%, #07273f 100%)" }} />
+        {/* minor + major engineering grid */}
+        <div style={{
+          position: "absolute", inset: "-4%",
+          transform: `translate(${wob}px, ${-wob}px)`,
+          backgroundImage: `
+            linear-gradient(90deg, ${lineMinor} 1px, transparent 1px),
+            linear-gradient(0deg, ${lineMinor} 1px, transparent 1px),
+            linear-gradient(90deg, ${lineMajor} 1.5px, transparent 1.5px),
+            linear-gradient(0deg, ${lineMajor} 1.5px, transparent 1.5px)
+          `,
+          backgroundSize: "26px 26px, 26px 26px, 130px 130px, 130px 130px",
+          opacity: 0.9,
+        }} />
+        {/* corner registration ticks */}
+        <div style={{ ...cornerStyle, top: "7%", left: "7%", borderTop: `2px solid ${ink}`, borderLeft: `2px solid ${ink}` }} />
+        <div style={{ ...cornerStyle, top: "7%", right: "7%", borderTop: `2px solid ${ink}`, borderRight: `2px solid ${ink}` }} />
+        <div style={{ ...cornerStyle, bottom: "7%", left: "7%", borderBottom: `2px solid ${ink}`, borderLeft: `2px solid ${ink}` }} />
+        <div style={{ ...cornerStyle, bottom: "7%", right: "7%", borderBottom: `2px solid ${ink}`, borderRight: `2px solid ${ink}` }} />
+        {/* faint cyan glow — breathing */}
+        <div style={{
+          position: "absolute", top: "5%", left: "20%", width: "60%", height: "45%",
+          background: "radial-gradient(ellipse, rgba(120,190,235,0.10) 0%, transparent 70%)",
+          filter: "blur(60px)", opacity: 0.6 + 0.4 * Math.sin(frame / 40),
+        }} />
+        <FloatingParticles count={10} color="rgba(170,215,245,0.8)" maxSize={3} />
       </div>
     );
   }

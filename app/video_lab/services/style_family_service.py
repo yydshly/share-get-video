@@ -418,6 +418,7 @@ VALID_VISUAL_TECHNIQUE_MATRIX_FAMILIES = [
 
 VALID_VISUAL_TECHNIQUES = [
     "academic_sketch",
+    "blueprint",
 ]
 
 
