@@ -54,7 +54,7 @@ app.include_router(video_lab_router)
 def root():
     return {
         "name": "Video Capability Lab",
-        "version": "0.3.5-dev",
+        "version": app.version,
         "description": "视频生成能力验证平台",
     }
 

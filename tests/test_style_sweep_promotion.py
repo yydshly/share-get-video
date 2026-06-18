@@ -910,3 +910,7 @@ class TestPromoteNewAspectRatioFields:
         assert saved.generation.output_aspect_ratio == "16:9"
         assert saved.generation.display_aspect_ratio == "16:9.0"
         assert saved.generation.fit_mode == "contain"
+        # asset_meta also carries these fields
+        assert saved.asset_meta.aspect_ratio == "16:9"
+        assert saved.asset_meta.display_aspect_ratio == "16:9.0"
+        assert saved.asset_meta.fit_mode == "contain"
