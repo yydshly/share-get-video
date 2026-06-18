@@ -30,17 +30,14 @@ def _find_sample_by_sweep_ref(
     style_id: str,
 ) -> str | None:
     """Return sample_id if a sample already exists for this sweep job + style_id."""
-    # Re-use the existing list_samples filter to narrow scope, then scan.
-    candidates = sg_store.list_samples(source_type="style_sweep", limit=200)
-    for s in candidates:
-        src = s.source
-        if (
-            src.source_type == "style_sweep"
-            and src.job_id == sweep_job_id
-            and src.run_id == style_id  # run_id stores style_id
-        ):
-            return s.id
-    return None
+    # V1.2.3: Use direct store lookup — no limit cap (previously had limit=200 which
+    # could miss samples when the store grew beyond 200 style_sweep entries).
+    sample = sg_store.find_sample_by_source(
+        source_type="style_sweep",
+        job_id=sweep_job_id,
+        run_id=style_id,
+    )
+    return sample.id if sample else None
 
 
 # ─── Core promotion logic ─────────────────────────────────────────────────────
@@ -163,6 +160,9 @@ def promote_sweep_results_to_gallery(
             visual_route=job.routeId,
             route_preset=style_id,
             aspect_ratio=params.get("aspectRatio", ""),
+            output_aspect_ratio=params.get("outputAspectRatio", ""),
+            display_aspect_ratio=params.get("displayAspectRatio", ""),
+            fit_mode=params.get("fitMode", ""),
             target_duration=params.get("targetDuration", 0.0),
         )
 
@@ -173,6 +173,9 @@ def promote_sweep_results_to_gallery(
             audio_url=audio_url,
             srt_url=srt_url,
             manifest_url=manifest_url,
+            aspect_ratio=params.get("aspectRatio", ""),
+            display_aspect_ratio=params.get("displayAspectRatio", ""),
+            fit_mode=params.get("fitMode", ""),
         )
 
         # ── build SampleQualityMeta ─────────────────────────────────────────

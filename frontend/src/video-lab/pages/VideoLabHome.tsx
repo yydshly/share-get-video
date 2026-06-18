@@ -1,5 +1,5 @@
 // Video Lab - Home Page
-// V1.1.0: 视频生成能力实验室 · 产品主流程冻结
+// V1.2.3: 视频生成能力实验室 · Style Gallery Validation Center
 // 三层结构：主工作台 / 样片库 / 高级实验区
 // 目标：让用户清楚"从哪里开始生成视频 / 哪里看历史 / 哪里做实验"
 
@@ -171,7 +171,7 @@ export default function VideoLabHome() {
               fontWeight: 700,
             }}
           >
-            V1.1.0 · 主流程已冻结
+            V1.2.3 · Style Gallery Validation Center
           </span>
         </div>
         <p style={{ fontSize: "0.92rem", color: "rgba(255,255,255,0.88)", lineHeight: 1.65, margin: 0 }}>

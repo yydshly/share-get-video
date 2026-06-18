@@ -313,19 +313,19 @@ def test_implementation_status_has_manual():
 
 
 # ─────────────────────────────────────────
-# 9. Version is 0.3.5-dev
+# 9. Version is 1.2.3
 # ─────────────────────────────────────────
-def test_api_version_is_0_3_5_dev():
-    """Root API should return version 0.3.5-dev."""
+def test_api_version_is_1_2_3():
+    """Root API should return version 1.2.3."""
     resp = client.get("/")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "0.3.5-dev"
+    assert data["version"] == "1.2.3"
 
 
-def test_fastapi_app_version_is_0_3_5_dev():
-    """FastAPI app version should be 0.3.5-dev."""
-    assert app.version == "0.3.5-dev"
+def test_fastapi_app_version_is_1_2_3():
+    """FastAPI app version should be 1.2.3."""
+    assert app.version == "1.2.3"
 
 
 # ─────────────────────────────────────────

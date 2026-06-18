@@ -31,7 +31,7 @@ RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 app = FastAPI(
     title="Video Capability Lab",
     description="视频生成能力验证平台",
-    version="0.3.5-dev",
+    version="1.2.3",
 )
 
 # CORS

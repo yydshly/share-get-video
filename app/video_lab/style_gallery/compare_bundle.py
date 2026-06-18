@@ -1,9 +1,12 @@
 """
 style_gallery/compare_bundle.py - Compare Bundle for Style Sample comparisons
 V1.0.7: Compare Bundle — save and replay style sample comparison decisions
+V1.2.3: Thread-safe writes with module-level lock + atomic write (temp file + os.replace)
 """
 
 import json
+import os
+import threading
 import uuid
 from datetime import datetime
 from typing import Any
@@ -12,6 +15,9 @@ from pydantic import BaseModel, Field
 
 from app.video_lab.style_gallery import store as sg_store
 from app.video_lab.config import RUNTIME_DIR
+
+# V1.2.3: Module-level lock for thread-safe JSONL reads/writes
+_bundle_lock = threading.Lock()
 
 
 # ─── 路径常量 ────────────────────────────────────────────────────────────────
@@ -109,11 +115,13 @@ def _read_all() -> list[dict[str, Any]]:
 
 
 def _write_all(records: list[dict[str, Any]]) -> None:
-    """全量覆盖写回 JSONL。"""
+    """全量覆盖写回 JSONL（原子写：先写临时文件再 rename）。"""
     _ensure_dirs()
-    with open(_JSONL_PATH, "w", encoding="utf-8") as f:
+    tmp_path = _JSONL_PATH.with_suffix(".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    os.replace(tmp_path, _JSONL_PATH)
 
 
 def list_compare_bundles(limit: int = 50) -> list[CompareBundle]:
@@ -135,27 +143,29 @@ def get_compare_bundle(bundle_id: str) -> CompareBundle | None:
 
 def save_compare_bundle(bundle: CompareBundle) -> CompareBundle:
     """新增或更新一个对比包（按 ID 全量覆盖）。"""
-    _ensure_dirs()
-    records = _read_all()
-    bundle.updated_at = datetime.utcnow()
-    idx = next((i for i, r in enumerate(records) if r.get("id") == bundle.id), -1)
-    d = bundle.to_dict()
-    if idx >= 0:
-        records[idx] = d
-    else:
-        records.append(d)
-    _write_all(records)
+    with _bundle_lock:
+        _ensure_dirs()
+        records = _read_all()
+        bundle.updated_at = datetime.utcnow()
+        idx = next((i for i, r in enumerate(records) if r.get("id") == bundle.id), -1)
+        d = bundle.to_dict()
+        if idx >= 0:
+            records[idx] = d
+        else:
+            records.append(d)
+        _write_all(records)
     return bundle
 
 
 def delete_compare_bundle(bundle_id: str) -> bool:
     """删除一个对比包。"""
-    records = _read_all()
-    before = len(records)
-    records = [r for r in records if r.get("id") != bundle_id]
-    if len(records) == before:
-        return False
-    _write_all(records)
+    with _bundle_lock:
+        records = _read_all()
+        before = len(records)
+        records = [r for r in records if r.get("id") != bundle_id]
+        if len(records) == before:
+            return False
+        _write_all(records)
     return True
 
 

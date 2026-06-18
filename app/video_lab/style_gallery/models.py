@@ -29,6 +29,9 @@ class SampleGenerationMeta(BaseModel):
     remotion_family: str = Field(default="")
     route_preset: str = Field(default="")
     aspect_ratio: str = Field(default="")
+    output_aspect_ratio: str = Field(default="")
+    display_aspect_ratio: str = Field(default="")
+    fit_mode: str = Field(default="")
     target_duration: float = Field(default=0.0)
     key_point_count: int = Field(default=0)
     content_hash: str = Field(default="")
@@ -42,6 +45,9 @@ class SampleAssetMeta(BaseModel):
     manifest_url: str = Field(default="")
     runtime_prefix: str = Field(default="")
     artifact_count: int = Field(default=0)
+    aspect_ratio: str = Field(default="")
+    display_aspect_ratio: str = Field(default="")
+    fit_mode: str = Field(default="")
 
 
 class SampleQualityMeta(BaseModel):
@@ -121,7 +127,7 @@ class StyleSample(BaseModel):
     quality_meta: SampleQualityMeta = Field(default_factory=SampleQualityMeta)
     review_meta: SampleReviewMeta = Field(default_factory=SampleReviewMeta)
     job_run: dict[str, Any] = Field(default_factory=dict)
-    schema_version: str = Field(default="1.0.5")
+    schema_version: str = Field(default="1.2.3")
 
     def to_dict(self) -> dict[str, Any]:
         d = self.model_dump(mode="json")
@@ -155,4 +161,5 @@ class StyleSample(BaseModel):
             d["job_run"] = {}
         if "schema_version" not in d:
             d["schema_version"] = "1.0.4"  # pre-formalization version
+        # V1.2.3: New aspect ratio fields are optional with defaults — no extra compat needed
         return cls(**d)

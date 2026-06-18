@@ -1,16 +1,21 @@
 """
 style_gallery/store.py - JSONL-backed Style Sample storage
 V0.3.7: Style Sample Gallery — no database, just JSONL files
+V1.2.3: Thread-safe writes with module-level lock + atomic write (temp file + os.replace)
 """
 
 import json
 import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from app.video_lab.style_gallery.models import StyleSample
 from app.video_lab.config import RUNTIME_DIR, PUBLIC_RUNTIME_URL_PREFIX
+
+# V1.2.3: Module-level lock for thread-safe JSONL reads/writes
+_store_lock = threading.Lock()
 
 
 def _created_at_sort_key(sample: StyleSample) -> float:
@@ -51,11 +56,13 @@ def _read_all() -> list[dict[str, Any]]:
 
 
 def _write_all(records: list[dict[str, Any]]) -> None:
-    """全量覆盖写回 JSONL。"""
+    """全量覆盖写回 JSONL（原子写：先写临时文件再 rename）。"""
     _ensure_dirs()
-    with open(_JSONL_PATH, "w", encoding="utf-8") as f:
+    tmp_path = _JSONL_PATH.with_suffix(".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    os.replace(tmp_path, _JSONL_PATH)
 
 
 # ─── CRUD ─────────────────────────────────────────────────────────────────────
@@ -100,29 +107,65 @@ def get_sample(sample_id: str) -> StyleSample | None:
     return None
 
 
+# V1.2.3: Direct lookup by source fields — bypasses list_samples limit cap
+def find_sample_by_source(
+    source_type: str,
+    job_id: str,
+    run_id: str,
+) -> StyleSample | None:
+    """Find a sample by its source metadata fields.
+
+    This is the preferred lookup for idempotency checks (e.g. Style Sweep promote)
+    because it scans all records without a limit cap.
+    Returns the most recently created match, or None if not found.
+    """
+    records = _read_all()
+    matches: list[tuple[float, dict]] = []
+    for r in records:
+        src = r.get("source", {})
+        if (
+            (src.get("source_type") or "unknown") == source_type
+            and src.get("job_id") == job_id
+            and src.get("run_id") == run_id
+        ):
+            # Use created_at as sort key for "most recent"
+            try:
+                ts = _created_at_sort_key(StyleSample.from_dict(r))
+            except Exception:
+                ts = 0.0
+            matches.append((ts, r))
+    if not matches:
+        return None
+    # Return most recent (highest timestamp)
+    matches.sort(key=lambda x: x[0], reverse=True)
+    return StyleSample.from_dict(matches[0][1])
+
+
 def save_sample(sample: StyleSample) -> StyleSample:
     """新增或更新一条样片记录（按 ID 全量覆盖）。"""
-    _ensure_dirs()
-    records = _read_all()
-    # 查找是否已存在
-    idx = next((i for i, r in enumerate(records) if r.get("id") == sample.id), -1)
-    d = sample.to_dict()
-    if idx >= 0:
-        records[idx] = d
-    else:
-        records.append(d)
-    _write_all(records)
+    with _store_lock:
+        _ensure_dirs()
+        records = _read_all()
+        # 查找是否已存在
+        idx = next((i for i, r in enumerate(records) if r.get("id") == sample.id), -1)
+        d = sample.to_dict()
+        if idx >= 0:
+            records[idx] = d
+        else:
+            records.append(d)
+        _write_all(records)
     return sample
 
 
 def delete_sample(sample_id: str) -> bool:
     """删除一条样片记录（保留文件，文件由调用方清理）。"""
-    records = _read_all()
-    before = len(records)
-    records = [r for r in records if r.get("id") != sample_id]
-    if len(records) == before:
-        return False
-    _write_all(records)
+    with _store_lock:
+        records = _read_all()
+        before = len(records)
+        records = [r for r in records if r.get("id") != sample_id]
+        if len(records) == before:
+            return False
+        _write_all(records)
     return True
 
 

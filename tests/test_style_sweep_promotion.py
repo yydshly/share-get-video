@@ -684,3 +684,229 @@ class TestAssUrlSaved:
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# V1.2.3: Idempotency beyond 200-sample cap & new aspect ratio fields
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestPromoteIdempotencyBeyond200:
+    """V1.2.3: promote must find existing samples even when store has >200 style_sweep samples."""
+
+    def setup_method(self):
+        import tempfile
+        from pathlib import Path
+        import app.video_lab.style_sweep_jobs as ssj
+        import app.video_lab.style_gallery.store as store
+
+        self._tmp = tempfile.mkdtemp()
+        self._jobs_dir = Path(self._tmp) / "jobs"
+        self._jobs_dir.mkdir(parents=True)
+        self._records_dir = Path(self._tmp) / "records"
+        self._records_dir.mkdir(parents=True)
+        self._sg_runtime = Path(self._tmp) / "style_gallery"
+        self._sg_runtime.mkdir(parents=True)
+
+        self._orig_jobs_dir = ssj._RUNTIME_DIR
+        self._orig_sg_runtime = store._RUNTIME
+        self._orig_sg_records = store._RECORDS_DIR
+        self._orig_sg_jsonl = store._JSONL_PATH
+
+        ssj._RUNTIME_DIR = self._jobs_dir
+        store._RUNTIME = self._sg_runtime
+        store._RECORDS_DIR = self._records_dir
+        store._JSONL_PATH = self._records_dir / "style_samples.jsonl"
+        store._ensure_dirs()
+
+    def teardown_method(self):
+        import app.video_lab.style_sweep_jobs as ssj
+        import app.video_lab.style_gallery.store as store
+        ssj._RUNTIME_DIR = self._orig_jobs_dir
+        store._RUNTIME = self._orig_sg_runtime
+        store._RECORDS_DIR = self._orig_sg_records
+        store._JSONL_PATH = self._orig_sg_jsonl
+
+    def test_duplicate_promote_works_with_over_200_style_sweep_samples(self):
+        """When the store has >200 style_sweep samples, promote still finds the existing one."""
+        from datetime import datetime, timezone
+        from app.video_lab.style_gallery.models import SampleSource, SampleGenerationMeta, SampleAssetMeta, SampleStatus, StyleSampleOutput
+        import app.video_lab.style_gallery.store as store
+
+        # First promote creates a sample for this job+style
+        job = SweepJob(
+            jobId="sweep_over_200",
+            status="completed",
+            routeId="template_programmatic_render",
+            routeName="Remotion",
+            total=1,
+        )
+        entry = StyleResultEntry(
+            styleId="style_first",
+            styleName="第一个样式",
+            description="",
+            tags=[],
+            result={
+                "status": "succeeded",
+                "finalVideoUrl": "runtime/first.mp4",
+            },
+        )
+        job.results.append(entry)
+        _save_job(job)
+
+        r1 = promote_sweep_results_to_gallery(
+            job_id="sweep_over_200",
+            style_ids=["style_first"],
+        )
+        assert r1["promotedCount"] == 1
+        first_id = r1["samples"][0]["sampleId"]
+
+        # Fill the store with 210 other style_sweep samples (beyond the old limit=200)
+        for i in range(210):
+            fake = store.StyleSample(
+                id=f"filler_{i:04d}",
+                route_id="template_programmatic_render",
+                route_name="填充",
+                style_name=f"填充{i}",
+                description="",
+                status=SampleStatus.CANDIDATE,
+                params={},
+                output=StyleSampleOutput(type="mp4", path=f"filler_{i}.mp4"),
+                tags=[],
+                created_at=datetime.now(timezone.utc),
+                source=SampleSource(source_type="style_sweep", job_id=f"other_job_{i}", run_id=f"style_{i}"),
+                generation=SampleGenerationMeta(visual_route="template_programmatic_render"),
+                asset_meta=SampleAssetMeta(),
+            )
+            store.save_sample(fake)
+
+        # Second promote of the same job+style must find the existing sample
+        # (was previously broken because list_samples had limit=200 and all 210 filler
+        # records would push the original sample beyond the 200 limit)
+        r2 = promote_sweep_results_to_gallery(
+            job_id="sweep_over_200",
+            style_ids=["style_first"],
+        )
+        assert r2["promotedCount"] == 1
+        assert r2["samples"][0]["sampleId"] == first_id
+        assert r2["samples"][0]["reused"] is True
+
+        # Verify no extra sample was created
+        all_ids = [r["id"] for r in store._read_all() if r["id"].startswith("sample_")]
+        assert len(all_ids) == 1  # only the original sample
+
+
+class TestPromoteNewAspectRatioFields:
+    """V1.2.3: promote_sweep_results_to_gallery preserves new aspect ratio fields."""
+
+    def setup_method(self):
+        import tempfile
+        from pathlib import Path
+        import app.video_lab.style_sweep_jobs as ssj
+        import app.video_lab.style_gallery.store as store
+
+        self._tmp = tempfile.mkdtemp()
+        self._jobs_dir = Path(self._tmp) / "jobs"
+        self._jobs_dir.mkdir(parents=True)
+        self._records_dir = Path(self._tmp) / "records"
+        self._records_dir.mkdir(parents=True)
+        self._sg_runtime = Path(self._tmp) / "style_gallery"
+        self._sg_runtime.mkdir(parents=True)
+
+        self._orig_jobs_dir = ssj._RUNTIME_DIR
+        self._orig_sg_runtime = store._RUNTIME
+        self._orig_sg_records = store._RECORDS_DIR
+        self._orig_sg_jsonl = store._JSONL_PATH
+
+        ssj._RUNTIME_DIR = self._jobs_dir
+        store._RUNTIME = self._sg_runtime
+        store._RECORDS_DIR = self._records_dir
+        store._JSONL_PATH = self._records_dir / "style_samples.jsonl"
+        store._ensure_dirs()
+
+    def teardown_method(self):
+        import app.video_lab.style_sweep_jobs as ssj
+        import app.video_lab.style_gallery.store as store
+        ssj._RUNTIME_DIR = self._orig_jobs_dir
+        store._RUNTIME = self._orig_sg_runtime
+        store._RECORDS_DIR = self._orig_sg_records
+        store._JSONL_PATH = self._orig_sg_jsonl
+
+    def test_promote_preserves_generation_aspect_ratio_fields(self):
+        """Promoted sample stores generation.output_aspect_ratio / display_aspect_ratio / fit_mode."""
+        job = SweepJob(
+            jobId="sweep_ar_job",
+            status="completed",
+            routeId="template_programmatic_render",
+            routeName="Remotion",
+            total=1,
+            params={
+                "aspectRatio": "9:16",
+                "outputAspectRatio": "9:16.0",
+                "displayAspectRatio": "9:16",
+                "fitMode": "cover",
+            },
+        )
+        entry = StyleResultEntry(
+            styleId="style_ar",
+            styleName="AR样式",
+            description="",
+            tags=[],
+            result={
+                "status": "succeeded",
+                "finalVideoUrl": "runtime/ar.mp4",
+            },
+        )
+        job.results.append(entry)
+        _save_job(job)
+
+        result = promote_sweep_results_to_gallery(
+            job_id="sweep_ar_job",
+            style_ids=["style_ar"],
+        )
+        saved = sg_store.get_sample(result["samples"][0]["sampleId"])
+
+        assert saved is not None
+        assert saved.generation.output_aspect_ratio == "9:16.0"
+        assert saved.generation.display_aspect_ratio == "9:16"
+        assert saved.generation.fit_mode == "cover"
+
+    def test_promote_preserves_asset_meta_aspect_ratio_fields(self):
+        """Promoted sample stores asset_meta.aspect_ratio / display_aspect_ratio / fit_mode."""
+        job = SweepJob(
+            jobId="sweep_am_ar_job",
+            status="completed",
+            routeId="template_programmatic_render",
+            routeName="Remotion",
+            total=1,
+            params={
+                "aspectRatio": "16:9",
+                "outputAspectRatio": "16:9",
+                "displayAspectRatio": "16:9.0",
+                "fitMode": "contain",
+            },
+        )
+        entry = StyleResultEntry(
+            styleId="style_am_ar",
+            styleName="AM_AR样式",
+            description="",
+            tags=[],
+            result={
+                "status": "succeeded",
+                "finalVideoUrl": "runtime/am_ar.mp4",
+            },
+        )
+        job.results.append(entry)
+        _save_job(job)
+
+        result = promote_sweep_results_to_gallery(
+            job_id="sweep_am_ar_job",
+            style_ids=["style_am_ar"],
+        )
+        saved = sg_store.get_sample(result["samples"][0]["sampleId"])
+
+        assert saved is not None
+        # generation also has the params stored
+        assert saved.generation.aspect_ratio == "16:9"
+        assert saved.generation.output_aspect_ratio == "16:9"
+        assert saved.generation.display_aspect_ratio == "16:9.0"
+        assert saved.generation.fit_mode == "contain"
