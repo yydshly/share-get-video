@@ -2292,6 +2292,29 @@ export const VISUAL_TECHNIQUE_FIXTURES: Readonly<{
   },
 } as const;
 
+// V1.2.7+: Visual Technique ID — used for family adaptation matrix
+export type VisualTechniqueId =
+  | "academic_sketch"
+  | "blueprint"
+  | "data_viz_dashboard"
+  | "agent_sandbox_25d"
+  | "kinetic_code_typography";
+
+const ALL_VISUAL_TECHNIQUES: VisualTechniqueId[] = [
+  "academic_sketch",
+  "blueprint",
+  "data_viz_dashboard",
+  "agent_sandbox_25d",
+  "kinetic_code_typography",
+];
+
+// V1.2.7+: Family list for adaptation testing (limited to 3 to avoid MAX_MATRIX_ITEMS overflow)
+const FAMILY_ADAPTATION_FAMILIES = [
+  { id: "data_news", name: "Data News", desc: "数据新闻 / 指标卡片" },
+  { id: "timeline_news", name: "Timeline News", desc: "时间线 / 流程推进" },
+  { id: "caption_story", name: "Caption Story", desc: "大字叙事 / 解释型内容" },
+];
+
 // V1.2.5+: Local-only visual acceptance state — front-end ephemeral, never persisted.
 type LocalVisualAcceptance = "pending" | "accepted" | "partial" | "rejected";
 
@@ -2318,6 +2341,10 @@ function VisualTechniqueVariantMatrix({
   onClipSecondsChange,
   fixtureId,
   onFixtureIdChange,
+  matrixMode,
+  onMatrixModeChange,
+  adaptationTechnique,
+  onAdaptationTechniqueChange,
 }: {
   result: VisualTechniqueMatrixResponse | null;
   onReload: () => void;
@@ -2326,6 +2353,10 @@ function VisualTechniqueVariantMatrix({
   onClipSecondsChange: (s: number) => void;
   fixtureId: VisualTechniqueFixtureId;
   onFixtureIdChange: (id: VisualTechniqueFixtureId) => void;
+  matrixMode: "technique_compare" | "family_adaptation";
+  onMatrixModeChange: (mode: "technique_compare" | "family_adaptation") => void;
+  adaptationTechnique: VisualTechniqueId;
+  onAdaptationTechniqueChange: (technique: VisualTechniqueId) => void;
 }) {
   const resolveUrl = (u: string) =>
     u && u.startsWith("/runtime/")
@@ -2365,10 +2396,49 @@ function VisualTechniqueVariantMatrix({
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.85rem", flexWrap: "wrap" }}>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
-          视觉技法矩阵 · V1.2.6
+          视觉技法矩阵 · V1.2.7
         </h2>
+
+        {/* Matrix mode selector */}
+        <div style={{ display: "flex", gap: "0.3rem" }}>
+          <button
+            onClick={() => onMatrixModeChange("technique_compare")}
+            disabled={loading}
+            style={{
+              background: matrixMode === "technique_compare" ? "#7c3aed" : "white",
+              color: matrixMode === "technique_compare" ? "white" : "#475569",
+              border: `1px solid ${matrixMode === "technique_compare" ? "#7c3aed" : "#cbd5e1"}`,
+              borderRadius: "6px",
+              padding: "0.2rem 0.6rem",
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            Technique 横向比较
+          </button>
+          <button
+            onClick={() => onMatrixModeChange("family_adaptation")}
+            disabled={loading}
+            style={{
+              background: matrixMode === "family_adaptation" ? "#7c3aed" : "white",
+              color: matrixMode === "family_adaptation" ? "white" : "#475569",
+              border: `1px solid ${matrixMode === "family_adaptation" ? "#7c3aed" : "#cbd5e1"}`,
+              borderRadius: "6px",
+              padding: "0.2rem 0.6rem",
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            Family 适配测试
+          </button>
+        </div>
+
         <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
-          1 family × 5 visual techniques = 5 clips
+          {matrixMode === "technique_compare"
+            ? "1 family × 5 techniques = 5 clips"
+            : `${FAMILY_ADAPTATION_FAMILIES.length} families × 1 technique = ${FAMILY_ADAPTATION_FAMILIES.length} clips`}
         </span>
         <div style={{ marginLeft: "auto", display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {result && (
@@ -2478,9 +2548,56 @@ function VisualTechniqueVariantMatrix({
         <div style={{ marginTop: "0.2rem", color: "#64748b", fontSize: "0.72rem" }}>
           当前仍是 lab-only，不进入 Style Sweep，不进入 Style Gallery。
         </div>
-        <div style={{ marginTop: "0.25rem" }}>
-          矩阵规模：<code style={{ background: "#dbeafe", padding: "0.05rem 0.35rem", borderRadius: 3 }}>data_news</code> × 5 technique = 5 clips · 目的：横向对比 5 个 technique 在当前内容下的适配度
-        </div>
+
+        {/* Technique selector for family adaptation mode */}
+        {matrixMode === "family_adaptation" && (
+          <div style={{ marginTop: "0.75rem", paddingTop: "0.6rem", borderTop: "1px dashed #bfdbfe" }}>
+            <div style={{ fontWeight: 600, marginBottom: "0.3rem", color: "#1e40af" }}>
+              固定 technique（将被测试的版式）：
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+              {ALL_VISUAL_TECHNIQUES.map((tech) => {
+                const active = adaptationTechnique === tech;
+                const meta = VISUAL_TECHNIQUE_META[tech];
+                return (
+                  <button
+                    key={tech}
+                    onClick={() => onAdaptationTechniqueChange(tech)}
+                    disabled={loading}
+                    style={{
+                      background: active ? "#7c3aed" : "white",
+                      color: active ? "white" : "#475569",
+                      border: `1px solid ${active ? "#7c3aed" : "#cbd5e1"}`,
+                      borderRadius: "6px",
+                      padding: "0.2rem 0.6rem",
+                      fontSize: "0.72rem",
+                      fontWeight: 600,
+                      cursor: loading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {meta?.name ?? tech}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: "0.4rem", fontSize: "0.7rem", color: "#64748b" }}>
+              当前固定：<b style={{ color: "#7c3aed" }}>{VISUAL_TECHNIQUE_META[adaptationTechnique]?.name ?? adaptationTechnique}</b>
+              {" "}×{" "}
+              {FAMILY_ADAPTATION_FAMILIES.map((f) => f.name).join(" / ")}
+            </div>
+          </div>
+        )}
+
+        {/* Mode-specific summary */}
+        {matrixMode === "technique_compare" ? (
+          <div style={{ marginTop: "0.25rem" }}>
+            目的：横向对比 5 个 technique 在同一 family 下的适配度差异。
+          </div>
+        ) : (
+          <div style={{ marginTop: "0.25rem" }}>
+            目的：判断同一 technique 在不同 family 版式下的适配度是否成立。
+          </div>
+        )}
       </div>
 
       {/* Acceptance summary bar */}
@@ -2644,6 +2761,32 @@ function VisualTechniqueVariantMatrix({
                 </div>
               </div>
 
+              {/* Family adaptation mode: show family description */}
+              {matrixMode === "family_adaptation" && (
+                <div
+                  style={{
+                    padding: "0.3rem 0.75rem",
+                    fontSize: "0.7rem",
+                    color: "#475569",
+                    background: "#fef9f0",
+                    borderTop: "1px dashed #fed7aa",
+                    borderBottom: "1px dashed #fed7aa",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: "#92400e", marginBottom: "0.2rem" }}>
+                    Family 说明：
+                  </div>
+                  {FAMILY_ADAPTATION_FAMILIES.filter((f) => f.id === item.family).map((f) => (
+                    <div key={f.id}>
+                      <b>{f.name}</b>：{f.desc}
+                    </div>
+                  ))}
+                  <div style={{ marginTop: "0.3rem", color: "#b45309", fontSize: "0.68rem" }}>
+                    观察：该 technique 在当前 family 下是否仍然成立，是否只是背景换皮？
+                  </div>
+                </div>
+              )}
+
               {/* Suitable For chips */}
               {meta && meta.suitableFor.length > 0 && (
                 <div style={{ padding: "0.25rem 0.75rem", display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
@@ -2763,7 +2906,10 @@ function VisualTechniqueVariantMatrix({
             lineHeight: 1.6,
           }}
         >
-          <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: "0.3rem" }}>本轮视觉验收汇总：</div>
+          <div style={{ fontWeight: 600, color: "#1e293b", marginBottom: "0.3rem" }}>
+            本轮视觉验收汇总
+            {matrixMode === "technique_compare" ? "（Technique 横向比较）" : "（Family 适配测试）"}：
+          </div>
           <div>
             通过 <b style={{ color: "#15803d" }}>{summary.accepted}</b> ·
             部分通过 <b style={{ color: "#a16207" }}>{summary.partial}</b> ·
@@ -2827,6 +2973,10 @@ export default function RemotionStyleFamilyPage() {
   const [visualTechniqueClipSeconds, setVisualTechniqueClipSeconds] = useState(2);
   // V1.2.6+: Visual Technique fixture selector (default = generic_ai_eval)
   const [visualTechniqueFixtureId, setVisualTechniqueFixtureId] = useState<VisualTechniqueFixtureId>("generic_ai_eval");
+  // V1.2.7+: Visual Technique Matrix mode (technique_compare = default, family_adaptation = new)
+  const [visualTechniqueMatrixMode, setVisualTechniqueMatrixMode] = useState<"technique_compare" | "family_adaptation">("technique_compare");
+  // V1.2.7+: Selected technique for family adaptation mode (default = academic_sketch)
+  const [familyAdaptationTechnique, setFamilyAdaptationTechnique] = useState<VisualTechniqueId>("academic_sketch");
 
   const runCompare = async () => {
     setCompareLoading(true);
@@ -2942,6 +3092,22 @@ export default function RemotionStyleFamilyPage() {
     setVisualTechniqueMatrixResult(null);
     try {
       const fixture = VISUAL_TECHNIQUE_FIXTURES[visualTechniqueFixtureId];
+      const matrix =
+        visualTechniqueMatrixMode === "technique_compare"
+          ? {
+              families: ["data_news"],
+              visualTechniques: [
+                "academic_sketch",
+                "blueprint",
+                "data_viz_dashboard",
+                "agent_sandbox_25d",
+                "kinetic_code_typography",
+              ],
+            }
+          : {
+              families: FAMILY_ADAPTATION_FAMILIES.map((f) => f.id),
+              visualTechniques: [familyAdaptationTechnique],
+            };
       const resp = await fetch(`${API_BASE}/style-family/visual-technique-matrix`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2954,16 +3120,7 @@ export default function RemotionStyleFamilyPage() {
             backgroundPreset: "warm_cinematic",
             transitionStyle: "slide_fade",
           },
-          matrix: {
-            families: ["data_news"],
-            visualTechniques: [
-              "academic_sketch",
-              "blueprint",
-              "data_viz_dashboard",
-              "agent_sandbox_25d",
-              "kinetic_code_typography",
-            ],
-          },
+          matrix,
         }),
       });
       const data = await resp.json();
@@ -3495,6 +3652,10 @@ export default function RemotionStyleFamilyPage() {
           onClipSecondsChange={setVisualTechniqueClipSeconds}
           fixtureId={visualTechniqueFixtureId}
           onFixtureIdChange={setVisualTechniqueFixtureId}
+          matrixMode={visualTechniqueMatrixMode}
+          onMatrixModeChange={setVisualTechniqueMatrixMode}
+          adaptationTechnique={familyAdaptationTechnique}
+          onAdaptationTechniqueChange={setFamilyAdaptationTechnique}
         />
       </div>
 
