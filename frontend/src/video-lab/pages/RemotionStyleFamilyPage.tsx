@@ -2226,6 +2226,72 @@ const VISUAL_TECHNIQUE_META: Record<string, VisualTechniqueMeta> = {
   },
 };
 
+// V1.2.6+: Visual Technique Test Fixtures — content modes for testing different technique semantics
+export type VisualTechniqueFixtureId =
+  | "generic_ai_eval"
+  | "academic_explainer"
+  | "blueprint_architecture"
+  | "data_dashboard"
+  | "agent_sandbox"
+  | "code_typography";
+
+export const VISUAL_TECHNIQUE_FIXTURES: Readonly<{
+  [K in VisualTechniqueFixtureId]: {
+    name: string;
+    purpose: string;
+    recommendedTechniques: readonly string[];
+    content: string;
+  };
+}> = {
+  generic_ai_eval: {
+    name: "通用 AI 评测",
+    purpose: "通用横向比较，适合快速冒烟测试。",
+    recommendedTechniques: ["academic_sketch", "blueprint", "data_viz_dashboard", "agent_sandbox_25d", "kinetic_code_typography"],
+    content:
+      "研究显示，新一代 AI 模型在多模态理解、工具调用和复杂推理任务上都有显著提升，但评测指标仍然难以完整衡量真实智能。",
+  },
+
+  academic_explainer: {
+    name: "学术解释",
+    purpose: "测试 academic_sketch 是否适合解释概念、推理过程、研究摘要。",
+    recommendedTechniques: ["academic_sketch"],
+    content:
+      "为什么 AI 评测越来越难？过去只看最终答案，现在还要看推理过程、工具调用和失败修正。真正的评测像观察学生解题，而不是只看分数。",
+  },
+
+  blueprint_architecture: {
+    name: "工程架构",
+    purpose: "测试 blueprint 是否适合系统架构、模块关系、工程流程。",
+    recommendedTechniques: ["blueprint", "agent_sandbox_25d"],
+    content:
+      "一个 AI Agent 系统由四层组成：输入层接收任务，规划层拆解步骤，工具层执行动作，记忆层保存上下文。各层通过消息通道连接，形成可追踪的执行链路。",
+  },
+
+  data_dashboard: {
+    name: "数据看板",
+    purpose: "测试 data_viz_dashboard 是否适合 Benchmark、模型对比、产品数据。",
+    recommendedTechniques: ["data_viz_dashboard"],
+    content:
+      "模型 A 在多模态理解上提升 24%，工具调用成功率达到 87%，长上下文任务成本下降 31%。这些指标说明模型能力正在从单点问答转向系统级表现。",
+  },
+
+  agent_sandbox: {
+    name: "Agent 沙盒",
+    purpose: "测试 agent_sandbox_25d 是否适合多智能体协作、工具调用、工作流解释。",
+    recommendedTechniques: ["agent_sandbox_25d"],
+    content:
+      "Planner 负责拆解任务，Model 负责生成方案，Tool 负责执行外部动作，Memory 负责记录状态。多个 Agent 通过消息通道协作，并在失败时重新规划。",
+  },
+
+  code_typography: {
+    name: "代码教程",
+    purpose: "测试 kinetic_code_typography 是否适合 API 讲解、代码流程、开发者内容。",
+    recommendedTechniques: ["kinetic_code_typography"],
+    content:
+      "调用模型 API 的核心步骤包括：构造 request，发送 prompt，解析 response，处理错误，并将日志写入终端。稳定的错误处理比一次成功调用更重要。",
+  },
+} as const;
+
 // V1.2.5+: Local-only visual acceptance state — front-end ephemeral, never persisted.
 type LocalVisualAcceptance = "pending" | "accepted" | "partial" | "rejected";
 
@@ -2250,17 +2316,23 @@ function VisualTechniqueVariantMatrix({
   loading,
   clipSeconds,
   onClipSecondsChange,
+  fixtureId,
+  onFixtureIdChange,
 }: {
   result: VisualTechniqueMatrixResponse | null;
   onReload: () => void;
   loading: boolean;
   clipSeconds: number;
   onClipSecondsChange: (s: number) => void;
+  fixtureId: VisualTechniqueFixtureId;
+  onFixtureIdChange: (id: VisualTechniqueFixtureId) => void;
 }) {
   const resolveUrl = (u: string) =>
     u && u.startsWith("/runtime/")
       ? `${import.meta.env.VITE_API_BASE?.replace(/\/video-lab$/, "") ?? ""}${u}`
       : u || "";
+
+  const fixture = VISUAL_TECHNIQUE_FIXTURES[fixtureId];
 
   // Local-only visual acceptance state — UI ephemeral, never persisted to backend.
   const [localAcceptance, setLocalAcceptance] = useState<Record<string, LocalVisualAcceptance>>({});
@@ -2293,7 +2365,7 @@ function VisualTechniqueVariantMatrix({
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.85rem", flexWrap: "wrap" }}>
         <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b", margin: 0 }}>
-          视觉技法矩阵 · V1.2.5
+          视觉技法矩阵 · V1.2.6
         </h2>
         <span style={{ fontSize: "0.72rem", color: "#64748b", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 999, padding: "0.15rem 0.55rem" }}>
           1 family × 5 visual techniques = 5 clips
@@ -2323,7 +2395,7 @@ function VisualTechniqueVariantMatrix({
         </div>
       </div>
 
-      {/* Smoke Preview Info Card */}
+      {/* Fixture Selector + Info Row */}
       <div
         style={{
           marginBottom: "1rem",
@@ -2336,43 +2408,79 @@ function VisualTechniqueVariantMatrix({
           lineHeight: 1.7,
         }}
       >
-        <div style={{ fontWeight: 700, marginBottom: "0.3rem", color: "#1e40af" }}>
-          🧪 当前测试模式：2s 冒烟预览（Smoke Preview）
+        <div style={{ fontWeight: 700, marginBottom: "0.5rem", color: "#1e40af" }}>
+          🧪 当前测试模式：{clipSeconds}s {clipSeconds === 2 ? "冒烟预览" : clipSeconds === 6 ? "视觉预览" : "长预览"}
         </div>
-        <div>Family：<code style={{ background: "#dbeafe", padding: "0.05rem 0.35rem", borderRadius: 3 }}>data_news</code></div>
-        <div>矩阵规模：1 family × 5 visualTechnique = 5 clips</div>
-        <div>目的：快速验证 5 种视觉技法是否能生成、能播放、能形成明显差异</div>
-        <div style={{ color: "#b91c1c", fontWeight: 600, marginTop: "0.2rem" }}>
-          限制：2s 样片不代表完整视频效果；生成成功 ≠ 视觉通过
-        </div>
-        <div>下一步：人工播放每个样片，标记通过 / 部分通过 / 不通过</div>
-      </div>
 
-      {/* Clip length selector */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-        <span style={{ fontSize: "0.78rem", color: "#475569" }}>当前样片时长：</span>
-        {[2, 6, 12].map((s) => (
-          <button
-            key={s}
-            onClick={() => onClipSecondsChange(s)}
-            disabled={loading}
-            style={{
-              background: clipSeconds === s ? "#7c3aed" : "white",
-              color: clipSeconds === s ? "white" : "#475569",
-              border: `1px solid ${clipSeconds === s ? "#7c3aed" : "#cbd5e1"}`,
-              borderRadius: "6px",
-              padding: "0.2rem 0.65rem",
-              fontSize: "0.78rem",
-              fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
-          >
-            {s}s
-          </button>
-        ))}
-        <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>
-          {clipSeconds === 2 ? "（冒烟预览）" : clipSeconds === 6 ? "（视觉预览）" : "（长预览）"}
-        </span>
+        {/* Fixture selector */}
+        <div style={{ marginBottom: "0.6rem" }}>
+          <div style={{ fontWeight: 600, marginBottom: "0.3rem", color: "#1e40af" }}>
+            测试内容：
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+            {(Object.keys(VISUAL_TECHNIQUE_FIXTURES) as VisualTechniqueFixtureId[]).map((id) => {
+              const fix = VISUAL_TECHNIQUE_FIXTURES[id];
+              const active = fixtureId === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => onFixtureIdChange(id)}
+                  disabled={loading}
+                  style={{
+                    background: active ? "#7c3aed" : "white",
+                    color: active ? "white" : "#475569",
+                    border: `1px solid ${active ? "#7c3aed" : "#cbd5e1"}`,
+                    borderRadius: "6px",
+                    padding: "0.2rem 0.6rem",
+                    fontSize: "0.72rem",
+                    fontWeight: 600,
+                    cursor: loading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {fix.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Fixture info */}
+        <div
+          style={{
+            background: "white",
+            border: "1px solid #bfdbfe",
+            borderRadius: "6px",
+            padding: "0.5rem 0.75rem",
+            marginBottom: "0.5rem",
+          }}
+        >
+          <div style={{ fontWeight: 700, color: "#1e40af", marginBottom: "0.2rem" }}>
+            {fixture.name}
+          </div>
+          <div style={{ color: "#475569", marginBottom: "0.25rem" }}>{fixture.purpose}</div>
+          <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.25rem" }}>
+            推荐 technique：
+            <span style={{ fontWeight: 600, color: "#7c3aed" }}>
+              {fixture.recommendedTechniques.join(" / ")}
+            </span>
+          </div>
+          <div style={{ fontSize: "0.7rem", color: "#64748b" }}>
+            测试文案：
+            <span style={{ fontStyle: "italic", color: "#334155" }}>
+              {fixture.content.length > 80 ? fixture.content.slice(0, 80) + "…" : fixture.content}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ color: "#b91c1c", fontWeight: 600 }}>
+          测试内容会影响视觉判断。通用内容适合冒烟测试；专属内容更适合判断某个 technique 是否真正成立。
+        </div>
+        <div style={{ marginTop: "0.2rem", color: "#64748b", fontSize: "0.72rem" }}>
+          当前仍是 lab-only，不进入 Style Sweep，不进入 Style Gallery。
+        </div>
+        <div style={{ marginTop: "0.25rem" }}>
+          矩阵规模：<code style={{ background: "#dbeafe", padding: "0.05rem 0.35rem", borderRadius: 3 }}>data_news</code> × 5 technique = 5 clips · 目的：横向对比 5 个 technique 在当前内容下的适配度
+        </div>
       </div>
 
       {/* Acceptance summary bar */}
@@ -2520,6 +2628,21 @@ function VisualTechniqueVariantMatrix({
                   {meta.description}
                 </div>
               )}
+
+              {/* Fixture content match */}
+              <div style={{ padding: "0.3rem 0.75rem", fontSize: "0.7rem", color: "#64748b" }}>
+                <div>
+                  当前测试内容：<span style={{ fontWeight: 600, color: "#1e40af" }}>{fixture.name}</span>
+                </div>
+                <div>
+                  内容匹配：
+                  {fixture.recommendedTechniques.includes(item.visualTechnique) ? (
+                    <span style={{ color: "#15803d", fontWeight: 600 }}>推荐</span>
+                  ) : (
+                    <span style={{ color: "#b45309", fontWeight: 600 }}>非推荐，仅作横向对比</span>
+                  )}
+                </div>
+              </div>
 
               {/* Suitable For chips */}
               {meta && meta.suitableFor.length > 0 && (
@@ -2702,6 +2825,8 @@ export default function RemotionStyleFamilyPage() {
   const [visualTechniqueMatrixError, setVisualTechniqueMatrixError] = useState("");
   // V1.2.5+: Visual Technique clip length selector (default 2s = smoke preview)
   const [visualTechniqueClipSeconds, setVisualTechniqueClipSeconds] = useState(2);
+  // V1.2.6+: Visual Technique fixture selector (default = generic_ai_eval)
+  const [visualTechniqueFixtureId, setVisualTechniqueFixtureId] = useState<VisualTechniqueFixtureId>("generic_ai_eval");
 
   const runCompare = async () => {
     setCompareLoading(true);
@@ -2816,11 +2941,12 @@ export default function RemotionStyleFamilyPage() {
     setVisualTechniqueMatrixError("");
     setVisualTechniqueMatrixResult(null);
     try {
+      const fixture = VISUAL_TECHNIQUE_FIXTURES[visualTechniqueFixtureId];
       const resp = await fetch(`${API_BASE}/style-family/visual-technique-matrix`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: "研究显示，新一代 AI 模型在多模态理解、工具调用和复杂推理任务上都有显著提升，但评测指标仍然难以完整衡量真实智能。",
+          content: fixture.content,
           params: {
             clipSeconds: visualTechniqueClipSeconds,
             keyPointCount: 2,
@@ -3367,6 +3493,8 @@ export default function RemotionStyleFamilyPage() {
           loading={visualTechniqueMatrixLoading}
           clipSeconds={visualTechniqueClipSeconds}
           onClipSecondsChange={setVisualTechniqueClipSeconds}
+          fixtureId={visualTechniqueFixtureId}
+          onFixtureIdChange={setVisualTechniqueFixtureId}
         />
       </div>
 
