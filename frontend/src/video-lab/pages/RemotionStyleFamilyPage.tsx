@@ -2517,8 +2517,12 @@ const FAMILY_ADAPTATION_FAMILIES = [
 ];
 
 // V1.2.8+: Preview profiles — replace simple clipSeconds selector with structured profiles
+// Each profile explicitly lists which visualTechniques to include, keeping requests within MAX_MATRIX_ITEMS=9.
 type VisualTechniquePreviewProfileId = "smoke_2s" | "visual_6s" | "deep_12s";
 
+// 5-technique subsets chosen from ALL_VISUAL_TECHNIQUES (17 total).
+// smoke_2s uses the same 5 as generic_ai_eval.recommendedTechniques (already shown in UI as "5 techniques").
+// visual_6s and deep_12s each use a different 5 to maximise coverage across the 17 available.
 const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
   [K in VisualTechniquePreviewProfileId]: {
     label: string;
@@ -2527,6 +2531,8 @@ const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
     badge: string;
     purpose: string;
     acceptanceLevel: "smoke_only" | "visual_review" | "deep_review";
+    // V1.2.8+: explicit technique list — must be passed to matrix.visualTechniques
+    visualTechniques: readonly VisualTechniqueId[];
   };
 }> = {
   smoke_2s: {
@@ -2536,6 +2542,14 @@ const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
     badge: "Smoke",
     purpose: "快速确认能否生成、能否播放、背景方向是否大致不同。不用于最终视觉验收。",
     acceptanceLevel: "smoke_only",
+    // 1 family × 5 techniques = 5 clips — matches what the UI badge shows
+    visualTechniques: [
+      "academic_sketch",
+      "blueprint",
+      "data_viz_dashboard",
+      "agent_sandbox_25d",
+      "kinetic_code_typography",
+    ],
   },
   visual_6s: {
     label: "8s 视觉预览",
@@ -2544,6 +2558,14 @@ const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
     badge: "Review",
     purpose: "观察 family 版式、正文可读性、visualTechnique 特征是否真正展开。建议作为默认人工验收档位。",
     acceptanceLevel: "visual_review",
+    // 1 family × 5 techniques = 5 clips
+    visualTechniques: [
+      "whiteboard_explainer",
+      "benchmark_ranking",
+      "architecture_diagram",
+      "product_demo_flow",
+      "tiktok_caption_story",
+    ],
   },
   deep_12s: {
     label: "12s 深度预览",
@@ -2552,6 +2574,14 @@ const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
     badge: "Deep",
     purpose: "用富内容（6 条带数字要点）铺满多张卡，观察各技法的密度、排版、数据可视化与转场差异。",
     acceptanceLevel: "deep_review",
+    // 1 family × 5 techniques = 5 clips
+    visualTechniques: [
+      "launch_countdown",
+      "map_timeline",
+      "audio_visualizer",
+      "magazine_headline",
+      "capability_radar",
+    ],
   },
 } as const;
 
@@ -3559,11 +3589,26 @@ export default function RemotionStyleFamilyPage() {
         && visualTechniquePreviewProfileId === "smoke_2s"
           ? "generic_ai_eval"
           : visualTechniqueFixtureId;
+
+      // V1.2.8+: Build matrix from profile's explicit visualTechniques list —
+      // never send ALL_VISUAL_TECHNIQUES (17) which would exceed MAX_MATRIX_ITEMS=9.
+      const profileFamilies = ["data_news"];
+      const profileTechniques = profile.visualTechniques;
+      const plannedClipCount = profileFamilies.length * profileTechniques.length;
+
+      // V1.2.8+: Frontend guard — reject configs that would exceed backend limit.
+      if (plannedClipCount > 9) {
+        throw new Error(
+          `当前请求 ${plannedClipCount} clips（${profileFamilies.length} families × ${profileTechniques.length} techniques）` +
+          `，超过后端上限 9。请减少 family 或 technique 数量。`
+        );
+      }
+
       const matrix =
         visualTechniqueMatrixMode === "technique_compare"
           ? {
-              families: ["data_news"],
-              visualTechniques: ALL_VISUAL_TECHNIQUES,
+              families: profileFamilies,
+              visualTechniques: [...profileTechniques],
             }
           : {
               families: FAMILY_ADAPTATION_FAMILIES.map((f) => f.id),
@@ -3617,7 +3662,7 @@ export default function RemotionStyleFamilyPage() {
         const combinedItems: VisualTechniqueMatrixItem[] = [];
         let combinedElapsedMs = 0;
         // Render sequentially to avoid launching five Remotion jobs at once.
-        for (const technique of ALL_VISUAL_TECHNIQUES) {
+        for (const technique of profile.visualTechniques) {
           const requestFixtureId = VISUAL_TECHNIQUE_FIXTURE_MAP[technique];
           const data = await requestMatrix(requestFixtureId, {
             families: ["data_news"],
