@@ -90,6 +90,7 @@ interface VisualStyleMatrixResponse {
 interface VisualTechniqueMatrixItem {
   family: string;
   visualTechnique: string;
+  fixtureId?: string;
   success: boolean;
   videoUrl: string;
   experimentId: string;
@@ -2332,6 +2333,14 @@ const ALL_VISUAL_TECHNIQUES: VisualTechniqueId[] = [
   "kinetic_code_typography",
 ];
 
+const VISUAL_TECHNIQUE_FIXTURE_MAP: Record<VisualTechniqueId, VisualTechniqueFixtureId> = {
+  academic_sketch: "academic_explainer",
+  blueprint: "blueprint_architecture",
+  data_viz_dashboard: "data_dashboard",
+  agent_sandbox_25d: "agent_sandbox",
+  kinetic_code_typography: "code_typography",
+};
+
 // V1.2.7+: Family list for adaptation testing (limited to 3 to avoid MAX_MATRIX_ITEMS overflow)
 const FAMILY_ADAPTATION_FAMILIES = [
   { id: "data_news", name: "Data News", desc: "数据新闻 / 指标卡片" },
@@ -2369,8 +2378,8 @@ const VISUAL_TECHNIQUE_PREVIEW_PROFILES: Readonly<{
     acceptanceLevel: "visual_review",
   },
   deep_12s: {
-    label: "16s 深度预览",
-    clipSeconds: 16,
+    label: "12s 深度预览",
+    clipSeconds: 12,
     keyPointCount: 6,
     badge: "Deep",
     purpose: "用富内容（6 条带数字要点）铺满多张卡，观察各技法的密度、排版、数据可视化与转场差异。",
@@ -2428,13 +2437,19 @@ function VisualTechniqueVariantMatrix({
       ? `${import.meta.env.VITE_API_BASE?.replace(/\/video-lab$/, "") ?? ""}${u}`
       : u || "";
 
-  const fixture = VISUAL_TECHNIQUE_FIXTURES[fixtureId];
   const profile = VISUAL_TECHNIQUE_PREVIEW_PROFILES[previewProfileId];
+  const usesTechniqueSpecificContent =
+    matrixMode === "technique_compare" && previewProfileId !== "smoke_2s";
+  const effectiveSharedFixtureId: VisualTechniqueFixtureId =
+    matrixMode === "technique_compare" && previewProfileId === "smoke_2s"
+      ? "generic_ai_eval"
+      : fixtureId;
+  const effectiveSharedFixture = VISUAL_TECHNIQUE_FIXTURES[effectiveSharedFixtureId];
 
   // V1.2.8+: Stale result detection
   const currentSignature = JSON.stringify({
     mode: matrixMode,
-    fixtureId,
+    fixtureId: usesTechniqueSpecificContent ? "auto_by_technique" : effectiveSharedFixtureId,
     previewProfileId,
     adaptationTechnique,
   });
@@ -2591,37 +2606,39 @@ function VisualTechniqueVariantMatrix({
           🧪 当前预览档位：{profile.label}
         </div>
 
-        {/* Fixture selector */}
-        <div style={{ marginBottom: "0.6rem" }}>
-          <div style={{ fontWeight: 600, marginBottom: "0.3rem", color: "#1e40af" }}>
-            测试内容：
+        {/* Fixture selector — only relevant when one technique is compared across families */}
+        {matrixMode === "family_adaptation" && (
+          <div style={{ marginBottom: "0.6rem" }}>
+            <div style={{ fontWeight: 600, marginBottom: "0.3rem", color: "#1e40af" }}>
+              测试内容：
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+              {(Object.keys(VISUAL_TECHNIQUE_FIXTURES) as VisualTechniqueFixtureId[]).map((id) => {
+                const fix = VISUAL_TECHNIQUE_FIXTURES[id];
+                const active = fixtureId === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => onFixtureIdChange(id)}
+                    disabled={loading}
+                    style={{
+                      background: active ? "#7c3aed" : "white",
+                      color: active ? "white" : "#475569",
+                      border: `1px solid ${active ? "#7c3aed" : "#cbd5e1"}`,
+                      borderRadius: "6px",
+                      padding: "0.2rem 0.6rem",
+                      fontSize: "0.72rem",
+                      fontWeight: 600,
+                      cursor: loading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {fix.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
-            {(Object.keys(VISUAL_TECHNIQUE_FIXTURES) as VisualTechniqueFixtureId[]).map((id) => {
-              const fix = VISUAL_TECHNIQUE_FIXTURES[id];
-              const active = fixtureId === id;
-              return (
-                <button
-                  key={id}
-                  onClick={() => onFixtureIdChange(id)}
-                  disabled={loading}
-                  style={{
-                    background: active ? "#7c3aed" : "white",
-                    color: active ? "white" : "#475569",
-                    border: `1px solid ${active ? "#7c3aed" : "#cbd5e1"}`,
-                    borderRadius: "6px",
-                    padding: "0.2rem 0.6rem",
-                    fontSize: "0.72rem",
-                    fontWeight: 600,
-                    cursor: loading ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {fix.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        )}
 
         {/* Fixture info */}
         <div
@@ -2634,21 +2651,46 @@ function VisualTechniqueVariantMatrix({
           }}
         >
           <div style={{ fontWeight: 700, color: "#1e40af", marginBottom: "0.2rem" }}>
-            {fixture.name}
+            {usesTechniqueSpecificContent
+              ? "按技法自动适配内容"
+              : effectiveSharedFixture.name}
           </div>
-          <div style={{ color: "#475569", marginBottom: "0.25rem" }}>{fixture.purpose}</div>
-          <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.25rem" }}>
-            推荐 technique：
-            <span style={{ fontWeight: 600, color: "#7c3aed" }}>
-              {fixture.recommendedTechniques.join(" / ")}
-            </span>
-          </div>
-          <div style={{ fontSize: "0.7rem", color: "#64748b" }}>
-            测试文案：
-            <span style={{ fontStyle: "italic", color: "#334155" }}>
-              {fixture.content.length > 80 ? fixture.content.slice(0, 80) + "…" : fixture.content}
-            </span>
-          </div>
+          {usesTechniqueSpecificContent ? (
+            <>
+              <div style={{ color: "#475569", marginBottom: "0.35rem" }}>
+                8s / 12s 不再让五种技法共用通用文案；每种技法自动使用最匹配的信息结构。
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "0.3rem" }}>
+                {ALL_VISUAL_TECHNIQUES.map((technique) => {
+                  const mappedFixture = VISUAL_TECHNIQUE_FIXTURES[VISUAL_TECHNIQUE_FIXTURE_MAP[technique]];
+                  return (
+                    <div key={technique} style={{ background: "#f8fafc", borderRadius: 5, padding: "0.25rem 0.45rem", fontSize: "0.68rem" }}>
+                      <b style={{ color: "#7c3aed" }}>{VISUAL_TECHNIQUE_META[technique]?.name ?? technique}</b>
+                      {" → "}{mappedFixture.name}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ color: "#475569", marginBottom: "0.25rem" }}>{effectiveSharedFixture.purpose}</div>
+              <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.25rem" }}>
+                推荐 technique：
+                <span style={{ fontWeight: 600, color: "#7c3aed" }}>
+                  {effectiveSharedFixture.recommendedTechniques.join(" / ")}
+                </span>
+              </div>
+              <div style={{ fontSize: "0.7rem", color: "#64748b" }}>
+                测试文案：
+                <span style={{ fontStyle: "italic", color: "#334155" }}>
+                  {effectiveSharedFixture.content.length > 80
+                    ? effectiveSharedFixture.content.slice(0, 80) + "…"
+                    : effectiveSharedFixture.content}
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Profile info */}
@@ -2690,7 +2732,7 @@ function VisualTechniqueVariantMatrix({
           )}
           {profile.acceptanceLevel === "deep_review" && (
             <div style={{ fontSize: "0.68rem", color: "#b45309", marginTop: "0.2rem" }}>
-              ℹ 注意：16s 渲染耗时长，适合深度观察，不建议频繁批量运行。
+              ℹ 注意：12s 渲染耗时较长，适合深度观察，不建议频繁批量运行。
             </div>
           )}
         </div>
@@ -2750,7 +2792,9 @@ function VisualTechniqueVariantMatrix({
         {/* Mode-specific summary */}
         {matrixMode === "technique_compare" ? (
           <div style={{ marginTop: "0.25rem" }}>
-            目的：横向对比 5 个 technique 在同一 family 下的适配度差异。
+            {previewProfileId === "smoke_2s"
+              ? "目的：使用同一份通用内容，快速横向观察 5 个 technique 的样式外观。"
+              : "目的：每种 technique 使用匹配内容，观察真实信息结构下的表现效果。"}
           </div>
         ) : (
           <div style={{ marginTop: "0.25rem" }}>
@@ -2818,6 +2862,11 @@ function VisualTechniqueVariantMatrix({
           const meta = VISUAL_TECHNIQUE_META[item.visualTechnique];
           const acceptance: LocalVisualAcceptance = localAcceptance[key] ?? "pending";
           const accColor = ACCEPTANCE_COLOR[acceptance];
+          const itemFixtureId = (item.fixtureId as VisualTechniqueFixtureId | undefined)
+            ?? (usesTechniqueSpecificContent
+              ? VISUAL_TECHNIQUE_FIXTURE_MAP[item.visualTechnique as VisualTechniqueId]
+              : effectiveSharedFixtureId);
+          const itemFixture = VISUAL_TECHNIQUE_FIXTURES[itemFixtureId];
 
           return (
             <div
@@ -2931,11 +2980,11 @@ function VisualTechniqueVariantMatrix({
               {/* Fixture content match */}
               <div style={{ padding: "0.3rem 0.75rem", fontSize: "0.7rem", color: "#64748b" }}>
                 <div>
-                  当前测试内容：<span style={{ fontWeight: 600, color: "#1e40af" }}>{fixture.name}</span>
+                  当前测试内容：<span style={{ fontWeight: 600, color: "#1e40af" }}>{itemFixture.name}</span>
                 </div>
                 <div>
                   内容匹配：
-                  {fixture.recommendedTechniques.includes(item.visualTechnique) ? (
+                  {itemFixture.recommendedTechniques.includes(item.visualTechnique) ? (
                     <span style={{ color: "#15803d", fontWeight: 600 }}>推荐</span>
                   ) : (
                     <span style={{ color: "#b45309", fontWeight: 600 }}>非推荐，仅作横向对比</span>
@@ -3072,7 +3121,7 @@ function VisualTechniqueVariantMatrix({
                 </div>
                 {profile.acceptanceLevel === "smoke_only" && (
                   <div style={{ fontSize: "0.62rem", color: "#b91c1c", marginTop: "0.25rem", fontWeight: 600 }}>
-                    ⚠ 2s 仅为冒烟预览，请谨慎标记通过，最终结论请使用 8s/16s。
+                    ⚠ 2s 仅为冒烟预览，请谨慎标记通过，最终结论请使用 8s/12s。
                   </div>
                 )}
               </div>
@@ -3128,7 +3177,7 @@ function VisualTechniqueVariantMatrix({
         <ol style={{ margin: 0, paddingLeft: "1.3rem" }}>
           <li>2s 冒烟预览：验证是否能生成和形成差异</li>
           <li>8s 视觉预览：验证动效、可读性和节奏（当前默认）</li>
-          <li>16s 深度预览：验证富内容下的排版与节奏</li>
+          <li>12s 深度预览：验证富内容下的排版与节奏</li>
           <li>单 technique × 多 family：验证适配不同版式（当前已支持）</li>
           <li>完整 Recipe 样片：进入后续 Style Sweep / Style Gallery 候选（未来）</li>
         </ol>
@@ -3283,19 +3332,20 @@ export default function RemotionStyleFamilyPage() {
     setVisualTechniqueMatrixError("");
     setVisualTechniqueMatrixResult(null);
     try {
-      const fixture = VISUAL_TECHNIQUE_FIXTURES[visualTechniqueFixtureId];
       const profile = VISUAL_TECHNIQUE_PREVIEW_PROFILES[visualTechniquePreviewProfileId];
+      const usesTechniqueSpecificContent =
+        visualTechniqueMatrixMode === "technique_compare"
+        && visualTechniquePreviewProfileId !== "smoke_2s";
+      const effectiveSharedFixtureId: VisualTechniqueFixtureId =
+        visualTechniqueMatrixMode === "technique_compare"
+        && visualTechniquePreviewProfileId === "smoke_2s"
+          ? "generic_ai_eval"
+          : visualTechniqueFixtureId;
       const matrix =
         visualTechniqueMatrixMode === "technique_compare"
           ? {
               families: ["data_news"],
-              visualTechniques: [
-                "academic_sketch",
-                "blueprint",
-                "data_viz_dashboard",
-                "agent_sandbox_25d",
-                "kinetic_code_typography",
-              ],
+              visualTechniques: ALL_VISUAL_TECHNIQUES,
             }
           : {
               families: FAMILY_ADAPTATION_FAMILIES.map((f) => f.id),
@@ -3304,35 +3354,68 @@ export default function RemotionStyleFamilyPage() {
       // Build signature for stale detection
       const signature = JSON.stringify({
         mode: visualTechniqueMatrixMode,
-        fixtureId: visualTechniqueFixtureId,
+        fixtureId: usesTechniqueSpecificContent ? "auto_by_technique" : effectiveSharedFixtureId,
         previewProfileId: visualTechniquePreviewProfileId,
         adaptationTechnique: familyAdaptationTechnique,
       });
-      const resp = await fetch(`${API_BASE}/style-family/visual-technique-matrix`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: fixture.content,
-          params: {
-            clipSeconds: profile.clipSeconds,
-            keyPointCount: profile.keyPointCount,
-            // 结构化 fixture 直接解析，不经 LLM 重排：demo 一致、快、免费
-            useLlmPlan: false,
-            visualStylePreset: "warm_paper",
-            backgroundPreset: "warm_cinematic",
-            transitionStyle: "slide_fade",
-            // Technique compare must expose the real five techniques without a large
-            // diagnostic overlay. Family adaptation keeps the structural probe.
-            visualTechniqueContentProbe: visualTechniqueMatrixMode === "family_adaptation",
-            visualTechniqueFixtureId: visualTechniqueFixtureId,
-            visualTechniqueMatrixMode: visualTechniqueMatrixMode,
-          },
-          matrix,
-        }),
-      });
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
-      setVisualTechniqueMatrixResult(data);
+
+      const requestMatrix = async (
+        requestFixtureId: VisualTechniqueFixtureId,
+        requestMatrixConfig: { families: string[]; visualTechniques: string[] },
+      ): Promise<VisualTechniqueMatrixResponse> => {
+        const requestFixture = VISUAL_TECHNIQUE_FIXTURES[requestFixtureId];
+        const resp = await fetch(`${API_BASE}/style-family/visual-technique-matrix`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: requestFixture.content,
+            params: {
+              clipSeconds: profile.clipSeconds,
+              keyPointCount: profile.keyPointCount,
+              // 结构化 fixture 直接解析，不经 LLM 重排：demo 一致、快、免费
+              useLlmPlan: false,
+              visualStylePreset: "warm_paper",
+              backgroundPreset: "warm_cinematic",
+              transitionStyle: "slide_fade",
+              visualTechniqueContentProbe: visualTechniqueMatrixMode === "family_adaptation",
+              visualTechniqueFixtureId: requestFixtureId,
+              visualTechniqueMatrixMode: visualTechniqueMatrixMode,
+            },
+            matrix: requestMatrixConfig,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail ?? `${resp.status}`);
+        return {
+          ...data,
+          items: data.items.map((item: VisualTechniqueMatrixItem) => ({
+            ...item,
+            fixtureId: requestFixtureId,
+          })),
+        };
+      };
+
+      if (usesTechniqueSpecificContent) {
+        const combinedItems: VisualTechniqueMatrixItem[] = [];
+        let combinedElapsedMs = 0;
+        // Render sequentially to avoid launching five Remotion jobs at once.
+        for (const technique of ALL_VISUAL_TECHNIQUES) {
+          const requestFixtureId = VISUAL_TECHNIQUE_FIXTURE_MAP[technique];
+          const data = await requestMatrix(requestFixtureId, {
+            families: ["data_news"],
+            visualTechniques: [technique],
+          });
+          combinedItems.push(...data.items);
+          combinedElapsedMs += data.totalElapsedMs;
+        }
+        setVisualTechniqueMatrixResult({
+          items: combinedItems,
+          totalElapsedMs: combinedElapsedMs,
+        });
+      } else {
+        const data = await requestMatrix(effectiveSharedFixtureId, matrix);
+        setVisualTechniqueMatrixResult(data);
+      }
       setVisualTechniqueResultSignature(signature);
     } catch (e) {
       setVisualTechniqueMatrixError(String(e));
